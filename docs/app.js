@@ -5959,22 +5959,39 @@ function App() {
   }();
   var findTeamByCode = function () {
     var _ref76 = _asyncToGenerator(_regenerator().m(function _callee25(code) {
-      var d, _t34;
+      var r, d, t, _t34;
       return _regenerator().w(function (_context25) {
         while (1) switch (_context25.p = _context25.n) {
           case 0:
             _context25.p = 0;
             _context25.n = 1;
-            return api.get("teams?invite_code=eq.".concat(code.trim().toUpperCase()), token);
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/find_team_by_code"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(token || SB_KEY),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                code: code.trim().toUpperCase()
+              })
+            });
           case 1:
-            d = _context25.v;
-            return _context25.a(2, d[0] ? aTeam(d[0]) : null);
+            r = _context25.v;
+            _context25.n = 2;
+            return r.json();
           case 2:
-            _context25.p = 2;
+            d = _context25.v;
+            t = Array.isArray(d) ? d[0] : d;
+            return _context25.a(2, t !== null && t !== void 0 && t.id ? aTeam(_objectSpread(_objectSpread({}, t), {}, {
+              invite_code: t.invite_code
+            })) : null);
+          case 3:
+            _context25.p = 3;
             _t34 = _context25.v;
             return _context25.a(2, null);
         }
-      }, _callee25, null, [[0, 2]]);
+      }, _callee25, null, [[0, 3]]);
     }));
     return function findTeamByCode(_x24) {
       return _ref76.apply(this, arguments);
