@@ -1357,8 +1357,13 @@ export default function App() {
   // Auth
   const handleLogin = async (email, pass) => {
     setLoading(true); setAuthError(null);
-    try { const d=await api.signIn(email,pass); setToken(d.access_token); setMyUserId(d.user.id); await initApp(d.access_token,d.user.id); }
-    catch(e) { setAuthError(e.message); setLoading(false); }
+    try {
+      const d = await api.signIn(email, pass);
+      const tok = d.access_token || d.session?.access_token;
+      const uid = d.user?.id;
+      if (!tok || !uid) throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
+      setToken(tok); setMyUserId(uid); await initApp(tok, uid);
+    } catch(e) { setAuthError(e.message); setLoading(false); }
   };
 
   const handleRegister = async (email, pass, name) => {
