@@ -5279,7 +5279,7 @@ function App() {
   }();
   var handleLogin = function () {
     var _ref62 = _asyncToGenerator(_regenerator().m(function _callee11(email, pass) {
-      var d, _t17;
+      var _d$session, _d$user, d, tok, uid, _t17;
       return _regenerator().w(function (_context11) {
         while (1) switch (_context11.p = _context11.n) {
           case 0:
@@ -5290,22 +5290,30 @@ function App() {
             return api.signIn(email, pass);
           case 2:
             d = _context11.v;
-            setToken(d.access_token);
-            setMyUserId(d.user.id);
-            _context11.n = 3;
-            return initApp(d.access_token, d.user.id);
+            tok = d.access_token || ((_d$session = d.session) === null || _d$session === void 0 ? void 0 : _d$session.access_token);
+            uid = (_d$user = d.user) === null || _d$user === void 0 ? void 0 : _d$user.id;
+            if (!(!tok || !uid)) {
+              _context11.n = 3;
+              break;
+            }
+            throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
           case 3:
-            _context11.n = 5;
-            break;
+            setToken(tok);
+            setMyUserId(uid);
+            _context11.n = 4;
+            return initApp(tok, uid);
           case 4:
-            _context11.p = 4;
+            _context11.n = 6;
+            break;
+          case 5:
+            _context11.p = 5;
             _t17 = _context11.v;
             setAuthError(_t17.message);
             setLoading(false);
-          case 5:
+          case 6:
             return _context11.a(2);
         }
-      }, _callee11, null, [[1, 4]]);
+      }, _callee11, null, [[1, 5]]);
     }));
     return function handleLogin(_x6, _x7) {
       return _ref62.apply(this, arguments);
@@ -5313,7 +5321,7 @@ function App() {
   }();
   var handleRegister = function () {
     var _ref63 = _asyncToGenerator(_regenerator().m(function _callee12(email, pass, name) {
-      var _d$session, _d$user, d, tok, uid, d2, _t18, _t19;
+      var _d$session2, _d$user2, d, tok, uid, d2, _t18, _t19;
       return _regenerator().w(function (_context12) {
         while (1) switch (_context12.p = _context12.n) {
           case 0:
@@ -5324,8 +5332,8 @@ function App() {
             return api.signUp(email, pass, name);
           case 2:
             d = _context12.v;
-            tok = d.access_token || ((_d$session = d.session) === null || _d$session === void 0 ? void 0 : _d$session.access_token);
-            uid = (_d$user = d.user) === null || _d$user === void 0 ? void 0 : _d$user.id;
+            tok = d.access_token || ((_d$session2 = d.session) === null || _d$session2 === void 0 ? void 0 : _d$session2.access_token);
+            uid = (_d$user2 = d.user) === null || _d$user2 === void 0 ? void 0 : _d$user2.id;
             if (!(tok && uid)) {
               _context12.n = 4;
               break;
