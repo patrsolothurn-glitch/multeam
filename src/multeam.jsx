@@ -1364,9 +1364,22 @@ export default function App() {
   const handleRegister = async (email, pass, name) => {
     setLoading(true); setAuthError(null);
     try {
-      const d=await api.signUp(email,pass,name);
-      if (d.access_token) { setToken(d.access_token); setMyUserId(d.user.id); await initApp(d.access_token,d.user.id); }
-      else setAuthError("Verifica o teu email para confirmar o registo.");
+      const d = await api.signUp(email, pass, name);
+      const tok = d.access_token || d.session?.access_token;
+      const uid = d.user?.id;
+      if (tok && uid) {
+        setToken(tok); setMyUserId(uid); await initApp(tok, uid);
+      } else if (uid) {
+        // Account created but needs email confirmation - try auto-login
+        try {
+          const d2 = await api.signIn(email, pass);
+          setToken(d2.access_token); setMyUserId(d2.user.id); await initApp(d2.access_token, d2.user.id);
+        } catch {
+          setAuthError("Conta criada! Verifica o email ou tenta entrar com 'Entrar'.");
+        }
+      } else {
+        setAuthError("Erro ao criar conta. Tenta novamente.");
+      }
     } catch(e) { setAuthError(e.message); }
     setLoading(false);
   };
