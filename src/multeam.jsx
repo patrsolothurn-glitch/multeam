@@ -1317,9 +1317,19 @@ export default function App() {
   const initApp = async (tok, uid) => {
     setLoading(true);
     try {
-      const profData = await api.get(`profiles?id=eq.${uid}`, tok);
-      const p = profData[0];
-      if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||''), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'' });
+      // Load profile (trigger creates it on signup, but add fallback)
+      let profData = await api.get(`profiles?id=eq.${uid}`, tok);
+      let p = profData[0];
+
+      // Fallback: create profile if doesn't exist yet
+      if (!p) {
+        try {
+          const created = await api.post('profiles', { id: uid, name: 'Utilizador' }, tok);
+          p = Array.isArray(created) ? created[0] : created;
+        } catch(e) { console.warn('Profile creation fallback failed:', e); }
+      }
+
+      if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'' });
 
       const mbrData = await api.get(`team_members?user_id=eq.${uid}&select=team_id`, tok);
       if (!mbrData.length) { setAppReady(true); setLoading(false); return; }
@@ -1373,15 +1383,16 @@ export default function App() {
       const tok = d.access_token || d.session?.access_token;
       const uid = d.user?.id;
       if (tok && uid) {
+        // Update profile with the provided name
+        try { await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok); } catch(e) {}
         setToken(tok); setMyUserId(uid); await initApp(tok, uid);
       } else if (uid) {
-        // Account created but needs email confirmation - try auto-login
         try {
           const d2 = await api.signIn(email, pass);
-          setToken(d2.access_token); setMyUserId(d2.user.id); await initApp(d2.access_token, d2.user.id);
-        } catch {
-          setAuthError("Conta criada! Verifica o email ou tenta entrar com 'Entrar'.");
-        }
+          const tok2 = d2.access_token || d2.session?.access_token;
+          if (tok2) { setToken(tok2); setMyUserId(d2.user.id); await initApp(tok2, d2.user.id); }
+          else setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
+        } catch { setAuthError("Conta criada! Toca em 'Entrar' para aceder."); }
       } else {
         setAuthError("Erro ao criar conta. Tenta novamente.");
       }
