@@ -1461,7 +1461,16 @@ export default function App() {
     } catch(e){console.error(e);}
   };
   const findTeamByCode = async code => {
-    try { const d=await api.get(`teams?invite_code=eq.${code.trim().toUpperCase()}`,token); return d[0]?aTeam(d[0]):null; } catch(e){return null;}
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/find_team_by_code`, {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token||SB_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim().toUpperCase() })
+      });
+      const d = await r.json();
+      const t = Array.isArray(d) ? d[0] : d;
+      return t?.id ? aTeam({...t, invite_code: t.invite_code}) : null;
+    } catch(e) { return null; }
   };
 
   // ── RENDER ────────────────────────────────────────────────
