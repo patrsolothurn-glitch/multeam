@@ -1443,7 +1443,10 @@ export default function App() {
       setMembers(p=>p.map(m=>m.id===id?{...m,...data}:m));
     } catch(e){console.error(e);}
   };
+  const [teamError, setTeamError] = useState(null);
+
   const createTeam = async d => {
+    setTeamError(null);
     try {
       const r = await fetch(`${SB_URL}/rest/v1/rpc/create_team_with_admin`, {
         method: 'POST',
@@ -1451,11 +1454,11 @@ export default function App() {
         body: JSON.stringify({ p_name:d.name, p_emoji:d.emoji, p_color:d.color, p_season:d.season||'2025/26', p_country:d.country||'Portugal', p_sport:d.sport||'Futebol 11', p_currency:d.currency||'EUR (€)', p_city:d.city||'', p_postal:d.postal||'' })
       });
       const t = await r.json();
-      if (!t?.id) throw new Error(t?.message || 'Erro ao criar equipa');
+      if (!t?.id) { setTeamError(JSON.stringify(t)); return; }
       const newTeam = aTeam(t);
       setTeams(p=>[...p, newTeam]);
       await switchTeam(t.id);
-    } catch(e){ console.error('createTeam error:', e); alert('Erro: ' + e.message); }
+    } catch(e){ setTeamError(e.message); }
   };
   const joinTeam = async t => {
     try {
@@ -1489,7 +1492,8 @@ export default function App() {
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"system-ui" }}>
       <p style={{ fontSize:40 }}>⚽</p>
       <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px" }}>Sem equipas ainda</p>
-      <p style={{ color:T.sub, marginBottom:24 }}>Cria ou junta-te a uma equipa</p>
+      <p style={{ color:T.sub, marginBottom:16 }}>Cria ou junta-te a uma equipa</p>
+      {teamError && <div style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", marginBottom:16, width:"100%", maxWidth:340, fontSize:13, color:"#C00", wordBreak:"break-all" }}>{teamError}</div>}
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
