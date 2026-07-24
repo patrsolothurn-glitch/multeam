@@ -3708,15 +3708,15 @@ var TreinosPage = function TreinosPage(_ref42) {
       whiteSpace: "nowrap",
       flexShrink: 0
     }
-  }, "\uD83D\uDD50 Passado"), isAdmin && React.createElement("button", {
+  }, "\uD83D\uDD50 Passado"), isAdmin && React.createElement(React.Fragment, null, React.createElement("button", {
     onClick: function onClick() {
-      return setModal("typePicker");
+      return setModal("treino");
     },
     style: {
       display: "flex",
       alignItems: "center",
-      gap: 5,
-      padding: "8px 16px",
+      gap: 4,
+      padding: "8px 14px",
       borderRadius: 20,
       border: "none",
       background: team.color,
@@ -3729,7 +3729,47 @@ var TreinosPage = function TreinosPage(_ref42) {
       flexShrink: 0,
       boxShadow: "0 2px 10px ".concat(team.color, "44")
     }
-  }, "+ Acrescentar"), React.createElement("button", {
+  }, "\u26BD Treino"), React.createElement("button", {
+    onClick: function onClick() {
+      return setModal("recorrente");
+    },
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      padding: "8px 14px",
+      borderRadius: 20,
+      border: "1px solid ".concat(team.color),
+      background: "transparent",
+      color: team.color,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    }
+  }, "\uD83D\uDD04"), React.createElement("button", {
+    onClick: function onClick() {
+      return setModal("jogo");
+    },
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      padding: "8px 14px",
+      borderRadius: 20,
+      border: "1px solid ".concat(team.color),
+      background: "transparent",
+      color: team.color,
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    }
+  }, "\uD83C\uDFC6")), React.createElement("button", {
     onClick: function onClick() {
       return setShowFilter(true);
     },
@@ -3920,62 +3960,7 @@ var TreinosPage = function TreinosPage(_ref42) {
       return setShowFilter(false);
     },
     color: team.color
-  }, "Fechar")), modal === "typePicker" && React.createElement(Sheet, {
-    title: "\u2795 Novo evento",
-    onClose: function onClose() {
-      return setModal(null);
-    }
-  }, [{
-    key: "treino",
-    emoji: "⚽",
-    label: "Treino único",
-    sub: "Um treino pontual"
-  }, {
-    key: "recorrente",
-    emoji: "🔄",
-    label: "Treino recorrente",
-    sub: "Repete semanalmente"
-  }, {
-    key: "jogo",
-    emoji: "🏆",
-    label: "Jogo",
-    sub: "Com adversário e convocatória"
-  }].map(function (opt) {
-    return React.createElement("button", {
-      key: opt.key,
-      onClick: function onClick() {
-        return setModal(opt.key);
-      },
-      style: {
-        width: "100%",
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        padding: "14px 16px",
-        borderRadius: 14,
-        border: "1.5px solid ".concat(T.border),
-        background: T.inputBg,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        marginBottom: 10,
-        textAlign: "left"
-      }
-    }, React.createElement("span", {
-      style: {
-        fontSize: 28
-      }
-    }, opt.emoji), React.createElement("div", null, React.createElement("div", {
-      style: {
-        fontWeight: 700,
-        fontSize: 15
-      }
-    }, opt.label), React.createElement("div", {
-      style: {
-        fontSize: 13,
-        color: T.sub
-      }
-    }, opt.sub)));
-  })), modal === "treino" && React.createElement(AddSingleTrainingModal, {
+  }, "Fechar")), modal === "treino" && React.createElement(AddSingleTrainingModal, {
     team: team,
     onAdd: (function () {
       var _ref52 = _asyncToGenerator(_regenerator().m(function _callee12(t) {
