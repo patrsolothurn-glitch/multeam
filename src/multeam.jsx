@@ -991,9 +991,6 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
           <PrimaryBtn onClick={()=>setShowFilter(false)} color={team.color}>Fechar</PrimaryBtn>
         </Sheet>
       )}
-
-      {/* Training modals */}
-      {modal==="typePicker"  && <TrainingTypePicker team={team} onSelect={t=>setModal(t)} onClose={()=>setModal(null)} />}
       {modal==="typePicker" && (
         <Sheet title="➕ Novo evento" onClose={()=>setModal(null)}>
           {[
