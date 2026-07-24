@@ -5259,7 +5259,7 @@ function App() {
   }();
   var initApp = function () {
     var _ref60 = _asyncToGenerator(_regenerator().m(function _callee10(tok, uid) {
-      var profData, p, created, _yield$Promise$all3, _yield$Promise$all4, mbrData, createdData, allIds, teamsData, adapted, first, td, _t18, _t19;
+      var profData, p, created, myTeamsR, adapted, teamsJson, teamsList, first, td, _t18, _t19;
       return _regenerator().w(function (_context10) {
         while (1) switch (_context10.p = _context10.n) {
           case 0:
@@ -5300,44 +5300,43 @@ function App() {
               email: ''
             });
             _context10.n = 7;
-            return Promise.all([api.get("team_members?user_id=eq.".concat(uid, "&select=team_id"), tok).catch(function () {
-              return [];
-            }), api.get("teams?created_by=eq.".concat(uid, "&select=id"), tok).catch(function () {
-              return [];
-            })]);
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/get_my_teams"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(tok),
+                'Content-Type': 'application/json'
+              },
+              body: '{}'
+            });
           case 7:
-            _yield$Promise$all3 = _context10.v;
-            _yield$Promise$all4 = _slicedToArray(_yield$Promise$all3, 2);
-            mbrData = _yield$Promise$all4[0];
-            createdData = _yield$Promise$all4[1];
-            allIds = _toConsumableArray(new Set([].concat(_toConsumableArray(mbrData.map(function (m) {
-              return m.team_id;
-            })), _toConsumableArray(createdData.map(function (t) {
-              return t.id;
-            })))));
-            if (allIds.length) {
-              _context10.n = 8;
+            myTeamsR = _context10.v;
+            adapted = [];
+            if (!myTeamsR.ok) {
+              _context10.n = 9;
+              break;
+            }
+            _context10.n = 8;
+            return myTeamsR.json();
+          case 8:
+            teamsJson = _context10.v;
+            teamsList = Array.isArray(teamsJson) ? teamsJson : teamsJson ? [teamsJson] : [];
+            adapted = teamsList.map(aTeam);
+          case 9:
+            setTeams(adapted);
+            if (adapted.length) {
+              _context10.n = 10;
               break;
             }
             setAppReady(true);
             setLoading(false);
             return _context10.a(2);
-          case 8:
-            _context10.n = 9;
-            return api.get("teams?id=in.(".concat(allIds.join(','), ")"), tok);
-          case 9:
-            teamsData = _context10.v;
-            adapted = teamsData.map(aTeam);
-            setTeams(adapted);
-            if (!(adapted.length > 0)) {
-              _context10.n = 11;
-              break;
-            }
+          case 10:
             first = adapted[0].id;
             setTeamId(first);
-            _context10.n = 10;
+            _context10.n = 11;
             return loadTeam(tok, first);
-          case 10:
+          case 11:
             td = _context10.v;
             setMembers(td.members);
             setFineTypes(td.fineTypes);
@@ -5345,7 +5344,6 @@ function App() {
             setExpenses(td.expenses);
             setTrainings(td.trainings);
             setPresences(td.presences);
-          case 11:
             setAppReady(true);
             _context10.n = 13;
             break;
