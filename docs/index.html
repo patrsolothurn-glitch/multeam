@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
     html { overscroll-behavior: none; height: 100%; }
     body { margin: 0; padding: 0; background: #F0F1F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overscroll-behavior: none; height: 100%; overflow: hidden; }
     #root { height: 100%; overflow-y: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
@@ -50,22 +50,26 @@
       }, 800);
     });
 
-    // Prevent pull-to-refresh and overscroll completely
+    // Prevent pull-to-refresh - target #root scroll position
     (function() {
-      var lastY = 0;
+      var startY = 0;
       document.addEventListener('touchstart', function(e) {
-        lastY = e.touches[0].clientY;
+        startY = e.touches[0].clientY;
       }, { passive: true });
       document.addEventListener('touchmove', function(e) {
-        var el = e.target;
-        var scrollable = false;
-        while (el && el !== document.body) {
-          if (el.scrollHeight > el.clientHeight && (el.scrollTop > 0 || el.scrollTop + el.clientHeight < el.scrollHeight)) {
-            scrollable = true; break;
-          }
-          el = el.parentNode;
+        if (!e.cancelable) return;
+        var delta = e.touches[0].clientY - startY;
+        var root = document.getElementById('root');
+        // Block pull-down when root is at top (prevents Chrome pull-to-refresh)
+        if (root && delta > 0 && root.scrollTop <= 0) {
+          e.preventDefault();
+          return;
         }
-        if (!scrollable) e.preventDefault();
+        // Block pull-up when at bottom
+        if (root && delta < 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2) {
+          e.preventDefault();
+          return;
+        }
       }, { passive: false });
     })();
 
