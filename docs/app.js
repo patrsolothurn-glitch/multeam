@@ -367,7 +367,8 @@ var aTeam = function aTeam(t) {
     sport: t.sport,
     currency: t.currency,
     city: t.city,
-    postal: t.postal
+    postal: t.postal,
+    createdBy: t.created_by
   };
 };
 var aMember = function aMember(m) {
@@ -3987,7 +3988,7 @@ var GeneralTab = function GeneralTab(_ref48) {
   var myTeams = teams.filter(function (t) {
     return members.some(function (m) {
       return m.teamId === t.id && m.userId === myUserId;
-    });
+    }) || t.createdBy === myUserId;
   });
   var myAge = age(user.birthday);
   return React.createElement("div", {
@@ -4090,7 +4091,7 @@ var GeneralTab = function GeneralTab(_ref48) {
     var me = members.find(function (m) {
       return m.teamId === t.id && m.userId === myUserId;
     });
-    var admin = (me === null || me === void 0 ? void 0 : me.role) === "admin";
+    var admin = (me === null || me === void 0 ? void 0 : me.role) === "admin" || t.createdBy === myUserId;
     return React.createElement("div", {
       key: t.id,
       style: {
@@ -5253,7 +5254,7 @@ function App() {
   });
   var isAdmin = members.some(function (m) {
     return m.teamId === teamId && m.userId === myUserId && m.role === "admin";
-  });
+  }) || (team === null || team === void 0 ? void 0 : team.createdBy) === myUserId;
   var loadTeam = function () {
     var _ref59 = _asyncToGenerator(_regenerator().m(function _callee1(tok, tid) {
       var _yield$Promise$all, _yield$Promise$all2, mData, ftData, fData, eData, tData, pData, presMap;
