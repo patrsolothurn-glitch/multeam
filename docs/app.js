@@ -2970,14 +2970,14 @@ var HomeTab = function HomeTab(_ref38) {
         style: {
           margin: 0,
           fontWeight: 700,
-          fontSize: isFirst ? 15 : 13,
+          fontSize: isFirst ? 14 : 12,
           textAlign: "center",
-          maxWidth: 80,
+          maxWidth: 90,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap"
         }
-      }, m.name.split(" ")[0]), React.createElement("div", {
+      }, m.name), React.createElement("div", {
         style: {
           background: m.unpaid > 0 ? isFirst ? T.brand : "".concat(T.brand, "18") : T.bg,
           borderRadius: 10,
@@ -3053,7 +3053,7 @@ var HomeTab = function HomeTab(_ref38) {
           fontWeight: 600,
           fontSize: 15
         }
-      }, m.name.split(" ")[0]), React.createElement("p", {
+      }, m.name), React.createElement("p", {
         style: {
           margin: 0,
           fontWeight: 800,
