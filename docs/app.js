@@ -1214,19 +1214,16 @@ var AddFineModal = function AddFineModal(_ref12) {
     _useState4 = _slicedToArray(_useState3, 2),
     mid = _useState4[0],
     setMid = _useState4[1];
-  var _useState5 = useState(""),
+  var _useState5 = useState(null),
     _useState6 = _slicedToArray(_useState5, 2),
-    ftid = _useState6[0],
-    setFtid = _useState6[1];
+    sft = _useState6[0],
+    setSft = _useState6[1];
   var _useState7 = useState(""),
     _useState8 = _slicedToArray(_useState7, 2),
     reason = _useState8[0],
     setReason = _useState8[1];
   var tft = fineTypes.filter(function (ft) {
     return ft.teamId === team.id;
-  });
-  var sft = tft.find(function (ft) {
-    return String(ft.id) === ftid;
   });
   useEffect(function () {
     fetch("".concat(SB_URL, "/rest/v1/team_members?team_id=eq.").concat(team.id, "&select=*"), {
@@ -1320,13 +1317,13 @@ var AddFineModal = function AddFineModal(_ref12) {
     return React.createElement("button", {
       key: ft.id,
       onClick: function onClick() {
-        return setFtid(String(ft.id));
+        return setSft(ft);
       },
       style: {
         padding: "10px 14px",
         borderRadius: 12,
-        border: "2px solid ".concat(ftid === String(ft.id) ? T.brand : T.border),
-        background: ftid === String(ft.id) ? "".concat(T.brand, "12") : T.inputBg,
+        border: "2px solid ".concat((sft === null || sft === void 0 ? void 0 : sft.id) === ft.id ? T.brand : T.border),
+        background: (sft === null || sft === void 0 ? void 0 : sft.id) === ft.id ? "".concat(T.brand, "12") : T.inputBg,
         cursor: "pointer",
         fontSize: 14,
         fontWeight: 600,
@@ -1346,7 +1343,7 @@ var AddFineModal = function AddFineModal(_ref12) {
       return _regenerator().w(function (_context0) {
         while (1) switch (_context0.p = _context0.n) {
           case 0:
-            if (!(!mid || !ftid || !sft)) {
+            if (!(!mid || !sft)) {
               _context0.n = 1;
               break;
             }
@@ -1376,7 +1373,7 @@ var AddFineModal = function AddFineModal(_ref12) {
         }
       }, _callee0, null, [[1, 3]]);
     })),
-    disabled: !mid || !ftid || !sft
+    disabled: !mid || !sft
   }, "Atribuir ", sft ? "".concat(sft.amount, "\u20AC") : "", " de multa"));
 };
 var AddExpenseModal = function AddExpenseModal(_ref15) {
