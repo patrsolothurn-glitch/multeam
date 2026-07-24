@@ -1349,31 +1349,26 @@ export default function App() {
 
       if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'' });
 
-      // Load teams: by membership OR by creation (handles race conditions)
-      const [mbrData, createdData] = await Promise.all([
-        api.get(`team_members?user_id=eq.${uid}&select=team_id`, tok).catch(()=>[]),
-        api.get(`teams?created_by=eq.${uid}&select=id`, tok).catch(()=>[]),
-      ]);
-
-      const allIds = [...new Set([
-        ...mbrData.map(m=>m.team_id),
-        ...createdData.map(t=>t.id)
-      ])];
-
-      if (!allIds.length) { setAppReady(true); setLoading(false); return; }
-
-      const teamsData = await api.get(`teams?id=in.(${allIds.join(',')})`, tok);
-      const adapted = teamsData.map(aTeam);
+      // Load teams via RPC (bypasses RLS, handles member + creator)
+      const myTeamsR = await fetch(`${SB_URL}/rest/v1/rpc/get_my_teams`, {
+        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`,'Content-Type':'application/json'}, body:'{}'
+      });
+      let adapted = [];
+      if (myTeamsR.ok) {
+        const teamsJson = await myTeamsR.json();
+        const teamsList = Array.isArray(teamsJson) ? teamsJson : (teamsJson ? [teamsJson] : []);
+        adapted = teamsList.map(aTeam);
+      }
       setTeams(adapted);
 
-      if (adapted.length > 0) {
-        const first = adapted[0].id;
-        setTeamId(first);
-        const td = await loadTeam(tok, first);
-        setMembers(td.members); setFineTypes(td.fineTypes);
-        setFines(td.fines); setExpenses(td.expenses);
-        setTrainings(td.trainings); setPresences(td.presences);
-      }
+      if (!adapted.length) { setAppReady(true); setLoading(false); return; }
+
+      const first = adapted[0].id;
+      setTeamId(first);
+      const td = await loadTeam(tok, first);
+      setMembers(td.members); setFineTypes(td.fineTypes);
+      setFines(td.fines); setExpenses(td.expenses);
+      setTrainings(td.trainings); setPresences(td.presences);
       setAppReady(true);
     } catch(e) { setAuthError(`Erro: ${e.message}`); }
     finally { setLoading(false); }
