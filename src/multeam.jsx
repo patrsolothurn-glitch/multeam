@@ -1459,7 +1459,17 @@ export default function App() {
     } catch(e){console.error(e);}
   };
   const addMember = async d => {
-    try { const [m]=await api.post('team_members',{team_id:d.teamId,user_id:crypto.randomUUID(),role:d.role,position:d.position},token); setMembers(p=>[...p,{id:m.id,teamId:m.team_id,userId:m.user_id,role:m.role,name:d.name,initials:mk(d.name),position:d.position,phone:d.phone||'',birthday:d.birthday||''}]); } catch(e){console.error(e);}
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/add_member_to_team`,{
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+        body:JSON.stringify({p_team_id:d.teamId,p_name:d.name,p_position:d.position||'Jogador',p_phone:d.phone||'',p_birthday:d.birthday||null,p_role:d.role||'player'})
+      });
+      const m = await r.json();
+      if (m?.id) {
+        setMembers(p=>[...p,{id:m.id,teamId:d.teamId,userId:m.user_id,role:m.role,name:m.name,initials:mk(m.name),position:m.position||d.position,phone:m.phone||d.phone||'',birthday:d.birthday||''}]);
+      }
+    } catch(e){console.error(e);}
   };
   const toggleRole = async id => {
     const m=members.find(m=>m.id===id); if(!m)return; const nr=m.role==='admin'?'player':'admin';
