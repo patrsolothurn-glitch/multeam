@@ -329,7 +329,7 @@ const AddSingleTrainingModal = ({ team, onAdd, onClose }) => {
 
 // ── TREINO RECORRENTE ─────────────────────────────────────────
 const AddRecurringModal = ({ team, onAdd, onClose }) => {
-  const [days, setDays] = useState([]); const [time, setTime] = useState("19:30"); const [loc, setLoc] = useState(""); const [notes, setNotes] = useState("");
+  const [days, setDays] = useState([]); const [time, setTime] = useState("19:30"); const [loc, setLoc] = useState(""); const [notes, setNotes] = useState(""); const [err, setErr] = useState("");
   const ok = days.length > 0 && time && loc;
   const toggleDay = d => setDays(p => p.includes(d) ? p.filter(x=>x!==d) : [...p,d]);
   return (
@@ -353,7 +353,8 @@ const AddRecurringModal = ({ team, onAdd, onClose }) => {
           🔄 {days.length>0 ? `Repete às ${days.sort().map(d=>DAYS_PT[d]).join(", ")}` : "Seleciona os dias"} · {time}
         </p>
       </div>
-      <PrimaryBtn onClick={() => { if(!ok) return; onAdd({ teamId:team.id, type:"recorrente", recurring:true, days:days.sort(), time, location:loc, notes, createdBy:myUserId }); onClose(); }} disabled={!ok} color={team.color}>
+      {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"recorrente", recurring:true, days:days.sort(), time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); } }} disabled={!ok} color={team.color}>
         Criar treino recorrente
       </PrimaryBtn>
     </Sheet>
