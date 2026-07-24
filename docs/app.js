@@ -5854,14 +5854,19 @@ function App() {
       return _ref73.apply(this, arguments);
     };
   }();
+  var _useState155 = useState(null),
+    _useState156 = _slicedToArray(_useState155, 2),
+    teamError = _useState156[0],
+    setTeamError = _useState156[1];
   var createTeam = function () {
     var _ref74 = _asyncToGenerator(_regenerator().m(function _callee23(d) {
       var r, t, newTeam, _t32;
       return _regenerator().w(function (_context23) {
         while (1) switch (_context23.p = _context23.n) {
           case 0:
-            _context23.p = 0;
-            _context23.n = 1;
+            setTeamError(null);
+            _context23.p = 1;
+            _context23.n = 2;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/create_team_with_admin"), {
               method: 'POST',
               headers: {
@@ -5881,36 +5886,36 @@ function App() {
                 p_postal: d.postal || ''
               })
             });
-          case 1:
-            r = _context23.v;
-            _context23.n = 2;
-            return r.json();
           case 2:
+            r = _context23.v;
+            _context23.n = 3;
+            return r.json();
+          case 3:
             t = _context23.v;
             if (t !== null && t !== void 0 && t.id) {
-              _context23.n = 3;
+              _context23.n = 4;
               break;
             }
-            throw new Error((t === null || t === void 0 ? void 0 : t.message) || 'Erro ao criar equipa');
-          case 3:
+            setTeamError(JSON.stringify(t));
+            return _context23.a(2);
+          case 4:
             newTeam = aTeam(t);
             setTeams(function (p) {
               return [].concat(_toConsumableArray(p), [newTeam]);
             });
-            _context23.n = 4;
+            _context23.n = 5;
             return switchTeam(t.id);
-          case 4:
-            _context23.n = 6;
-            break;
           case 5:
-            _context23.p = 5;
-            _t32 = _context23.v;
-            console.error('createTeam error:', _t32);
-            alert('Erro: ' + _t32.message);
+            _context23.n = 7;
+            break;
           case 6:
+            _context23.p = 6;
+            _t32 = _context23.v;
+            setTeamError(_t32.message);
+          case 7:
             return _context23.a(2);
         }
-      }, _callee23, null, [[0, 5]]);
+      }, _callee23, null, [[1, 6]]);
     }));
     return function createTeam(_x22) {
       return _ref74.apply(this, arguments);
@@ -6060,9 +6065,21 @@ function App() {
   }, "Sem equipas ainda"), React.createElement("p", {
     style: {
       color: T.sub,
-      marginBottom: 24
+      marginBottom: 16
     }
-  }, "Cria ou junta-te a uma equipa"), React.createElement("button", {
+  }, "Cria ou junta-te a uma equipa"), teamError && React.createElement("div", {
+    style: {
+      background: "#FFE5E5",
+      borderRadius: 12,
+      padding: "12px 16px",
+      marginBottom: 16,
+      width: "100%",
+      maxWidth: 340,
+      fontSize: 13,
+      color: "#C00",
+      wordBreak: "break-all"
+    }
+  }, teamError), React.createElement("button", {
     onClick: function onClick() {
       return setModal("team");
     },
