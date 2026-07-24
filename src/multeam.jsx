@@ -1465,17 +1465,24 @@ export default function App() {
   const createTeam = async d => {
     setTeamError(null);
     try {
-      const r = await fetch(`${SB_URL}/rest/v1/rpc/create_team_with_admin`, {
-        method: 'POST',
-        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ p_name:d.name, p_emoji:d.emoji, p_color:d.color, p_season:d.season||'2025/26', p_country:d.country||'Portugal', p_sport:d.sport||'Futebol 11', p_currency:d.currency||'EUR (€)', p_city:d.city||'', p_postal:d.postal||'' })
-      });
-      const t = await r.json();
-      if (!t?.id) { setTeamError(JSON.stringify(t)); return; }
-      const newTeam = aTeam(t);
+      const tid = crypto.randomUUID();
+      const invCode = Math.random().toString(36).substring(2,5).toUpperCase()+'-'+Math.random().toString(36).substring(2,6).toUpperCase();
+
+      // 1. Inserir equipa
+      await api.post('teams',{ id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:d.city||'', postal:d.postal||'', created_by:myUserId, invite_code:invCode },token);
+
+      // 2. Inserir membro admin (agora é membro → SELECT funciona)
+      await api.post('team_members',{ team_id:tid, user_id:myUserId, role:'admin' },token);
+
+      // 3. Tipos de multa padrão
+      await Promise.all(DEFAULT_FINE_TYPES.map(ft=>api.post('fine_types',{ team_id:tid, name:ft.name, amount:ft.amount },token)));
+
+      // 4. Ler equipa
+      const tr = await api.get(`teams?id=eq.${tid}`,token);
+      const newTeam = aTeam(tr[0] || { id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season, invite_code:invCode });
       setTeams(p=>[...p, newTeam]);
-      await switchTeam(t.id);
-    } catch(e){ setTeamError(e.message); }
+      await switchTeam(tid);
+    } catch(e){ setTeamError(e.message||JSON.stringify(e)); }
   };
   const joinTeam = async t => {
     try {
