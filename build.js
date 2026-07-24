@@ -9,7 +9,7 @@ let src = fs.readFileSync('./src/multeam.jsx', 'utf8');
 
 // Adapt imports for browser globals (React loaded via CDN)
 src = src
-  .replace('import { useState, useEffect } from "react";', 'const { useState, useEffect } = React;')
+  .replace(/import \{([^}]+)\} from "react";/, (_, hooks) => `const {${hooks}} = React;`)
   .replace(/^export default function App\(\)/m, 'function App()');
 
 // Add ReactDOM render
