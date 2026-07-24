@@ -3920,15 +3920,7 @@ var TreinosPage = function TreinosPage(_ref42) {
       return setShowFilter(false);
     },
     color: team.color
-  }, "Fechar")), modal === "typePicker" && React.createElement(TrainingTypePicker, {
-    team: team,
-    onSelect: function onSelect(t) {
-      return setModal(t);
-    },
-    onClose: function onClose() {
-      return setModal(null);
-    }
-  }), modal === "typePicker" && React.createElement(Sheet, {
+  }, "Fechar")), modal === "typePicker" && React.createElement(Sheet, {
     title: "\u2795 Novo evento",
     onClose: function onClose() {
       return setModal(null);
