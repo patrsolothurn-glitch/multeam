@@ -1472,11 +1472,13 @@ export default function App() {
       // 1. Inserir equipa
       await api.post('teams',{ id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:d.city||'', postal:d.postal||'', created_by:myUserId, invite_code:invCode },token);
 
-      // 2. Inserir membro admin (return=minimal evita conflito RLS)
-      await api.insert('team_members',{ team_id:tid, user_id:myUserId, role:'admin' },token);
-
-      // 3. Tipos de multa padrão
-      await Promise.all(DEFAULT_FINE_TYPES.map(ft=>api.post('fine_types',{ team_id:tid, name:ft.name, amount:ft.amount },token)));
+      // 2. Usar RPC security definer para bypass RLS (insere membro + multas padrão)
+      const sr = await fetch(`${SB_URL}/rest/v1/rpc/setup_new_team`,{
+        method:'POST',
+        headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+        body:JSON.stringify({p_team_id:tid,p_user_id:myUserId})
+      });
+      if(!sr.ok){ const se=await sr.json(); throw new Error(se.message||se.hint||'Erro ao configurar equipa'); }
 
       // 4. Ler equipa
       const tr = await api.get(`teams?id=eq.${tid}`,token);
