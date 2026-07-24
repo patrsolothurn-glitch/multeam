@@ -657,7 +657,17 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const spent = expenses.filter(e=>e.teamId===team.id).reduce((s,e)=>s+e.amount,0);
   const balance = collected - spent;
-  const recent = [...tf].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
+  // Sort fines by member rank (most debt first), then by date desc within same member
+  const memberRank = members
+    .filter(m=>m.teamId===team.id)
+    .map(m=>({ id:m.id, unpaid: tf.filter(f=>f.memberId===m.id&&!f.paid).reduce((s,f)=>s+f.amount,0) }))
+    .sort((a,b)=>b.unpaid-a.unpaid)
+    .reduce((acc,m,i)=>({...acc,[m.id]:i}),{});
+  const recent = [...tf].sort((a,b)=>{
+    const rankDiff = (memberRank[a.memberId]??99) - (memberRank[b.memberId]??99);
+    if (rankDiff !== 0) return rankDiff;
+    return new Date(b.date)-new Date(a.date);
+  });
   const upcoming = trainings.filter(t=>t.teamId===team.id&&!isPast(t.date)).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,2);
   const gm = id => members.find(m=>m.id===id);
   return (
