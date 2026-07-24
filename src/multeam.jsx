@@ -929,11 +929,17 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
         <button onClick={() => setShowPast(!showPast)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", borderRadius:20, border:`1px solid ${T.border}`, background:showPast?T.navy:"transparent", color:showPast?"#fff":T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
           🕐 Passado
         </button>
-        {isAdmin && (
-          <button onClick={() => setModal("typePicker")} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 16px", borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
-            + Acrescentar
+        {isAdmin && (<>
+          <button onClick={() => setModal("treino")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
+            ⚽ Treino
           </button>
-        )}
+          <button onClick={() => setModal("recorrente")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+            🔄
+          </button>
+          <button onClick={() => setModal("jogo")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+            🏆
+          </button>
+        </>)}
         <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", borderRadius:20, border:`1px solid ${filterType?team.color:T.border}`, background:filterType?`${team.color}15`:"transparent", color:filterType?team.color:T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, marginLeft:"auto" }}>
           ≡ Filtros{filterType?" •":""}
         </button>
@@ -989,23 +995,6 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
           ))}
           <div style={{height:12}}/>
           <PrimaryBtn onClick={()=>setShowFilter(false)} color={team.color}>Fechar</PrimaryBtn>
-        </Sheet>
-      )}
-      {modal==="typePicker" && (
-        <Sheet title="➕ Novo evento" onClose={()=>setModal(null)}>
-          {[
-            { key:"treino",     emoji:"⚽", label:"Treino único",      sub:"Um treino pontual" },
-            { key:"recorrente", emoji:"🔄", label:"Treino recorrente", sub:"Repete semanalmente" },
-            { key:"jogo",       emoji:"🏆", label:"Jogo",              sub:"Com adversário e convocatória" },
-          ].map(opt => (
-            <button key={opt.key} onClick={()=>setModal(opt.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:14, padding:"14px 16px", borderRadius:14, border:`1.5px solid ${T.border}`, background:T.inputBg, cursor:"pointer", fontFamily:"inherit", marginBottom:10, textAlign:"left" }}>
-              <span style={{ fontSize:28 }}>{opt.emoji}</span>
-              <div>
-                <div style={{ fontWeight:700, fontSize:15 }}>{opt.label}</div>
-                <div style={{ fontSize:13, color:T.sub }}>{opt.sub}</div>
-              </div>
-            </button>
-          ))}
         </Sheet>
       )}
       {modal==="treino"      && <AddSingleTrainingModal team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
