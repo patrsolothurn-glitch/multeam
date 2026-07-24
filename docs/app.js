@@ -5257,23 +5257,50 @@ function App() {
   }) || (team === null || team === void 0 ? void 0 : team.createdBy) === myUserId;
   var loadTeam = function () {
     var _ref59 = _asyncToGenerator(_regenerator().m(function _callee1(tok, tid) {
-      var _yield$Promise$all, _yield$Promise$all2, mData, ftData, fData, eData, tData, pData, presMap;
+      var _yield$Promise$all, _yield$Promise$all2, mRaw, ftData, fData, eData, tData, pData, profilesMap, uids, profs, mData, presMap;
       return _regenerator().w(function (_context1) {
         while (1) switch (_context1.n) {
           case 0:
             _context1.n = 1;
-            return Promise.all([api.get("team_members?team_id=eq.".concat(tid, "&select=*,profiles(*)"), tok), api.get("fine_types?team_id=eq.".concat(tid, "&order=amount.asc"), tok), api.get("fines?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("expenses?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("trainings?team_id=eq.".concat(tid, "&order=date.asc,time.asc"), tok), api.get("presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.".concat(tid), tok).catch(function () {
+            return Promise.all([api.get("team_members?team_id=eq.".concat(tid, "&select=*"), tok), api.get("fine_types?team_id=eq.".concat(tid, "&order=amount.asc"), tok), api.get("fines?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("expenses?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("trainings?team_id=eq.".concat(tid, "&order=date.asc,time.asc"), tok), api.get("presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.".concat(tid), tok).catch(function () {
               return [];
             })]);
           case 1:
             _yield$Promise$all = _context1.v;
             _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 6);
-            mData = _yield$Promise$all2[0];
+            mRaw = _yield$Promise$all2[0];
             ftData = _yield$Promise$all2[1];
             fData = _yield$Promise$all2[2];
             eData = _yield$Promise$all2[3];
             tData = _yield$Promise$all2[4];
             pData = _yield$Promise$all2[5];
+            profilesMap = {};
+            if (!(mRaw.length > 0)) {
+              _context1.n = 3;
+              break;
+            }
+            uids = mRaw.map(function (m) {
+              return m.user_id;
+            }).filter(Boolean);
+            if (!(uids.length > 0)) {
+              _context1.n = 3;
+              break;
+            }
+            _context1.n = 2;
+            return api.get("profiles?id=in.(".concat(uids.join(','), ")"), tok).catch(function () {
+              return [];
+            });
+          case 2:
+            profs = _context1.v;
+            profs.forEach(function (p) {
+              profilesMap[p.id] = p;
+            });
+          case 3:
+            mData = mRaw.map(function (m) {
+              return _objectSpread(_objectSpread({}, m), {}, {
+                profiles: profilesMap[m.user_id] || null
+              });
+            });
             presMap = {};
             pData.forEach(function (p) {
               if (!presMap[p.training_id]) presMap[p.training_id] = {};
