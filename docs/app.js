@@ -5917,62 +5917,74 @@ function App() {
     setTeamError = _useState156[1];
   var createTeam = function () {
     var _ref74 = _asyncToGenerator(_regenerator().m(function _callee23(d) {
-      var r, t, newTeam, _t32;
+      var tid, invCode, tr, newTeam, _t32;
       return _regenerator().w(function (_context23) {
         while (1) switch (_context23.p = _context23.n) {
           case 0:
             setTeamError(null);
             _context23.p = 1;
+            tid = crypto.randomUUID();
+            invCode = Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
             _context23.n = 2;
-            return fetch("".concat(SB_URL, "/rest/v1/rpc/create_team_with_admin"), {
-              method: 'POST',
-              headers: {
-                'apikey': SB_KEY,
-                'Authorization': "Bearer ".concat(token),
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                p_name: d.name,
-                p_emoji: d.emoji,
-                p_color: d.color,
-                p_season: d.season || '2025/26',
-                p_country: d.country || 'Portugal',
-                p_sport: d.sport || 'Futebol 11',
-                p_currency: d.currency || 'EUR (€)',
-                p_city: d.city || '',
-                p_postal: d.postal || ''
-              })
-            });
+            return api.post('teams', {
+              id: tid,
+              name: d.name,
+              emoji: d.emoji,
+              color: d.color,
+              season: d.season || '2025/26',
+              country: d.country || 'Portugal',
+              sport: d.sport || 'Futebol 11',
+              currency: d.currency || 'EUR',
+              city: d.city || '',
+              postal: d.postal || '',
+              created_by: myUserId,
+              invite_code: invCode
+            }, token);
           case 2:
-            r = _context23.v;
             _context23.n = 3;
-            return r.json();
+            return api.post('team_members', {
+              team_id: tid,
+              user_id: myUserId,
+              role: 'admin'
+            }, token);
           case 3:
-            t = _context23.v;
-            if (t !== null && t !== void 0 && t.id) {
-              _context23.n = 4;
-              break;
-            }
-            setTeamError(JSON.stringify(t));
-            return _context23.a(2);
+            _context23.n = 4;
+            return Promise.all(DEFAULT_FINE_TYPES.map(function (ft) {
+              return api.post('fine_types', {
+                team_id: tid,
+                name: ft.name,
+                amount: ft.amount
+              }, token);
+            }));
           case 4:
-            newTeam = aTeam(t);
+            _context23.n = 5;
+            return api.get("teams?id=eq.".concat(tid), token);
+          case 5:
+            tr = _context23.v;
+            newTeam = aTeam(tr[0] || {
+              id: tid,
+              name: d.name,
+              emoji: d.emoji,
+              color: d.color,
+              season: d.season,
+              invite_code: invCode
+            });
             setTeams(function (p) {
               return [].concat(_toConsumableArray(p), [newTeam]);
             });
-            _context23.n = 5;
-            return switchTeam(t.id);
-          case 5:
-            _context23.n = 7;
-            break;
+            _context23.n = 6;
+            return switchTeam(tid);
           case 6:
-            _context23.p = 6;
-            _t32 = _context23.v;
-            setTeamError(_t32.message);
+            _context23.n = 8;
+            break;
           case 7:
+            _context23.p = 7;
+            _t32 = _context23.v;
+            setTeamError(_t32.message || JSON.stringify(_t32));
+          case 8:
             return _context23.a(2);
         }
-      }, _callee23, null, [[1, 6]]);
+      }, _callee23, null, [[1, 7]]);
     }));
     return function createTeam(_x23) {
       return _ref74.apply(this, arguments);
