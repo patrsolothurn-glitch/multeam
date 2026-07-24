@@ -198,7 +198,7 @@ const PrimaryBtn = ({ onClick, disabled, color = T.brand, children }) => (
 // ── MODALS ────────────────────────────────────────────────────
 
 const AddFineModal = ({ team, members, fineTypes, myUserId, onAdd, onClose }) => {
-  const tm = members.filter(m => m.teamId === team.id && m.userId !== myUserId);
+  const tm = members.filter(m => m.teamId === team.id);
   const tft = fineTypes.filter(ft => ft.teamId === team.id);
   const [mid, setMid] = useState(""); const [ftid, setFtid] = useState(""); const [reason, setReason] = useState("");
   const sft = tft.find(ft => ft.id === Number(ftid));
