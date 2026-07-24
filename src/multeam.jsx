@@ -313,7 +313,7 @@ const TrainingTypePicker = ({ team, onSelect, onClose }) => (
 
 // ── TREINO ÚNICO ──────────────────────────────────────────────
 const AddSingleTrainingModal = ({ team, onAdd, onClose }) => {
-  const [date, setDate] = useState(""); const [time, setTime] = useState("19:30"); const [loc, setLoc] = useState(""); const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(""); const [time, setTime] = useState("19:30"); const [loc, setLoc] = useState(""); const [notes, setNotes] = useState(""); const [err, setErr] = useState("");
   const ok = date && time && loc;
   return (
     <Sheet title="📅 Treino único" onClose={onClose}>
@@ -321,7 +321,8 @@ const AddSingleTrainingModal = ({ team, onAdd, onClose }) => {
       <FL>Hora</FL><FI type="time" value={time} onChange={e=>setTime(e.target.value)} />
       <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Principal, Selzach" />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos do treino..." />
-      <PrimaryBtn onClick={() => { if(!ok) return; onAdd({ teamId:team.id, type:"treino", recurring:false, date, time, location:loc, notes, createdBy:myUserId }); onClose(); }} disabled={!ok} color={team.color}>Agendar treino</PrimaryBtn>
+      {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"treino", recurring:false, date, time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); } }} disabled={!ok} color={team.color}>Agendar treino</PrimaryBtn>
     </Sheet>
   );
 };
@@ -929,7 +930,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
           🕐 Passado
         </button>
         {isAdmin && (
-          <button onClick={onAddType} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 16px", borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
+          <button onClick={() => setModal("typePicker")} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 16px", borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
             + Acrescentar
           </button>
         )}
@@ -993,9 +994,26 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
 
       {/* Training modals */}
       {modal==="typePicker"  && <TrainingTypePicker team={team} onSelect={t=>setModal(t)} onClose={()=>setModal(null)} />}
-      {modal==="treino"      && <AddSingleTrainingModal team={team} onAdd={t=>{onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
-      {modal==="recorrente"  && <AddRecurringModal team={team} onAdd={t=>{onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
-      {modal==="jogo"        && <AddMatchModal team={team} members={members} onAdd={t=>{onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
+      {modal==="typePicker" && (
+        <Sheet title="➕ Novo evento" onClose={()=>setModal(null)}>
+          {[
+            { key:"treino",     emoji:"⚽", label:"Treino único",      sub:"Um treino pontual" },
+            { key:"recorrente", emoji:"🔄", label:"Treino recorrente", sub:"Repete semanalmente" },
+            { key:"jogo",       emoji:"🏆", label:"Jogo",              sub:"Com adversário e convocatória" },
+          ].map(opt => (
+            <button key={opt.key} onClick={()=>setModal(opt.key)} style={{ width:"100%", display:"flex", alignItems:"center", gap:14, padding:"14px 16px", borderRadius:14, border:`1.5px solid ${T.border}`, background:T.inputBg, cursor:"pointer", fontFamily:"inherit", marginBottom:10, textAlign:"left" }}>
+              <span style={{ fontSize:28 }}>{opt.emoji}</span>
+              <div>
+                <div style={{ fontWeight:700, fontSize:15 }}>{opt.label}</div>
+                <div style={{ fontSize:13, color:T.sub }}>{opt.sub}</div>
+              </div>
+            </button>
+          ))}
+        </Sheet>
+      )}
+      {modal==="treino"      && <AddSingleTrainingModal team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
+      {modal==="recorrente"  && <AddRecurringModal team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
+      {modal==="jogo"        && <AddMatchModal team={team} members={members} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
     </div>
   );
 };
@@ -1519,7 +1537,8 @@ export default function App() {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
   };
   const addTraining = async d => {
-    try { const [t]=await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token); setTrainings(p=>[...p,aTraining(t)]); } catch(e){console.error(e);}
+    const [t]=await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token);
+    setTrainings(p=>[...p,aTraining(t)]);
   };
   const delTraining = async id => {
     try { await api.del(`trainings?id=eq.${id}`,token); setTrainings(p=>p.filter(t=>t.id!==id)); } catch(e){console.error(e);}
