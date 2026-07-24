@@ -197,17 +197,36 @@ const PrimaryBtn = ({ onClick, disabled, color = T.brand, children }) => (
 
 // ── MODALS ────────────────────────────────────────────────────
 
-const AddFineModal = ({ team, members, fineTypes, myUserId, onAdd, onClose }) => {
-  const tm = members.filter(m => m.teamId === team.id);
-  const tft = fineTypes.filter(ft => ft.teamId === team.id);
+const AddFineModal = ({ team, members, fineTypes, myUserId, token, onAdd, onClose }) => {
+  const [tm, setTm] = useState(members.filter(m => m.teamId === team.id));
   const [mid, setMid] = useState(""); const [ftid, setFtid] = useState(""); const [reason, setReason] = useState("");
+  const tft = fineTypes.filter(ft => ft.teamId === team.id);
   const sft = tft.find(ft => ft.id === Number(ftid));
+
+  // Fetch members fresh from DB every time modal opens
+  useEffect(() => {
+    fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
+    }).then(r => r.json()).then(async data => {
+      if (!Array.isArray(data) || !data.length) return;
+      const uids = data.map(m => m.user_id).filter(Boolean);
+      let profMap = {};
+      if (uids.length) {
+        const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, {
+          headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
+        }).then(r => r.json()).catch(() => []);
+        (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
+      }
+      setTm(data.map(m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:profMap[m.user_id]?.name||'Utilizador', initials:mk(profMap[m.user_id]?.name||'U') })));
+    }).catch(console.error);
+  }, []);
+
   return (
     <Sheet title="🟥 Nova multa" onClose={onClose}>
-      <FL>Jogador</FL>
+      <FL>Jogador {tm.length === 0 ? '(a carregar...)' : `(${tm.length})`}</FL>
       <FSel value={mid} onChange={e => setMid(e.target.value)}>
         <option value="">Selecionar jogador...</option>
-        {tm.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+        {tm.map(m => <option key={m.id} value={m.id}>{m.name} {m.role==='admin'?'(Admin)':''}</option>)}
       </FSel>
       <FL>Tipo de multa</FL>
       <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
@@ -219,7 +238,7 @@ const AddFineModal = ({ team, members, fineTypes, myUserId, onAdd, onClose }) =>
       </div>
       <FL>Motivo (opcional)</FL>
       <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
-      <PrimaryBtn onClick={() => { if(!mid||!ftid) return; onAdd({ teamId:team.id, memberId:Number(mid), amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); }} disabled={!mid||!ftid}>
+      <PrimaryBtn onClick={() => { if(!mid||!ftid) return; onAdd({ teamId:team.id, memberId:mid, amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); }} disabled={!mid||!ftid}>
         Atribuir {sft ? `${sft.amount}€` : ""} de multa
       </PrimaryBtn>
     </Sheet>
@@ -1627,7 +1646,7 @@ export default function App() {
       </div>
 
       {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} />}
-      {modal==="fine"    && isAdmin && <AddFineModal team={team} members={members} myUserId={myUserId} fineTypes={fineTypes} onAdd={addFine} onClose={()=>setModal(null)} />}
+      {modal==="fine"    && isAdmin && <AddFineModal team={team} members={members} myUserId={myUserId} fineTypes={fineTypes} token={token} onAdd={addFine} onClose={()=>setModal(null)} />}
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
