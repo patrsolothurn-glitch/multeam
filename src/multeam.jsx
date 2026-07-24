@@ -199,9 +199,8 @@ const PrimaryBtn = ({ onClick, disabled, color = T.brand, children }) => (
 
 const AddFineModal = ({ team, members, fineTypes, myUserId, token, onAdd, onClose }) => {
   const [tm, setTm] = useState(members.filter(m => m.teamId === team.id));
-  const [mid, setMid] = useState(""); const [ftid, setFtid] = useState(""); const [reason, setReason] = useState("");
+  const [mid, setMid] = useState(""); const [sft, setSft] = useState(null); const [reason, setReason] = useState("");
   const tft = fineTypes.filter(ft => ft.teamId === team.id);
-  const sft = tft.find(ft => String(ft.id) === ftid);
 
   // Fetch members fresh from DB every time modal opens
   useEffect(() => {
@@ -231,14 +230,14 @@ const AddFineModal = ({ team, members, fineTypes, myUserId, token, onAdd, onClos
       <FL>Tipo de multa</FL>
       <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
         {tft.map(ft => (
-          <button key={ft.id} onClick={() => setFtid(String(ft.id))} style={{ padding:"10px 14px", borderRadius:12, border:`2px solid ${ftid===String(ft.id)?T.brand:T.border}`, background:ftid===String(ft.id)?`${T.brand}12`:T.inputBg, cursor:"pointer", fontSize:14, fontWeight:600, fontFamily:"inherit" }}>
+          <button key={ft.id} onClick={() => setSft(ft)} style={{ padding:"10px 14px", borderRadius:12, border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`, background:sft?.id===ft.id?`${T.brand}12`:T.inputBg, cursor:"pointer", fontSize:14, fontWeight:600, fontFamily:"inherit" }}>
             {ft.emoji} {ft.name} — <strong>{ft.amount}€</strong>
           </button>
         ))}
       </div>
       <FL>Motivo (opcional)</FL>
       <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
-      <PrimaryBtn onClick={async () => { if(!mid||!ftid||!sft) return; try { await onAdd({ teamId:team.id, memberId:mid, amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); } catch(e){ alert('Erro: '+e.message); } }} disabled={!mid||!ftid||!sft}>
+      <PrimaryBtn onClick={async () => { if(!mid||!sft) return; try { await onAdd({ teamId:team.id, memberId:mid, amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); } catch(e){ alert('Erro: '+e.message); } }} disabled={!mid||!sft}>
         Atribuir {sft ? `${sft.amount}€` : ""} de multa
       </PrimaryBtn>
     </Sheet>
