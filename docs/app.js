@@ -6126,7 +6126,7 @@ function App() {
   }();
   var deleteTeam = function () {
     var _ref75 = _asyncToGenerator(_regenerator().m(function _callee25(teamId) {
-      var next, _t36;
+      var remaining, _t36;
       return _regenerator().w(function (_context25) {
         while (1) switch (_context25.p = _context25.n) {
           case 0:
@@ -6134,35 +6134,40 @@ function App() {
             _context25.n = 1;
             return api.del("teams?id=eq.".concat(teamId), token);
           case 1:
-            setTeams(function (p) {
-              return p.filter(function (t) {
-                return t.id !== teamId;
-              });
+            remaining = teams.filter(function (t) {
+              return t.id !== teamId;
             });
+            setTeams(remaining);
             setSub(null);
             setTab("home");
-            if (!(teams.filter(function (t) {
-              return t.id !== teamId;
-            }).length > 0)) {
-              _context25.n = 2;
+            if (!(remaining.length > 0)) {
+              _context25.n = 3;
               break;
             }
-            next = teams.filter(function (t) {
-              return t.id !== teamId;
-            })[0];
             _context25.n = 2;
-            return switchTeam(next.id);
+            return switchTeam(remaining[0].id);
           case 2:
             _context25.n = 4;
             break;
           case 3:
-            _context25.p = 3;
-            _t36 = _context25.v;
-            console.error(_t36);
+            setTeamId(null);
+            setMembers([]);
+            setFines([]);
+            setFineTypes([]);
+            setExpenses([]);
+            setTrainings([]);
+            setPresences({});
           case 4:
+            _context25.n = 6;
+            break;
+          case 5:
+            _context25.p = 5;
+            _t36 = _context25.v;
+            console.error('deleteTeam error:', _t36);
+          case 6:
             return _context25.a(2);
         }
-      }, _callee25, null, [[0, 3]]);
+      }, _callee25, null, [[0, 5]]);
     }));
     return function deleteTeam(_x24) {
       return _ref75.apply(this, arguments);
