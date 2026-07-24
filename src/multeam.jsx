@@ -1325,14 +1325,25 @@ export default function App() {
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
-    const [mData, ftData, fData, eData, tData, pData] = await Promise.all([
-      api.get(`team_members?team_id=eq.${tid}&select=*,profiles(*)`, tok),
+    const [mRaw, ftData, fData, eData, tData, pData] = await Promise.all([
+      api.get(`team_members?team_id=eq.${tid}&select=*`, tok),
       api.get(`fine_types?team_id=eq.${tid}&order=amount.asc`, tok),
       api.get(`fines?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`expenses?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`trainings?team_id=eq.${tid}&order=date.asc,time.asc`, tok),
       api.get(`presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.${tid}`, tok).catch(()=>[]),
     ]);
+    // Fetch profiles separately for all member user_ids
+    let profilesMap = {};
+    if (mRaw.length > 0) {
+      const uids = mRaw.map(m=>m.user_id).filter(Boolean);
+      if (uids.length > 0) {
+        const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>[]);
+        profs.forEach(p => { profilesMap[p.id] = p; });
+      }
+    }
+    // Merge profiles into members
+    const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
     // Build presences map {trainingId: {memberId: status}}
     const presMap = {};
     pData.forEach(p => {
