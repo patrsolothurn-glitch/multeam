@@ -2793,9 +2793,28 @@ var HomeTab = function HomeTab(_ref38) {
     return s + e.amount;
   }, 0);
   var balance = collected - spent;
+  var memberRank = members.filter(function (m) {
+    return m.teamId === team.id;
+  }).map(function (m) {
+    return {
+      id: m.id,
+      unpaid: tf.filter(function (f) {
+        return f.memberId === m.id && !f.paid;
+      }).reduce(function (s, f) {
+        return s + f.amount;
+      }, 0)
+    };
+  }).sort(function (a, b) {
+    return b.unpaid - a.unpaid;
+  }).reduce(function (acc, m, i) {
+    return _objectSpread(_objectSpread({}, acc), {}, _defineProperty({}, m.id, i));
+  }, {});
   var recent = _toConsumableArray(tf).sort(function (a, b) {
+    var _memberRank$a$memberI, _memberRank$b$memberI;
+    var rankDiff = ((_memberRank$a$memberI = memberRank[a.memberId]) !== null && _memberRank$a$memberI !== void 0 ? _memberRank$a$memberI : 99) - ((_memberRank$b$memberI = memberRank[b.memberId]) !== null && _memberRank$b$memberI !== void 0 ? _memberRank$b$memberI : 99);
+    if (rankDiff !== 0) return rankDiff;
     return new Date(b.date) - new Date(a.date);
-  }).slice(0, 5);
+  });
   var upcoming = trainings.filter(function (t) {
     return t.teamId === team.id && !isPast(t.date);
   }).sort(function (a, b) {
