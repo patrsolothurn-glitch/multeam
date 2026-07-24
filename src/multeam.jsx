@@ -25,7 +25,7 @@ const api = {
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
-const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal });
+const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
 const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'' });
 const aFine = f => ({ id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.created_at?.split('T')[0]||'' });
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
@@ -993,7 +993,9 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
 };
 
 const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout }) => {
-  const myTeams = teams.filter(t => members.some(m=>m.teamId===t.id&&m.userId===myUserId));
+  const myTeams = teams.filter(t => 
+    members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
+  );
   const myAge = age(user.birthday);
   return (
     <div style={{ padding:"16px 16px 100px" }}>
@@ -1025,7 +1027,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
       <Sec label={`Equipas (${myTeams.length})`} />
       {myTeams.map(t => {
         const me = members.find(m=>m.teamId===t.id&&m.userId===myUserId);
-        const admin = me?.role==="admin";
+        const admin = me?.role==="admin" || t.createdBy===myUserId;
         return (
           <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8 }}>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1319,7 +1321,7 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
 
   const team = teams.find(t=>t.id===teamId);
-  const isAdmin = members.some(m=>m.teamId===teamId&&m.userId===myUserId&&m.role==="admin");
+  const isAdmin = members.some(m=>m.teamId===teamId&&m.userId===myUserId&&m.role==="admin") || team?.createdBy===myUserId;
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
