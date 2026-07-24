@@ -2186,8 +2186,10 @@ var JoinTeamModal = function JoinTeamModal(_ref29) {
     user = _ref29.user,
     onFindByCode = _ref29.onFindByCode,
     onJoin = _ref29.onJoin,
-    onClose = _ref29.onClose;
-  var _useState83 = useState(""),
+    onClose = _ref29.onClose,
+    _ref29$initialCode = _ref29.initialCode,
+    initialCode = _ref29$initialCode === void 0 ? "" : _ref29$initialCode;
+  var _useState83 = useState(initialCode.toUpperCase()),
     _useState84 = _slicedToArray(_useState83, 2),
     code = _useState84[0],
     setCode = _useState84[1];
@@ -2203,38 +2205,52 @@ var JoinTeamModal = function JoinTeamModal(_ref29) {
     _useState90 = _slicedToArray(_useState89, 2),
     searching = _useState90[0],
     setSearching = _useState90[1];
+  useEffect(function () {
+    if (initialCode) {
+      setTimeout(function () {
+        return search(initialCode);
+      }, 500);
+    }
+  }, []);
   var search = function () {
-    var _ref30 = _asyncToGenerator(_regenerator().m(function _callee8() {
-      var t, _t14;
+    var _ref30 = _asyncToGenerator(_regenerator().m(function _callee8(c) {
+      var q, t, _t14;
       return _regenerator().w(function (_context8) {
         while (1) switch (_context8.n) {
           case 0:
-            setSearching(true);
-            if (!onFindByCode) {
-              _context8.n = 2;
+            q = (c || code).trim().toUpperCase();
+            if (q) {
+              _context8.n = 1;
               break;
             }
-            _context8.n = 1;
-            return onFindByCode(code);
+            return _context8.a(2);
           case 1:
-            _t14 = _context8.v;
-            _context8.n = 3;
-            break;
+            setSearching(true);
+            if (!onFindByCode) {
+              _context8.n = 3;
+              break;
+            }
+            _context8.n = 2;
+            return onFindByCode(q);
           case 2:
+            _t14 = _context8.v;
+            _context8.n = 4;
+            break;
+          case 3:
             _t14 = teams.find(function (t) {
               var _t$inviteCode;
-              return ((_t$inviteCode = t.inviteCode) === null || _t$inviteCode === void 0 ? void 0 : _t$inviteCode.toUpperCase()) === code.trim().toUpperCase();
+              return ((_t$inviteCode = t.inviteCode) === null || _t$inviteCode === void 0 ? void 0 : _t$inviteCode.toUpperCase()) === q;
             });
-          case 3:
+          case 4:
             t = _t14;
             setFound(t || "notfound");
             setSearching(false);
-          case 4:
+          case 5:
             return _context8.a(2);
         }
       }, _callee8);
     }));
-    return function search() {
+    return function search(_x) {
       return _ref30.apply(this, arguments);
     };
   }();
@@ -2298,7 +2314,9 @@ var JoinTeamModal = function JoinTeamModal(_ref29) {
       letterSpacing: 1
     }
   }), React.createElement("button", {
-    onClick: search,
+    onClick: function onClick() {
+      return search();
+    },
     disabled: searching,
     style: {
       padding: "12px 18px",
@@ -4375,11 +4393,50 @@ var ManageTeamScreen = function ManageTeamScreen(_ref51) {
     }
   }, copied ? "✓ Copiado!" : "Copiar")), React.createElement("p", {
     style: {
-      margin: 0,
+      margin: "0 0 10px",
       fontSize: 13,
       color: T.sub
     }
-  }, "Partilha este c\xF3digo com os jogadores. Eles entram em ", React.createElement("strong", null, "Geral \u2192 Entrar numa equipa"), ".")), React.createElement("div", {
+  }, "Partilha o convite com os teus jogadores:"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, React.createElement("a", {
+    href: "https://wa.me/?text=".concat(encodeURIComponent("\uD83D\uDFE5 *Multeam* \u2014 Junta-te \xE0 equipa *".concat(team.name, "*!\n\n1. Abre o link: https://patrsolothurn-glitch.github.io/multeam?invite=").concat(team.inviteCode, "\n2. Cria conta\n3. O c\xF3digo entra automaticamente!\n\nC\xF3digo manual: *").concat(team.inviteCode, "*"))),
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      flex: 1,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      padding: "11px",
+      borderRadius: 12,
+      background: "#25D366",
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: 14,
+      textDecoration: "none"
+    }
+  }, "\uD83D\uDCF1 WhatsApp"), React.createElement("a", {
+    href: "mailto:?subject=Convite para ".concat(team.name, "&body=").concat(encodeURIComponent("Ol\xE1!\n\nEstou a convidar-te para a equipa ".concat(team.name, " no Multeam.\n\nAbre este link para entrares diretamente:\nhttps://patrsolothurn-glitch.github.io/multeam?invite=").concat(team.inviteCode, "\n\nOu entra no app e usa o c\xF3digo: ").concat(team.inviteCode, "\n\nAt\xE9 j\xE1!"))),
+    style: {
+      flex: 1,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      padding: "11px",
+      borderRadius: 12,
+      background: T.navy,
+      color: "#fff",
+      fontWeight: 700,
+      fontSize: 14,
+      textDecoration: "none"
+    }
+  }, "\u2709\uFE0F Email"))), React.createElement("div", {
     style: {
       background: "".concat(T.yellow, "15"),
       borderRadius: 14,
@@ -5156,7 +5213,7 @@ function App() {
         }
       }, _callee0);
     }));
-    return function loadTeam(_x, _x2) {
+    return function loadTeam(_x2, _x3) {
       return _ref59.apply(this, arguments);
     };
   }();
@@ -5256,7 +5313,7 @@ function App() {
         }
       }, _callee1, null, [[3, 5], [1, 12, 13, 14]]);
     }));
-    return function initApp(_x3, _x4) {
+    return function initApp(_x4, _x5) {
       return _ref60.apply(this, arguments);
     };
   }();
@@ -5293,7 +5350,7 @@ function App() {
         }
       }, _callee10, null, [[1, 3]]);
     }));
-    return function switchTeam(_x5) {
+    return function switchTeam(_x6) {
       return _ref61.apply(this, arguments);
     };
   }();
@@ -5335,7 +5392,7 @@ function App() {
         }
       }, _callee11, null, [[1, 5]]);
     }));
-    return function handleLogin(_x6, _x7) {
+    return function handleLogin(_x7, _x8) {
       return _ref62.apply(this, arguments);
     };
   }();
@@ -5428,7 +5485,7 @@ function App() {
         }
       }, _callee12, null, [[9, 14], [3, 5], [1, 18]]);
     }));
-    return function handleRegister(_x8, _x9, _x0) {
+    return function handleRegister(_x9, _x0, _x1) {
       return _ref63.apply(this, arguments);
     };
   }();
@@ -5482,7 +5539,7 @@ function App() {
         }
       }, _callee13, null, [[0, 2]]);
     }));
-    return function addFine(_x1) {
+    return function addFine(_x10) {
       return _ref64.apply(this, arguments);
     };
   }();
@@ -5526,7 +5583,7 @@ function App() {
         }
       }, _callee14, null, [[1, 3]]);
     }));
-    return function togglePaid(_x10) {
+    return function togglePaid(_x11) {
       return _ref65.apply(this, arguments);
     };
   }();
@@ -5562,7 +5619,7 @@ function App() {
         }
       }, _callee15, null, [[0, 2]]);
     }));
-    return function addExpense(_x11) {
+    return function addExpense(_x12) {
       return _ref66.apply(this, arguments);
     };
   }();
@@ -5606,7 +5663,7 @@ function App() {
         }
       }, _callee16, null, [[0, 2]]);
     }));
-    return function addTraining(_x12) {
+    return function addTraining(_x13) {
       return _ref67.apply(this, arguments);
     };
   }();
@@ -5636,7 +5693,7 @@ function App() {
         }
       }, _callee17, null, [[0, 2]]);
     }));
-    return function delTraining(_x13) {
+    return function delTraining(_x14) {
       return _ref68.apply(this, arguments);
     };
   }();
@@ -5684,7 +5741,7 @@ function App() {
         }
       }, _callee18, null, [[0, 5]]);
     }));
-    return function setPresence(_x14, _x15, _x16) {
+    return function setPresence(_x15, _x16, _x17) {
       return _ref69.apply(this, arguments);
     };
   }();
@@ -5730,7 +5787,7 @@ function App() {
         }
       }, _callee19, null, [[0, 2]]);
     }));
-    return function addMember(_x17) {
+    return function addMember(_x18) {
       return _ref70.apply(this, arguments);
     };
   }();
@@ -5774,7 +5831,7 @@ function App() {
         }
       }, _callee20, null, [[2, 4]]);
     }));
-    return function toggleRole(_x18) {
+    return function toggleRole(_x19) {
       return _ref71.apply(this, arguments);
     };
   }();
@@ -5804,7 +5861,7 @@ function App() {
         }
       }, _callee21, null, [[0, 2]]);
     }));
-    return function removeMember(_x19) {
+    return function removeMember(_x20) {
       return _ref72.apply(this, arguments);
     };
   }();
@@ -5850,7 +5907,7 @@ function App() {
         }
       }, _callee22, null, [[0, 3]]);
     }));
-    return function editMember(_x20, _x21) {
+    return function editMember(_x21, _x22) {
       return _ref73.apply(this, arguments);
     };
   }();
@@ -5917,7 +5974,7 @@ function App() {
         }
       }, _callee23, null, [[1, 6]]);
     }));
-    return function createTeam(_x22) {
+    return function createTeam(_x23) {
       return _ref74.apply(this, arguments);
     };
   }();
@@ -5960,7 +6017,7 @@ function App() {
         }
       }, _callee24, null, [[0, 4]]);
     }));
-    return function joinTeam(_x23) {
+    return function joinTeam(_x24) {
       return _ref75.apply(this, arguments);
     };
   }();
@@ -6000,10 +6057,22 @@ function App() {
         }
       }, _callee25, null, [[0, 3]]);
     }));
-    return function findTeamByCode(_x24) {
+    return function findTeamByCode(_x25) {
       return _ref76.apply(this, arguments);
     };
   }();
+  var _useState157 = useState(function () {
+      var p = new URLSearchParams(window.location.search);
+      return p.get('invite') || null;
+    }),
+    _useState158 = _slicedToArray(_useState157, 2),
+    pendingInvite = _useState158[0],
+    setPendingInvite = _useState158[1];
+  useEffect(function () {
+    if (appReady && pendingInvite) {
+      setModal("join");
+    }
+  }, [appReady, pendingInvite]);
   if (!token || !appReady) return React.createElement(AuthScreen, {
     onLogin: handleLogin,
     onRegister: handleRegister,
@@ -6121,9 +6190,28 @@ function App() {
     teams: teams,
     user: profile,
     onFindByCode: findTeamByCode,
-    onJoin: joinTeam,
+    onJoin: (function () {
+      var _ref77 = _asyncToGenerator(_regenerator().m(function _callee26(t) {
+        return _regenerator().w(function (_context26) {
+          while (1) switch (_context26.n) {
+            case 0:
+              _context26.n = 1;
+              return joinTeam(t);
+            case 1:
+              setPendingInvite(null);
+            case 2:
+              return _context26.a(2);
+          }
+        }, _callee26);
+      }));
+      return function (_x26) {
+        return _ref77.apply(this, arguments);
+      };
+    }()),
+    initialCode: pendingInvite || "",
     onClose: function onClose() {
-      return setModal(null);
+      setModal(null);
+      setPendingInvite(null);
     }
   }));
   if (tab === "treinos") return React.createElement("div", {
@@ -6367,12 +6455,12 @@ function App() {
   }), modal === "profile" && React.createElement(EditProfileModal, {
     user: profile || {},
     onSave: (function () {
-      var _ref77 = _asyncToGenerator(_regenerator().m(function _callee26(u) {
+      var _ref78 = _asyncToGenerator(_regenerator().m(function _callee27(u) {
         var _members$find;
-        return _regenerator().w(function (_context26) {
-          while (1) switch (_context26.n) {
+        return _regenerator().w(function (_context27) {
+          while (1) switch (_context27.n) {
             case 0:
-              _context26.n = 1;
+              _context27.n = 1;
               return editMember((_members$find = members.find(function (m) {
                 return m.userId === myUserId && m.teamId === teamId;
               })) === null || _members$find === void 0 ? void 0 : _members$find.id, u);
@@ -6381,12 +6469,12 @@ function App() {
                 return _objectSpread(_objectSpread({}, p), u);
               });
             case 2:
-              return _context26.a(2);
+              return _context27.a(2);
           }
-        }, _callee26);
+        }, _callee27);
       }));
-      return function (_x25) {
-        return _ref77.apply(this, arguments);
+      return function (_x27) {
+        return _ref78.apply(this, arguments);
       };
     }()),
     onClose: function onClose() {
@@ -6396,9 +6484,28 @@ function App() {
     teams: teams,
     user: profile,
     onFindByCode: findTeamByCode,
-    onJoin: joinTeam,
+    onJoin: (function () {
+      var _ref79 = _asyncToGenerator(_regenerator().m(function _callee28(t) {
+        return _regenerator().w(function (_context28) {
+          while (1) switch (_context28.n) {
+            case 0:
+              _context28.n = 1;
+              return joinTeam(t);
+            case 1:
+              setPendingInvite(null);
+            case 2:
+              return _context28.a(2);
+          }
+        }, _callee28);
+      }));
+      return function (_x28) {
+        return _ref79.apply(this, arguments);
+      };
+    }()),
+    initialCode: pendingInvite || "",
     onClose: function onClose() {
-      return setModal(null);
+      setModal(null);
+      setPendingInvite(null);
     }
   }));
 }
