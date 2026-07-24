@@ -1203,7 +1203,7 @@ var AddFineModal = function AddFineModal(_ref12) {
     onAdd = _ref12.onAdd,
     onClose = _ref12.onClose;
   var tm = members.filter(function (m) {
-    return m.teamId === team.id && m.userId !== myUserId;
+    return m.teamId === team.id;
   });
   var tft = fineTypes.filter(function (ft) {
     return ft.teamId === team.id;
