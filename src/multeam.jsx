@@ -708,7 +708,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                     <div style={{ width:sz, height:sz, borderRadius:sz/2, background:isFirst?`linear-gradient(135deg,${team.color},${team.color}bb)`:T.bg, border:`2.5px solid ${isFirst?team.color:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:isFirst?"#fff":T.sub, fontWeight:800, fontSize:sz*0.3 }}>
                       {m.initials}
                     </div>
-                    <p style={{ margin:0, fontWeight:700, fontSize:isFirst?15:13, textAlign:"center", maxWidth:80, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</p>
+                    <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name}</p>
                     <div style={{ background:m.unpaid>0?(isFirst?T.brand:`${T.brand}18`):T.bg, borderRadius:10, padding:"4px 10px", minWidth:36, textAlign:"center" }}>
                       <p style={{ margin:0, fontWeight:900, fontSize:isFirst?17:14, color:m.unpaid>0?(isFirst?"#fff":T.brand):T.sub }}>
                         {m.unpaid>0?`${m.unpaid}€`:"✓"}
@@ -725,7 +725,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
               <div key={m.id} style={{ background:T.card, borderRadius:14, padding:"12px 16px", marginTop:6, display:"flex", alignItems:"center", gap:12 }}>
                 <span style={{ fontSize:18, width:28, textAlign:"center", color:T.sub, fontWeight:700 }}>{i+4}</span>
                 <div style={{ width:38, height:38, borderRadius:19, background:T.bg, border:`2px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:T.sub }}>{m.initials}</div>
-                <p style={{ margin:0, flex:1, fontWeight:600, fontSize:15 }}>{m.name.split(" ")[0]}</p>
+                <p style={{ margin:0, flex:1, fontWeight:600, fontSize:15 }}>{m.name}</p>
                 <p style={{ margin:0, fontWeight:800, fontSize:15, color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?`${m.unpaid}€`:"✓"}</p>
               </div>
             ))}
