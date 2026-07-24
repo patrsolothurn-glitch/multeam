@@ -506,11 +506,18 @@ const EditMemberModal = ({ member, team, onSave, onClose }) => {
 };
 
 // ── MODAL: JOIN TEAM ──────────────────────────────────────────
-const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose }) => {
-  const [code, setCode] = useState(""); const [found, setFound] = useState(null); const [joined, setJoined] = useState(false); const [searching, setSearching] = useState(false);
-  const search = async () => {
+const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode="" }) => {
+  const [code, setCode] = useState(initialCode.toUpperCase()); const [found, setFound] = useState(null); const [joined, setJoined] = useState(false); const [searching, setSearching] = useState(false);
+  
+  useEffect(() => {
+    if (initialCode) { setTimeout(() => search(initialCode), 500); }
+  }, []);
+  
+  const search = async (c) => {
+    const q = (c || code).trim().toUpperCase();
+    if (!q) return;
     setSearching(true);
-    const t = onFindByCode ? await onFindByCode(code) : teams.find(t => t.inviteCode?.toUpperCase() === code.trim().toUpperCase());
+    const t = onFindByCode ? await onFindByCode(q) : teams.find(t => t.inviteCode?.toUpperCase() === q);
     setFound(t || "notfound");
     setSearching(false);
   };
@@ -526,7 +533,7 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose }) => {
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
             <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Ex: FCZ-2025"
               style={{ flex:1, padding:"12px 14px", borderRadius:12, border:`1.5px solid ${T.border}`, fontSize:16, background:T.inputBg, outline:"none", fontFamily:"inherit", fontWeight:700, letterSpacing:1 }} />
-            <button onClick={search} disabled={searching} style={{ padding:"12px 18px", borderRadius:12, background:T.navy, border:"none", color:"#fff", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>{searching?"...":"Buscar"}</button>
+            <button onClick={()=>search()} disabled={searching} style={{ padding:"12px 18px", borderRadius:12, background:T.navy, border:"none", color:"#fff", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>{searching?"...":"Buscar"}</button>
           </div>
 
           {found === "notfound" && (
@@ -1109,7 +1116,17 @@ const ManageTeamScreen = ({ team, members, myUserId, onBack, onAddMember, onTogg
               {copied ? "✓ Copiado!" : "Copiar"}
             </button>
           </div>
-          <p style={{ margin:0, fontSize:13, color:T.sub }}>Partilha este código com os jogadores. Eles entram em <strong>Geral → Entrar numa equipa</strong>.</p>
+          <p style={{ margin:"0 0 10px", fontSize:13, color:T.sub }}>Partilha o convite com os teus jogadores:</p>
+          <div style={{ display:"flex", gap:8 }}>
+            <a href={`https://wa.me/?text=${encodeURIComponent(`🟥 *Multeam* — Junta-te à equipa *${team.name}*!\n\n1. Abre o link: https://patrsolothurn-glitch.github.io/multeam?invite=${team.inviteCode}\n2. Cria conta\n3. O código entra automaticamente!\n\nCódigo manual: *${team.inviteCode}*`)}`}
+               target="_blank" rel="noopener" style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", borderRadius:12, background:"#25D366", color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
+              📱 WhatsApp
+            </a>
+            <a href={`mailto:?subject=Convite para ${team.name}&body=${encodeURIComponent(`Olá!\n\nEstou a convidar-te para a equipa ${team.name} no Multeam.\n\nAbre este link para entrares diretamente:\nhttps://patrsolothurn-glitch.github.io/multeam?invite=${team.inviteCode}\n\nOu entra no app e usa o código: ${team.inviteCode}\n\nAté já!`)}`}
+               style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", borderRadius:12, background:T.navy, color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
+              ✉️ Email
+            </a>
+          </div>
         </div>
 
         {/* Role hierarchy info */}
@@ -1481,7 +1498,17 @@ export default function App() {
     } catch(e) { return null; }
   };
 
-  // ── RENDER ────────────────────────────────────────────────
+  const [pendingInvite, setPendingInvite] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get('invite') || null;
+  });
+
+  // Auto-open join modal if invite code in URL
+  useEffect(() => {
+    if (appReady && pendingInvite) {
+      setModal("join");
+    }
+  }, [appReady, pendingInvite]);
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
@@ -1497,7 +1524,7 @@ export default function App() {
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={joinTeam} onClose={()=>setModal(null)} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);}} />}
     </div>
   );
 
@@ -1542,7 +1569,7 @@ export default function App() {
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
-      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={joinTeam} onClose={()=>setModal(null)} />}
+      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);}} />}
     </div>
   );
 }
