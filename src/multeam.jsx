@@ -657,7 +657,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const spent = expenses.filter(e=>e.teamId===team.id).reduce((s,e)=>s+e.amount,0);
   const balance = collected - spent;
-  const recent = [...tf].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,3);
+  const recent = [...tf].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
   const upcoming = trainings.filter(t=>t.teamId===team.id&&!isPast(t.date)).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,2);
   const gm = id => members.find(m=>m.id===id);
   return (
@@ -678,18 +678,18 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         <button onClick={onAddFine} style={{ width:"100%", background:T.brand, color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:18, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
       )}
 
-      {/* Top 3 Podium */}
+      {/* Full Ranking */}
       {(() => {
         const tm = members.filter(m => m.teamId===team.id);
         const ranked = tm.map(m => ({
           ...m,
           unpaid: fines.filter(f=>f.teamId===team.id&&f.memberId===m.id&&!f.paid).reduce((s,f)=>s+f.amount,0)
-        })).sort((a,b)=>b.unpaid-a.unpaid).slice(0,3);
+        })).sort((a,b)=>b.unpaid-a.unpaid);
 
-        if (ranked.length < 2) return null;
-
-        // Podium order: 2nd (left), 1st (center), 3rd (right)
-        const podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean);
+        if (ranked.length < 1) return null;
+        const top3 = ranked.slice(0,3);
+        const rest = ranked.slice(3);
+        const podium = [top3[1], top3[0], top3[2]].filter(Boolean);
         const MEDALS = { 0:"🥈", 1:"🥇", 2:"🥉" };
         const NUMS   = { 0:2, 1:1, 2:3 };
         const H      = [76, 108, 56];
@@ -714,7 +714,6 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                         {m.unpaid>0?`${m.unpaid}€`:"✓"}
                       </p>
                     </div>
-                    {/* Podium block */}
                     <div style={{ width:"100%", height:h, background:isFirst?`${team.color}20`:`${T.sub}10`, borderRadius:"8px 8px 0 0", marginTop:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
                       <p style={{ margin:0, fontWeight:900, fontSize:26, color:isFirst?team.color:T.sub, opacity:0.3 }}>{NUMS[i]}</p>
                     </div>
@@ -722,6 +721,14 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                 );
               })}
             </div>
+            {rest.map((m, i) => (
+              <div key={m.id} style={{ background:T.card, borderRadius:14, padding:"12px 16px", marginTop:6, display:"flex", alignItems:"center", gap:12 }}>
+                <span style={{ fontSize:18, width:28, textAlign:"center", color:T.sub, fontWeight:700 }}>{i+4}</span>
+                <div style={{ width:38, height:38, borderRadius:19, background:T.bg, border:`2px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:T.sub }}>{m.initials}</div>
+                <p style={{ margin:0, flex:1, fontWeight:600, fontSize:15 }}>{m.name.split(" ")[0]}</p>
+                <p style={{ margin:0, fontWeight:800, fontSize:15, color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?`${m.unpaid}€`:"✓"}</p>
+              </div>
+            ))}
           </div>
         );
       })()}
