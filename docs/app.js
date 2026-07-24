@@ -5831,45 +5831,59 @@ function App() {
   }();
   var addMember = function () {
     var _ref70 = _asyncToGenerator(_regenerator().m(function _callee20(d) {
-      var _yield$api$post7, _yield$api$post8, m, _t31;
+      var r, m, _t31;
       return _regenerator().w(function (_context20) {
         while (1) switch (_context20.p = _context20.n) {
           case 0:
             _context20.p = 0;
             _context20.n = 1;
-            return api.post('team_members', {
-              team_id: d.teamId,
-              user_id: crypto.randomUUID(),
-              role: d.role,
-              position: d.position
-            }, token);
-          case 1:
-            _yield$api$post7 = _context20.v;
-            _yield$api$post8 = _slicedToArray(_yield$api$post7, 1);
-            m = _yield$api$post8[0];
-            setMembers(function (p) {
-              return [].concat(_toConsumableArray(p), [{
-                id: m.id,
-                teamId: m.team_id,
-                userId: m.user_id,
-                role: m.role,
-                name: d.name,
-                initials: mk(d.name),
-                position: d.position,
-                phone: d.phone || '',
-                birthday: d.birthday || ''
-              }]);
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/add_member_to_team"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(token),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                p_team_id: d.teamId,
+                p_name: d.name,
+                p_position: d.position || 'Jogador',
+                p_phone: d.phone || '',
+                p_birthday: d.birthday || null,
+                p_role: d.role || 'player'
+              })
             });
-            _context20.n = 3;
-            break;
+          case 1:
+            r = _context20.v;
+            _context20.n = 2;
+            return r.json();
           case 2:
-            _context20.p = 2;
+            m = _context20.v;
+            if (m !== null && m !== void 0 && m.id) {
+              setMembers(function (p) {
+                return [].concat(_toConsumableArray(p), [{
+                  id: m.id,
+                  teamId: d.teamId,
+                  userId: m.user_id,
+                  role: m.role,
+                  name: m.name,
+                  initials: mk(m.name),
+                  position: m.position || d.position,
+                  phone: m.phone || d.phone || '',
+                  birthday: d.birthday || ''
+                }]);
+              });
+            }
+            _context20.n = 4;
+            break;
+          case 3:
+            _context20.p = 3;
             _t31 = _context20.v;
             console.error(_t31);
-          case 3:
+          case 4:
             return _context20.a(2);
         }
-      }, _callee20, null, [[0, 2]]);
+      }, _callee20, null, [[0, 3]]);
     }));
     return function addMember(_x18) {
       return _ref70.apply(this, arguments);
