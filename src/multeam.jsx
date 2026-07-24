@@ -1445,12 +1445,17 @@ export default function App() {
   };
   const createTeam = async d => {
     try {
-      const [t]=await api.post('teams',{name:d.name,emoji:d.emoji,color:d.color,season:d.season,country:d.country,sport:d.sport,currency:d.currency,city:d.city,postal:d.postal,created_by:myUserId,invite_code:'x'},token);
-      await api.post('team_members',{team_id:t.id,user_id:myUserId,role:'admin'},token);
-      await Promise.all(DEFAULT_FINE_TYPES.map(ft=>api.post('fine_types',{team_id:t.id,...ft},token)));
-      setTeams(p=>[...p,aTeam(t)]);
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/create_team_with_admin`, {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_name:d.name, p_emoji:d.emoji, p_color:d.color, p_season:d.season||'2025/26', p_country:d.country||'Portugal', p_sport:d.sport||'Futebol 11', p_currency:d.currency||'EUR (€)', p_city:d.city||'', p_postal:d.postal||'' })
+      });
+      const t = await r.json();
+      if (!t?.id) throw new Error(t?.message || 'Erro ao criar equipa');
+      const newTeam = aTeam(t);
+      setTeams(p=>[...p, newTeam]);
       await switchTeam(t.id);
-    } catch(e){console.error(e);}
+    } catch(e){ console.error('createTeam error:', e); alert('Erro: ' + e.message); }
   };
   const joinTeam = async t => {
     try {
