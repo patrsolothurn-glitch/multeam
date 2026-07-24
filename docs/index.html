@@ -50,27 +50,52 @@
       }, 800);
     });
 
-    // Prevent pull-to-refresh - target #root scroll position
+    // Pull-to-refresh + prevent Chrome default
     (function() {
-      var startY = 0;
+      var startY = 0, pullY = 0, triggered = false, THRESHOLD = 72;
+      var pill = document.createElement('div');
+      pill.id = 'ptr-pill';
+      pill.innerHTML = '<span id="ptr-icon">↓</span> <span id="ptr-txt">Puxar para atualizar</span>';
+      pill.style.cssText = 'position:fixed;top:-56px;left:50%;transform:translateX(-50%);background:#1D3557;color:#fff;border-radius:20px;padding:8px 18px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;z-index:9998;box-shadow:0 2px 14px rgba(0,0,0,0.22);transition:top .18s ease,opacity .18s;pointer-events:none;font-family:-apple-system,sans-serif;white-space:nowrap';
+      document.body.appendChild(pill);
+
       document.addEventListener('touchstart', function(e) {
         startY = e.touches[0].clientY;
+        pullY = 0; triggered = false;
       }, { passive: true });
+
       document.addEventListener('touchmove', function(e) {
         if (!e.cancelable) return;
         var delta = e.touches[0].clientY - startY;
         var root = document.getElementById('root');
-        // Block pull-down when root is at top (prevents Chrome pull-to-refresh)
         if (root && delta > 0 && root.scrollTop <= 0) {
           e.preventDefault();
+          pullY = delta;
+          var pct = Math.min(pullY / THRESHOLD, 1);
+          pill.style.top = Math.min(pullY * 0.35 - 48, 14) + 'px';
+          document.getElementById('ptr-icon').style.transform = 'rotate(' + (pct * 180) + 'deg)';
+          document.getElementById('ptr-txt').textContent = pullY >= THRESHOLD ? 'Soltar para atualizar' : 'Puxar para atualizar';
+          if (pullY >= THRESHOLD && !triggered) { triggered = true; pill.style.background = '#2DC653'; }
+          else if (pullY < THRESHOLD) { triggered = false; pill.style.background = '#1D3557'; }
           return;
         }
-        // Block pull-up when at bottom
+        pill.style.top = '-56px';
         if (root && delta < 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2) {
           e.preventDefault();
-          return;
         }
       }, { passive: false });
+
+      document.addEventListener('touchend', function() {
+        if (triggered && pullY >= THRESHOLD) {
+          document.getElementById('ptr-txt').textContent = 'A atualizar...';
+          document.getElementById('ptr-icon').style.display = 'none';
+          setTimeout(function() { pill.style.top = '-56px'; }, 1200);
+          if (window.__multeamRefresh) window.__multeamRefresh();
+        } else {
+          pill.style.top = '-56px';
+        }
+        pullY = 0; triggered = false;
+      }, { passive: true });
     })();
 
     // PWA Service Worker
