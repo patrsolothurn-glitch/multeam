@@ -15,6 +15,7 @@ const api = {
   h(tok) { return { 'apikey':SB_KEY, 'Authorization':`Bearer ${tok||SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' }; },
   async get(p,tok)      { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
   async post(p,b,tok)   { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
+  async insert(p,b,tok) { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'return=minimal'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.status; },
   async patch(p,b,tok)  { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'PATCH',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
   async del(p,tok)      { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'DELETE',headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); },
   async upsert(p,b,tok) { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'resolution=merge-duplicates,return=representation'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
@@ -1471,8 +1472,8 @@ export default function App() {
       // 1. Inserir equipa
       await api.post('teams',{ id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:d.city||'', postal:d.postal||'', created_by:myUserId, invite_code:invCode },token);
 
-      // 2. Inserir membro admin (agora é membro → SELECT funciona)
-      await api.post('team_members',{ team_id:tid, user_id:myUserId, role:'admin' },token);
+      // 2. Inserir membro admin (return=minimal evita conflito RLS)
+      await api.insert('team_members',{ team_id:tid, user_id:myUserId, role:'admin' },token);
 
       // 3. Tipos de multa padrão
       await Promise.all(DEFAULT_FINE_TYPES.map(ft=>api.post('fine_types',{ team_id:tid, name:ft.name, amount:ft.amount },token)));
@@ -1486,7 +1487,7 @@ export default function App() {
   };
   const joinTeam = async t => {
     try {
-      await api.post('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
+      await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
       const [td]=await api.get(`teams?id=eq.${t.id}`,token);
       setTeams(p=>p.some(x=>x.id===t.id)?p:[...p,aTeam(td)]);
       await switchTeam(t.id);
