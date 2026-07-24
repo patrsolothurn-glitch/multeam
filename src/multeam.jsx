@@ -1059,7 +1059,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
 
 // ── SUB-SCREENS ───────────────────────────────────────────────
 
-const ManageTeamScreen = ({ team, members, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode }) => {
+const ManageTeamScreen = ({ team, members, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
@@ -1153,6 +1153,15 @@ const ManageTeamScreen = ({ team, members, myUserId, onBack, onAddMember, onTogg
             {players.map(m=><Row key={m.id} m={m}/>)}
           </>
         )}
+
+        {/* Danger zone */}
+        <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
+          <p style={{ margin:"0 0 4px", fontWeight:700, fontSize:14, color:T.brand }}>⚠️ Zona de perigo</p>
+          <p style={{ margin:"0 0 12px", fontSize:13, color:T.sub }}>Apagar a equipa remove todos os dados permanentemente.</p>
+          <button onClick={onDeleteTeam} style={{ width:"100%", padding:"13px", borderRadius:12, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>
+            🗑️ Apagar equipa
+          </button>
+        </div>
       </div>
 
       {/* Confirm remove dialog */}
@@ -1491,6 +1500,18 @@ export default function App() {
       await switchTeam(tid);
     } catch(e){ setTeamError(e.message||JSON.stringify(e)); }
   };
+  const deleteTeam = async (teamId) => {
+    try {
+      await api.del(`teams?id=eq.${teamId}`, token);
+      setTeams(p => p.filter(t => t.id !== teamId));
+      setSub(null);
+      setTab("home");
+      if (teams.filter(t => t.id !== teamId).length > 0) {
+        const next = teams.filter(t => t.id !== teamId)[0];
+        await switchTeam(next.id);
+      }
+    } catch(e) { console.error(e); }
+  };
   const joinTeam = async t => {
     try {
       await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
@@ -1550,7 +1571,7 @@ export default function App() {
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
