@@ -197,49 +197,76 @@ const PrimaryBtn = ({ onClick, disabled, color = T.brand, children }) => (
 
 // ── MODALS ────────────────────────────────────────────────────
 
-const AddFineModal = ({ team, members, fineTypes, myUserId, token, onAdd, onClose }) => {
-  const [tm, setTm] = useState(members.filter(m => m.teamId === team.id));
-  const [mid, setMid] = useState(""); const [sft, setSft] = useState(null); const [reason, setReason] = useState("");
-  const tft = fineTypes.filter(ft => ft.teamId === team.id);
+const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
+  const [tm, setTm]   = useState([]);
+  const [tft, setTft] = useState([]);
+  const [mid, setMid] = useState("");
+  const [sft, setSft] = useState(null);
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  // Fetch members fresh from DB every time modal opens
   useEffect(() => {
-    fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, {
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
-    }).then(r => r.json()).then(async data => {
-      if (!Array.isArray(data) || !data.length) return;
-      const uids = data.map(m => m.user_id).filter(Boolean);
+    const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
+    Promise.all([
+      fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, { headers: H }).then(r => r.json()),
+      fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H }).then(r => r.json()),
+    ]).then(async ([mRaw, ftRaw]) => {
+      // Members + profiles
+      const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
       let profMap = {};
       if (uids.length) {
-        const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, {
-          headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` }
-        }).then(r => r.json()).catch(() => []);
+        const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, { headers: H }).then(r => r.json()).catch(() => []);
         (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
       }
-      setTm(data.map(m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:profMap[m.user_id]?.name||'Utilizador', initials:mk(profMap[m.user_id]?.name||'U') })));
-    }).catch(console.error);
+      setTm((Array.isArray(mRaw) ? mRaw : []).map(m => ({
+        id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
+        name: profMap[m.user_id]?.name || 'Utilizador'
+      })));
+      // Fine types
+      setTft((Array.isArray(ftRaw) ? ftRaw : []).map(ft => ({
+        id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥'
+      })));
+      setLoading(false);
+    }).catch(e => { setErr(e.message); setLoading(false); });
   }, []);
+
+  const canSubmit = mid && sft;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setErr("");
+    try {
+      await onAdd({ teamId: team.id, memberId: mid, amount: sft.amount, reason: reason || sft.name, emoji: sft.emoji, paid: false, date: new Date().toISOString().split("T")[0] });
+      onClose();
+    } catch(e) { setErr(e.message); }
+  };
 
   return (
     <Sheet title="🟥 Nova multa" onClose={onClose}>
-      <FL>Jogador {tm.length === 0 ? '(a carregar...)' : `(${tm.length})`}</FL>
-      <FSel value={mid} onChange={e => setMid(e.target.value)}>
-        <option value="">Selecionar jogador...</option>
-        {tm.map(m => <option key={m.id} value={m.id}>{m.name} {m.role==='admin'?'(Admin)':''}</option>)}
-      </FSel>
-      <FL>Tipo de multa</FL>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
-        {tft.map(ft => (
-          <button key={ft.id} onClick={() => setSft(ft)} style={{ padding:"10px 14px", borderRadius:12, border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`, background:sft?.id===ft.id?`${T.brand}12`:T.inputBg, cursor:"pointer", fontSize:14, fontWeight:600, fontFamily:"inherit" }}>
-            {ft.emoji} {ft.name} — <strong>{ft.amount}€</strong>
-          </button>
-        ))}
-      </div>
-      <FL>Motivo (opcional)</FL>
-      <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
-      <PrimaryBtn onClick={async () => { if(!mid||!sft) return; try { await onAdd({ teamId:team.id, memberId:mid, amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); } catch(e){ alert('Erro: '+e.message); } }} disabled={!mid||!sft}>
-        Atribuir {sft ? `${sft.amount}€` : ""} de multa
-      </PrimaryBtn>
+      {loading ? (
+        <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar...</p>
+      ) : (<>
+        <FL>Jogador ({tm.length})</FL>
+        <FSel value={mid} onChange={e => setMid(e.target.value)}>
+          <option value="">— Selecionar jogador —</option>
+          {tm.map(m => <option key={m.id} value={m.id}>{m.name}{m.role==='admin'?' (Admin)':''}</option>)}
+        </FSel>
+        <FL>Tipo de multa</FL>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+          {tft.map(ft => (
+            <button key={ft.id} onClick={() => setSft(ft)} style={{ padding:"10px 14px", borderRadius:12, border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`, background:sft?.id===ft.id?`${T.brand}18`:T.inputBg, cursor:"pointer", fontSize:14, fontWeight:600, fontFamily:"inherit" }}>
+              {ft.emoji} {ft.name} — <strong>{ft.amount}€</strong>
+            </button>
+          ))}
+        </div>
+        <FL>Motivo (opcional)</FL>
+        <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
+        {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+        <PrimaryBtn onClick={submit} disabled={!canSubmit}>
+          {canSubmit ? `Atribuir ${sft.amount}€ de multa` : (!mid ? "← Seleciona um jogador" : "← Seleciona o tipo")}
+        </PrimaryBtn>
+      </>)}
     </Sheet>
   );
 };
@@ -1663,7 +1690,7 @@ export default function App() {
       </div>
 
       {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} />}
-      {modal==="fine"    && isAdmin && <AddFineModal team={team} members={members} myUserId={myUserId} fineTypes={fineTypes} token={token} onAdd={addFine} onClose={()=>setModal(null)} />}
+      {modal==="fine"    && isAdmin && <AddFineModal team={team} myUserId={myUserId} token={token} onAdd={addFine} onClose={()=>setModal(null)} />}
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
