@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // ── TOKENS ──────────────────────────────────────────────────
 const T = {
@@ -201,7 +201,7 @@ const AddFineModal = ({ team, members, fineTypes, myUserId, token, onAdd, onClos
   const [tm, setTm] = useState(members.filter(m => m.teamId === team.id));
   const [mid, setMid] = useState(""); const [ftid, setFtid] = useState(""); const [reason, setReason] = useState("");
   const tft = fineTypes.filter(ft => ft.teamId === team.id);
-  const sft = tft.find(ft => ft.id === Number(ftid));
+  const sft = tft.find(ft => String(ft.id) === ftid);
 
   // Fetch members fresh from DB every time modal opens
   useEffect(() => {
@@ -238,7 +238,7 @@ const AddFineModal = ({ team, members, fineTypes, myUserId, token, onAdd, onClos
       </div>
       <FL>Motivo (opcional)</FL>
       <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
-      <PrimaryBtn onClick={() => { if(!mid||!ftid) return; onAdd({ teamId:team.id, memberId:mid, amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); }} disabled={!mid||!ftid}>
+      <PrimaryBtn onClick={async () => { if(!mid||!ftid||!sft) return; try { await onAdd({ teamId:team.id, memberId:mid, amount:sft.amount, reason:reason||sft.name, emoji:sft.emoji, paid:false, date:new Date().toISOString().split("T")[0] }); onClose(); } catch(e){ alert('Erro: '+e.message); } }} disabled={!mid||!ftid||!sft}>
         Atribuir {sft ? `${sft.amount}€` : ""} de multa
       </PrimaryBtn>
     </Sheet>
@@ -1337,6 +1337,7 @@ export default function App() {
   const [treinosModal, setTreinosModal] = useState(null);
   const [loading, setLoading]   = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [authError, setAuthError] = useState(null);
 
   const team = teams.find(t=>t.id===teamId);
@@ -1427,6 +1428,20 @@ export default function App() {
     setLoading(false);
   };
 
+  // Pull-to-refresh
+  const refresh = useCallback(async () => {
+    if (refreshing || !token || !teamId) return;
+    setRefreshing(true);
+    try {
+      const td = await loadTeam(token, teamId);
+      setMembers(td.members); setFineTypes(td.fineTypes);
+      setFines(td.fines); setExpenses(td.expenses);
+      setTrainings(td.trainings); setPresences(td.presences);
+    } catch(e) { console.error(e); }
+    setRefreshing(false);
+  }, [token, teamId, refreshing]);
+  useEffect(() => { window.__multeamRefresh = refresh; }, [refresh]);
+
   // Auth
   const handleLogin = async (email, pass) => {
     setLoading(true); setAuthError(null);
@@ -1467,7 +1482,8 @@ export default function App() {
 
   // Data actions
   const addFine = async d => {
-    try { const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token); setFines(p=>[aFine(f),...p]); } catch(e){console.error(e);}
+    const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token);
+    setFines(p=>[aFine(f),...p]);
   };
   const togglePaid = async id => {
     const f=fines.find(f=>f.id===id); if(!f)return;
@@ -1622,6 +1638,8 @@ export default function App() {
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+      {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}dd)`, color:"#fff", padding:"52px 16px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
           <p style={{ margin:0, fontSize:11, opacity:0.6, fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Multeam</p>
