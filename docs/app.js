@@ -2795,7 +2795,7 @@ var HomeTab = function HomeTab(_ref38) {
   var balance = collected - spent;
   var recent = _toConsumableArray(tf).sort(function (a, b) {
     return new Date(b.date) - new Date(a.date);
-  }).slice(0, 3);
+  }).slice(0, 5);
   var upcoming = trainings.filter(function (t) {
     return t.teamId === team.id && !isPast(t.date);
   }).sort(function (a, b) {
@@ -2895,9 +2895,11 @@ var HomeTab = function HomeTab(_ref38) {
       });
     }).sort(function (a, b) {
       return b.unpaid - a.unpaid;
-    }).slice(0, 3);
-    if (ranked.length < 2) return null;
-    var podium = [ranked[1], ranked[0], ranked[2]].filter(Boolean);
+    });
+    if (ranked.length < 1) return null;
+    var top3 = ranked.slice(0, 3);
+    var rest = ranked.slice(3);
+    var podium = [top3[1], top3[0], top3[2]].filter(Boolean);
     var MEDALS = {
       0: "🥈",
       1: "🥇",
@@ -3010,7 +3012,56 @@ var HomeTab = function HomeTab(_ref38) {
           opacity: 0.3
         }
       }, NUMS[i])));
-    })));
+    })), rest.map(function (m, i) {
+      return React.createElement("div", {
+        key: m.id,
+        style: {
+          background: T.card,
+          borderRadius: 14,
+          padding: "12px 16px",
+          marginTop: 6,
+          display: "flex",
+          alignItems: "center",
+          gap: 12
+        }
+      }, React.createElement("span", {
+        style: {
+          fontSize: 18,
+          width: 28,
+          textAlign: "center",
+          color: T.sub,
+          fontWeight: 700
+        }
+      }, i + 4), React.createElement("div", {
+        style: {
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          background: T.bg,
+          border: "2px solid ".concat(T.border),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 800,
+          fontSize: 13,
+          color: T.sub
+        }
+      }, m.initials), React.createElement("p", {
+        style: {
+          margin: 0,
+          flex: 1,
+          fontWeight: 600,
+          fontSize: 15
+        }
+      }, m.name.split(" ")[0]), React.createElement("p", {
+        style: {
+          margin: 0,
+          fontWeight: 800,
+          fontSize: 15,
+          color: m.unpaid > 0 ? T.brand : T.sub
+        }
+      }, m.unpaid > 0 ? "".concat(m.unpaid, "\u20AC") : "✓"));
+    }));
   }(), upcoming.length > 0 && React.createElement(React.Fragment, null, React.createElement(Sec, {
     label: "Pr\xF3ximos treinos"
   }), upcoming.map(function (t) {
