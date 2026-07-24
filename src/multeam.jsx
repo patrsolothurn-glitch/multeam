@@ -1349,11 +1349,20 @@ export default function App() {
 
       if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'' });
 
-      const mbrData = await api.get(`team_members?user_id=eq.${uid}&select=team_id`, tok);
-      if (!mbrData.length) { setAppReady(true); setLoading(false); return; }
+      // Load teams: by membership OR by creation (handles race conditions)
+      const [mbrData, createdData] = await Promise.all([
+        api.get(`team_members?user_id=eq.${uid}&select=team_id`, tok).catch(()=>[]),
+        api.get(`teams?created_by=eq.${uid}&select=id`, tok).catch(()=>[]),
+      ]);
 
-      const ids = mbrData.map(m=>m.team_id);
-      const teamsData = await api.get(`teams?id=in.(${ids.join(',')})`, tok);
+      const allIds = [...new Set([
+        ...mbrData.map(m=>m.team_id),
+        ...createdData.map(t=>t.id)
+      ])];
+
+      if (!allIds.length) { setAppReady(true); setLoading(false); return; }
+
+      const teamsData = await api.get(`teams?id=in.(${allIds.join(',')})`, tok);
       const adapted = teamsData.map(aTeam);
       setTeams(adapted);
 
