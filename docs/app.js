@@ -5957,7 +5957,7 @@ function App() {
     setTeamError = _useState156[1];
   var createTeam = function () {
     var _ref74 = _asyncToGenerator(_regenerator().m(function _callee24(d) {
-      var tid, invCode, tr, newTeam, _t35;
+      var tid, invCode, sr, se, tr, newTeam, _t35;
       return _regenerator().w(function (_context24) {
         while (1) switch (_context24.p = _context24.n) {
           case 0:
@@ -5982,24 +5982,33 @@ function App() {
             }, token);
           case 2:
             _context24.n = 3;
-            return api.insert('team_members', {
-              team_id: tid,
-              user_id: myUserId,
-              role: 'admin'
-            }, token);
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/setup_new_team"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(token),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                p_team_id: tid,
+                p_user_id: myUserId
+              })
+            });
           case 3:
+            sr = _context24.v;
+            if (sr.ok) {
+              _context24.n = 5;
+              break;
+            }
             _context24.n = 4;
-            return Promise.all(DEFAULT_FINE_TYPES.map(function (ft) {
-              return api.post('fine_types', {
-                team_id: tid,
-                name: ft.name,
-                amount: ft.amount
-              }, token);
-            }));
+            return sr.json();
           case 4:
-            _context24.n = 5;
-            return api.get("teams?id=eq.".concat(tid), token);
+            se = _context24.v;
+            throw new Error(se.message || se.hint || 'Erro ao configurar equipa');
           case 5:
+            _context24.n = 6;
+            return api.get("teams?id=eq.".concat(tid), token);
+          case 6:
             tr = _context24.v;
             newTeam = aTeam(tr[0] || {
               id: tid,
@@ -6012,19 +6021,19 @@ function App() {
             setTeams(function (p) {
               return [].concat(_toConsumableArray(p), [newTeam]);
             });
-            _context24.n = 6;
+            _context24.n = 7;
             return switchTeam(tid);
-          case 6:
-            _context24.n = 8;
-            break;
           case 7:
-            _context24.p = 7;
+            _context24.n = 9;
+            break;
+          case 8:
+            _context24.p = 8;
             _t35 = _context24.v;
             setTeamError(_t35.message || JSON.stringify(_t35));
-          case 8:
+          case 9:
             return _context24.a(2);
         }
-      }, _callee24, null, [[1, 7]]);
+      }, _callee24, null, [[1, 8]]);
     }));
     return function createTeam(_x23) {
       return _ref74.apply(this, arguments);
