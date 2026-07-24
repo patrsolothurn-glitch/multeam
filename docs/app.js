@@ -5856,45 +5856,46 @@ function App() {
   }();
   var createTeam = function () {
     var _ref74 = _asyncToGenerator(_regenerator().m(function _callee23(d) {
-      var _yield$api$post9, _yield$api$post0, t, _t32;
+      var r, t, newTeam, _t32;
       return _regenerator().w(function (_context23) {
         while (1) switch (_context23.p = _context23.n) {
           case 0:
             _context23.p = 0;
             _context23.n = 1;
-            return api.post('teams', {
-              name: d.name,
-              emoji: d.emoji,
-              color: d.color,
-              season: d.season,
-              country: d.country,
-              sport: d.sport,
-              currency: d.currency,
-              city: d.city,
-              postal: d.postal,
-              created_by: myUserId,
-              invite_code: 'x'
-            }, token);
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/create_team_with_admin"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(token),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                p_name: d.name,
+                p_emoji: d.emoji,
+                p_color: d.color,
+                p_season: d.season || '2025/26',
+                p_country: d.country || 'Portugal',
+                p_sport: d.sport || 'Futebol 11',
+                p_currency: d.currency || 'EUR (€)',
+                p_city: d.city || '',
+                p_postal: d.postal || ''
+              })
+            });
           case 1:
-            _yield$api$post9 = _context23.v;
-            _yield$api$post0 = _slicedToArray(_yield$api$post9, 1);
-            t = _yield$api$post0[0];
+            r = _context23.v;
             _context23.n = 2;
-            return api.post('team_members', {
-              team_id: t.id,
-              user_id: myUserId,
-              role: 'admin'
-            }, token);
+            return r.json();
           case 2:
-            _context23.n = 3;
-            return Promise.all(DEFAULT_FINE_TYPES.map(function (ft) {
-              return api.post('fine_types', _objectSpread({
-                team_id: t.id
-              }, ft), token);
-            }));
+            t = _context23.v;
+            if (t !== null && t !== void 0 && t.id) {
+              _context23.n = 3;
+              break;
+            }
+            throw new Error((t === null || t === void 0 ? void 0 : t.message) || 'Erro ao criar equipa');
           case 3:
+            newTeam = aTeam(t);
             setTeams(function (p) {
-              return [].concat(_toConsumableArray(p), [aTeam(t)]);
+              return [].concat(_toConsumableArray(p), [newTeam]);
             });
             _context23.n = 4;
             return switchTeam(t.id);
@@ -5904,7 +5905,8 @@ function App() {
           case 5:
             _context23.p = 5;
             _t32 = _context23.v;
-            console.error(_t32);
+            console.error('createTeam error:', _t32);
+            alert('Erro: ' + _t32.message);
           case 6:
             return _context23.a(2);
         }
