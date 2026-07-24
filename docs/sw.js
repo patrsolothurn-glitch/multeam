@@ -1,6 +1,6 @@
-// Multeam Service Worker - network first for app.js
-const CACHE = 'multeam-v22';
-const STATIC = ['/index.html', '/manifest.json'];
+// Multeam Service Worker - network first for app.js + index.html
+const CACHE = 'multeam-v23';
+const STATIC = ['/manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC).catch(()=>{})));
@@ -16,8 +16,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  // Always fetch app.js fresh from network (changes every deploy)
-  if (url.endsWith('app.js')) {
+  // Always fetch app.js and index.html fresh (change every deploy)
+  if (url.includes('app.js') || url.includes('index.html') || url.endsWith('/multeam') || url.endsWith('/multeam/')) {
     e.respondWith(
       fetch(e.request, { cache: 'no-store' })
         .catch(() => caches.match(e.request))
