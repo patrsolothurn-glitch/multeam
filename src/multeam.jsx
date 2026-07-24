@@ -1526,14 +1526,18 @@ export default function App() {
   const deleteTeam = async (teamId) => {
     try {
       await api.del(`teams?id=eq.${teamId}`, token);
-      setTeams(p => p.filter(t => t.id !== teamId));
+      const remaining = teams.filter(t => t.id !== teamId);
+      setTeams(remaining);
       setSub(null);
       setTab("home");
-      if (teams.filter(t => t.id !== teamId).length > 0) {
-        const next = teams.filter(t => t.id !== teamId)[0];
-        await switchTeam(next.id);
+      if (remaining.length > 0) {
+        await switchTeam(remaining[0].id);
+      } else {
+        setTeamId(null);
+        setMembers([]); setFines([]); setFineTypes([]);
+        setExpenses([]); setTrainings([]); setPresences({});
       }
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error('deleteTeam error:', e); }
   };
   const joinTeam = async t => {
     try {
