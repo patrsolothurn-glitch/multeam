@@ -367,6 +367,7 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
   const [opponent, setOpponent] = useState(""); const [date, setDate] = useState(""); const [time, setTime] = useState("15:00");
   const [loc, setLoc] = useState(""); const [homeAway, setHomeAway] = useState("casa"); const [notes, setNotes] = useState("");
   const [squad, setSquad] = useState(tm.map(m=>m.id)); // all selected by default
+  const [err, setErr] = useState("");
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
   return (
@@ -396,7 +397,8 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
           </button>
         ))}
       </div>
-      <PrimaryBtn onClick={() => { if(!ok) return; onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:loc||"A definir", notes, opponent, homeAway, squad, createdBy:myUserId }); onClose(); }} disabled={!ok} color={T.brand}>
+      {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10 }}>{err}</p>}
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:loc||"A definir", notes, opponent, homeAway, squad }); } catch(e){ setErr(e.message); } }} disabled={!ok} color={T.brand}>
         ⚽ Criar jogo vs {opponent||"..."}
       </PrimaryBtn>
     </Sheet>
@@ -1541,8 +1543,9 @@ export default function App() {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
   };
   const addTraining = async d => {
-    const [t]=await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token);
-    setTrainings(p=>[...p,aTraining(t)]);
+    const res = await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token);
+    const t = Array.isArray(res) ? res[0] : res;
+    if(t) setTrainings(p=>[...p,aTraining(t)]);
   };
   const delTraining = async id => {
     try { await api.del(`trainings?id=eq.${id}`,token); setTrainings(p=>p.filter(t=>t.id!==id)); } catch(e){console.error(e);}
