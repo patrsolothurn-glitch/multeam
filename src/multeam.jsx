@@ -1480,11 +1480,12 @@ const LoginScreen = ({ onLogin }) => {
 const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState(""); const [pass, setPass] = useState(""); const [name, setName] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const inp = { width:"100%", padding:"14px 16px", borderRadius:14, border:"none", background:"rgba(255,255,255,0.12)", color:"#fff", fontSize:16, marginBottom:12, boxSizing:"border-box", outline:"none", fontFamily:"inherit" };
   return (
     <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:28 }}>
       <div style={{ marginBottom:36, textAlign:"center" }}>
-        <div style={{ width:80, height:80, borderRadius:22, background:T.brand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:38, margin:"0 auto 18px", boxShadow:`0 8px 32px ${T.brand}66` }}>🟥</div>
+        <img src="icon-192.png" alt="Multeam" style={{ width:80, height:80, borderRadius:22, margin:"0 auto 18px", display:"block", boxShadow:"0 8px 32px rgba(230,57,70,0.5)" }}/>
         <h1 style={{ color:"#fff", fontSize:34, fontWeight:900, margin:0, letterSpacing:-1.5 }}>Multeam</h1>
         <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:15 }}>Gestão de multas de balneário</p>
       </div>
@@ -1496,7 +1497,12 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         </div>
         {mode==="register" && <input style={inp} placeholder="Nome completo" value={name} onChange={e=>setName(e.target.value)} />}
         <input style={inp} type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
-        <input style={inp} type="password" placeholder="Password" value={pass} onChange={e=>setPass(e.target.value)} />
+        <div style={{ position:"relative", marginBottom:12 }}>
+          <input style={{ ...inp, marginBottom:0, paddingRight:50 }} type={showPass?"text":"password"} placeholder="Password" value={pass} onChange={e=>setPass(e.target.value)} />
+          <button onClick={()=>setShowPass(p=>!p)} style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.55)", fontSize:20, cursor:"pointer", padding:4 }}>
+            {showPass ? "🙈" : "👁️"}
+          </button>
+        </div>
         {error && <div style={{ background:"rgba(230,57,70,0.2)", borderRadius:10, padding:"10px 14px", marginBottom:12, color:"#FFB3B8", fontSize:13 }}>{error}</div>}
         <button disabled={loading} onClick={()=>mode==="login"?onLogin(email,pass):onRegister(email,pass,name)} style={{ width:"100%", padding:16, borderRadius:14, border:"none", background:loading?T.sub:T.brand, color:"#fff", fontSize:17, fontWeight:800, cursor:loading?"default":"pointer", fontFamily:"inherit", marginTop:4 }}>
           {loading?"A carregar...":(mode==="login"?"Entrar":"Criar conta")}
