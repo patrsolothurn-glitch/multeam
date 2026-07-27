@@ -1463,7 +1463,7 @@ const LoginScreen = ({ onLogin }) => {
       <div style={{ marginBottom:44, textAlign:"center" }}>
         <div style={{ width:80, height:80, borderRadius:22, background:T.brand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:38, margin:"0 auto 18px", boxShadow:`0 8px 32px ${T.brand}66` }}>🟥</div>
         <h1 style={{ color:"#fff", fontSize:34, fontWeight:900, margin:0, letterSpacing:-1.5 }}>Multeam</h1>
-        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:15 }}>Gestão de multas de balneário</p>
+        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:14, letterSpacing:0.3 }}>Equipas · Multas · Treinos</p>
       </div>
       <div style={{ width:"100%", maxWidth:340 }}>
         <input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" />
@@ -1485,9 +1485,14 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
   return (
     <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:28 }}>
       <div style={{ marginBottom:36, textAlign:"center" }}>
-        <img src="/icon-192.png" alt="Multeam" style={{ width:80, height:80, borderRadius:22, margin:"0 auto 18px", display:"block", boxShadow:"0 8px 32px rgba(230,57,70,0.5)" }}/>
+        <div style={{ width:80, height:80, borderRadius:22, margin:"0 auto 18px", background:"#12121f", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 32px rgba(230,57,70,0.5)", position:"relative", overflow:"visible" }}>
+          <svg width="60" height="72" viewBox="0 0 60 72" style={{ position:"absolute" }}>
+            <rect x="18" y="4" width="36" height="48" rx="5" fill="#FFCC00" transform="rotate(12 36 28)"/>
+            <rect x="6" y="6" width="36" height="48" rx="5" fill="#E63946"/>
+          </svg>
+        </div>
         <h1 style={{ color:"#fff", fontSize:34, fontWeight:900, margin:0, letterSpacing:-1.5 }}>Multeam</h1>
-        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:15 }}>Gestão de multas de balneário</p>
+        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:14, letterSpacing:0.3 }}>Equipas · Multas · Treinos</p>
       </div>
       <div style={{ width:"100%", maxWidth:340 }}>
         <div style={{ display:"flex", background:"rgba(255,255,255,0.1)", borderRadius:14, padding:4, marginBottom:20 }}>
