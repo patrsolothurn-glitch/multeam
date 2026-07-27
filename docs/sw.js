@@ -1,5 +1,5 @@
 // Multeam Service Worker - network first for app.js + index.html
-const CACHE = 'multeam-v101';
+const CACHE = 'multeam-v103';
 const STATIC = ['/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -37,16 +37,17 @@ self.addEventListener('fetch', e => {
 
 // Push notifications
 self.addEventListener('push', e => {
-  if (!e.data) return;
-  let data = {};
-  try { data = e.data.json(); } catch { data = { title: 'Multeam', body: e.data.text() }; }
+  let title = 'Multeam';
+  let body = 'Nova notificação — abre o app para ver';
+  if (e.data) {
+    try { const d = e.data.json(); title = d.title || title; body = d.body || body; } catch {}
+  }
   e.waitUntil(
-    self.registration.showNotification(data.title || 'Multeam', {
-      body: data.body || '',
+    self.registration.showNotification(title, {
+      body: body,
       icon: '/multeam/apple-touch-icon.png',
       badge: '/multeam/apple-touch-icon.png',
-      tag: data.tag || 'multeam',
-      data: data.url ? { url: data.url } : {},
+      tag: 'multeam',
       vibrate: [200, 100, 200],
     })
   );
