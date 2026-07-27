@@ -39,7 +39,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
   <!-- App bundle -->
-  <script src="app.js?v=79"></script>
+  <script src="app.js?v=81"></script>
 
   <!-- Hide splash after app loads -->
   <script>
@@ -50,25 +50,30 @@
       }, 800);
     });
 
-    // Pull-to-refresh + prevent Chrome default
+    // Pull-to-refresh (safe: only locks after clear intentional pull >= 12px)
     (function() {
-      var startY = 0, pullY = 0, triggered = false, THRESHOLD = 72;
+      var startY = 0, pullY = 0, triggered = false, locked = false;
+      var THRESHOLD = 72, MIN_LOCK = 12;
       var pill = document.createElement('div');
       pill.id = 'ptr-pill';
-      pill.innerHTML = '<span id="ptr-icon">↓</span> <span id="ptr-txt">Puxar para atualizar</span>';
+      pill.innerHTML = '<span id="ptr-icon">\u2193</span> <span id="ptr-txt">Puxar para atualizar</span>';
       pill.style.cssText = 'position:fixed;top:-56px;left:50%;transform:translateX(-50%);background:#1D3557;color:#fff;border-radius:20px;padding:8px 18px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;z-index:9998;box-shadow:0 2px 14px rgba(0,0,0,0.22);transition:top .18s ease,opacity .18s;pointer-events:none;font-family:-apple-system,sans-serif;white-space:nowrap';
       document.body.appendChild(pill);
 
       document.addEventListener('touchstart', function(e) {
         startY = e.touches[0].clientY;
-        pullY = 0; triggered = false;
+        pullY = 0; triggered = false; locked = false;
       }, { passive: true });
 
       document.addEventListener('touchmove', function(e) {
         if (!e.cancelable) return;
         var delta = e.touches[0].clientY - startY;
         var root = document.getElementById('root');
-        if (root && delta > 0 && root.scrollTop <= 0) {
+        // Only lock into pull-to-refresh after intentional pull (>= MIN_LOCK px down, at top)
+        if (!locked && root && root.scrollTop <= 0 && delta >= MIN_LOCK) {
+          locked = true;
+        }
+        if (locked && root && root.scrollTop <= 0 && delta > 0) {
           e.preventDefault();
           pullY = delta;
           var pct = Math.min(pullY / THRESHOLD, 1);
@@ -77,11 +82,8 @@
           document.getElementById('ptr-txt').textContent = pullY >= THRESHOLD ? 'Soltar para atualizar' : 'Puxar para atualizar';
           if (pullY >= THRESHOLD && !triggered) { triggered = true; pill.style.background = '#2DC653'; }
           else if (pullY < THRESHOLD) { triggered = false; pill.style.background = '#1D3557'; }
-          return;
-        }
-        pill.style.top = '-56px';
-        if (root && delta < 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2) {
-          e.preventDefault();
+        } else if (!locked) {
+          pill.style.top = '-56px';
         }
       }, { passive: false });
 
@@ -94,7 +96,7 @@
         } else {
           pill.style.top = '-56px';
         }
-        pullY = 0; triggered = false;
+        pullY = 0; triggered = false; locked = false;
       }, { passive: true });
     })();
 
