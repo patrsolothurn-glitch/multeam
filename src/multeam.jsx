@@ -32,76 +32,7 @@ const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Num
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:e.created_at?.split('T')[0]||'' });
 const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], createdBy:t.created_by });
 
-const DEFAULT_FINE_TYPES = [
-  {name:"Atraso",amount:5,emoji:"⏰"},{name:"Falta ao treino",amount:10,emoji:"🏃"},
-  {name:"Sem equipamento",amount:3,emoji:"👕"},{name:"Cartão amarelo",amount:7,emoji:"🟨"},{name:"Cartão vermelho",amount:15,emoji:"🟥"},
-];
-
-// ── MOCK DATA ────────────────────────────────────────────────
-const initUser = { id: 100, name: "Patricio", initials: "PA", position: "Avançado", phone: "+41 79 888 4384", birthday: "1987-05-15", email: "patricio@multeam.app" };
-const initTeams = [
-  { id: 1, name: "FC Selzach",       emoji: "⚽", color: "#1D3557", season: "2024/25", inviteCode: "FCZ-2025" },
-  { id: 2, name: "Futsal Solothurn", emoji: "🥅", color: "#2A7D4F", season: "2024/25", inviteCode: "FSO-7X3K" },
-  { id: 3, name: "Beach FC Biel",    emoji: "🏖️", color: "#C77B2A", season: "Verão 25", inviteCode: "BFC-BIEL" },
-];
-const initMembers = [
-  { id: 1, teamId: 1, userId: 100, name: "Patricio", initials: "PA", position: "Avançado", phone: "+41 79 888 4384", birthday: "1987-05-15", role: "admin" },
-  { id: 2, teamId: 1, userId: 2,   name: "Marco S.", initials: "MS", position: "Médio",       phone: "+41 76 111 2222", birthday: "1990-03-22", role: "player" },
-  { id: 3, teamId: 1, userId: 3,   name: "João P.",  initials: "JP", position: "Defesa",      phone: "+41 78 333 4444", birthday: "1992-07-10", role: "player" },
-  { id: 4, teamId: 1, userId: 4,   name: "Rui A.",   initials: "RA", position: "Guarda-redes",phone: "+41 79 555 6666", birthday: "1988-11-30", role: "player" },
-  { id: 5, teamId: 1, userId: 5,   name: "Carlos M.",initials: "CM", position: "Avançado",    phone: "+41 77 777 8888", birthday: "1995-01-15", role: "admin"  },
-  { id: 6, teamId: 2, userId: 100, name: "Patricio", initials: "PA", position: "Pivot",       phone: "+41 79 888 4384", birthday: "1987-05-15", role: "player" },
-  { id: 7, teamId: 2, userId: 7,   name: "Pedro L.", initials: "PL", position: "Ala",         phone: "+41 76 222 3333", birthday: "1993-06-18", role: "admin"  },
-  { id: 8, teamId: 2, userId: 8,   name: "Diogo F.", initials: "DF", position: "Guarda-redes",phone: "+41 78 444 5555", birthday: "1991-09-05", role: "player" },
-  { id: 9, teamId: 2, userId: 9,   name: "Bruno K.", initials: "BK", position: "Defesa",      phone: "+41 79 666 7777", birthday: "1994-12-20", role: "player" },
-  { id:10, teamId: 3, userId: 100, name: "Patricio", initials: "PA", position: "Avançado",    phone: "+41 79 888 4384", birthday: "1987-05-15", role: "admin"  },
-  { id:11, teamId: 3, userId: 11,  name: "Nuno T.",  initials: "NT", position: "Médio",       phone: "+41 76 888 9999", birthday: "1989-04-25", role: "player" },
-  { id:12, teamId: 3, userId: 12,  name: "André R.", initials: "AR", position: "Defesa",      phone: "+41 77 000 1111", birthday: "1996-08-12", role: "player" },
-];
-const initFineTypes = [
-  { id:1, teamId:1, name:"Atraso",         amount:5,  emoji:"⏰" },
-  { id:2, teamId:1, name:"Falta ao treino",amount:10, emoji:"🏃" },
-  { id:3, teamId:1, name:"Sem equipamento",amount:3,  emoji:"👕" },
-  { id:4, teamId:1, name:"Cartão amarelo", amount:7,  emoji:"🟨" },
-  { id:5, teamId:1, name:"Cartão vermelho",amount:15, emoji:"🟥" },
-  { id:6, teamId:2, name:"Atraso",         amount:5,  emoji:"⏰" },
-  { id:7, teamId:2, name:"Falta ao jogo",  amount:20, emoji:"🚫" },
-  { id:8, teamId:2, name:"Cartão vermelho",amount:15, emoji:"🟥" },
-  { id:9, teamId:3, name:"Atraso",         amount:2,  emoji:"⏰" },
-  { id:10,teamId:3, name:"Falta ao torneio",amount:10,emoji:"🏖️" },
-];
-const initFines = [
-  { id:1, teamId:1, memberId:2, amount:5,  reason:"15 min de atraso ao treino",   emoji:"⏰", paid:false, date:"2025-07-20" },
-  { id:2, teamId:1, memberId:3, amount:10, reason:"Faltou sem aviso prévio",       emoji:"🏃", paid:true,  date:"2025-07-18" },
-  { id:3, teamId:1, memberId:4, amount:7,  reason:"Cartão no jogo vs Grenchen",    emoji:"🟨", paid:false, date:"2025-07-15" },
-  { id:4, teamId:1, memberId:2, amount:15, reason:"Expulso vs Biel",               emoji:"🟥", paid:false, date:"2025-07-12" },
-  { id:5, teamId:1, memberId:5, amount:3,  reason:"Esqueceu as chuteiras",         emoji:"👕", paid:true,  date:"2025-07-10" },
-  { id:6, teamId:2, memberId:8, amount:5,  reason:"10 min de atraso",              emoji:"⏰", paid:false, date:"2025-07-19" },
-  { id:7, teamId:2, memberId:9, amount:15, reason:"Vermelho no torneio cantonal",  emoji:"🟥", paid:false, date:"2025-07-14" },
-  { id:8, teamId:2, memberId:7, amount:20, reason:"Faltou ao jogo sem avisar",     emoji:"🚫", paid:true,  date:"2025-07-08" },
-  { id:9, teamId:3, memberId:11,amount:2,  reason:"Atrasado 20 min ao torneio",    emoji:"⏰", paid:false, date:"2025-07-21" },
-];
-const initExpenses = [
-  { id:1, teamId:1, description:"Jantar de equipa",  amount:45, date:"2025-06-30" },
-  { id:2, teamId:1, description:"Bola nova treino",  amount:25, date:"2025-07-05" },
-  { id:3, teamId:2, description:"Coletes de treino", amount:30, date:"2025-07-01" },
-  { id:4, teamId:3, description:"Bebidas torneio",   amount:18, date:"2025-07-20" },
-];
 const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-const initTrainings = [
-  { id:1, teamId:1, type:"treino",    recurring:false, date:"2025-07-24", time:"19:30", location:"Campo Principal, Selzach",  notes:"Finalização e cruzamentos", createdBy:100 },
-  { id:2, teamId:1, type:"recorrente",recurring:true,  days:[2,4],        time:"19:30", location:"Campo Principal, Selzach",  notes:"Treino semanal regular",    createdBy:100 },
-  { id:3, teamId:1, type:"jogo",      recurring:false, date:"2025-07-27", time:"15:00", location:"Campo Municipal, Grenchen", notes:"Campeonato cantonal", opponent:"FC Grenchen", homeAway:"fora", squad:[1,2,3,4,5], createdBy:100 },
-  { id:4, teamId:1, type:"treino",    recurring:false, date:"2025-07-07", time:"19:30", location:"Campo Principal, Selzach",  notes:"Treino pré-época",          createdBy:100 },
-  { id:5, teamId:2, type:"treino",    recurring:false, date:"2025-07-25", time:"20:00", location:"Pavilhão Solothurn",        notes:"Táticas de defesa",         createdBy:7 },
-  { id:6, teamId:2, type:"jogo",      recurring:false, date:"2025-07-26", time:"16:00", location:"Pavilhão Solothurn",        notes:"Taça distrital", opponent:"Futsal Berna", homeAway:"casa", squad:[6,7,8,9], createdBy:7 },
-];
-
-// presences[trainingId][memberId] = 'present' | 'absent'
-const initPresences = {
-  3: { 1:"present", 2:"present", 3:"absent", 4:"present" },
-  6: { 6:"present", 7:"present", 8:"absent" },
-};
 
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
@@ -1227,7 +1158,65 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
 
 // ── SUB-SCREENS ───────────────────────────────────────────────
 
-const ManageTeamScreen = ({ team, members, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam }) => {
+// ── FINE TYPES MANAGER ────────────────────────────────────────
+const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, token }) => {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [emoji, setEmoji] = useState("🟥");
+  const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
+  const tf = fineTypes.filter(f => f.teamId === team.id);
+  const save = async () => {
+    if (!name.trim() || !amount) return;
+    setSaving(true); setErr("");
+    try {
+      const res = await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji }, token);
+      const ft = Array.isArray(res) ? res[0] : res;
+      if (ft) onAdded(ft);
+      setName(""); setAmount(""); setEmoji("🟥"); setAdding(false);
+    } catch(e) { setErr(e.message); }
+    setSaving(false);
+  };
+  const del = async id => {
+    try { await api.del(`fine_types?id=eq.${id}`, token); onDeleted(id); } catch(e) { setErr(e.message); }
+  };
+  return (
+    <div style={{ marginBottom:16 }}>
+      {tf.map(ft => (
+        <div key={ft.id} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:22 }}>{ft.emoji}</span>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{ft.name}</p>
+            <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€</p>
+          </div>
+          <button onClick={() => del(ft.id)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub, padding:"4px 8px" }}>🗑️</button>
+        </div>
+      ))}
+      {adding ? (
+        <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8 }}>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            {["⏰","🏃","👕","🟨","🟥","🚫","💊","📵"].map(e => (
+              <button key={e} onClick={()=>setEmoji(e)} style={{ fontSize:20, background:emoji===e?`${team.color}20`:"transparent", border:`2px solid ${emoji===e?team.color:T.border}`, borderRadius:8, padding:"4px 6px", cursor:"pointer" }}>{e}</button>
+            ))}
+          </div>
+          <FI value={name} onChange={e=>setName(e.target.value)} placeholder="Nome (ex: Atraso)" />
+          <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Valor em € (ex: 5)" />
+          {err && <p style={{ color:T.brand, fontSize:13, margin:"0 0 8px" }}>{err}</p>}
+          <div style={{ display:"flex", gap:8 }}>
+            <PrimaryBtn onClick={save} disabled={!name.trim()||!amount||saving} color={team.color}>
+              {saving ? "A guardar..." : "✓ Adicionar"}
+            </PrimaryBtn>
+            <button onClick={()=>{setAdding(false);setErr("");}} style={{ flex:1, padding:"15px", borderRadius:14, border:`1.5px solid ${T.border}`, background:"transparent", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14 }}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{ width:"100%", background:"transparent", border:`1.5px dashed ${T.border}`, borderRadius:12, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit" }}>
+          ➕ Adicionar tipo de multa
+        </button>
+      )}
+    </div>
+  );
+};
+
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
@@ -1321,6 +1310,10 @@ const ManageTeamScreen = ({ team, members, myUserId, onBack, onAddMember, onTogg
             {players.map(m=><Row key={m.id} m={m}/>)}
           </>
         )}
+
+        {/* Fine Types Management */}
+        <Sec label="Tipos de multa" />
+        <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} token={token} />
 
         {/* Danger zone */}
         <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
@@ -1769,6 +1762,30 @@ export default function App() {
       setModal("join");
     }
   }, [appReady, pendingInvite]);
+
+  // Request notification permission once after login
+  useEffect(() => {
+    if (appReady && "Notification" in window && Notification.permission === "default") {
+      setTimeout(() => Notification.requestPermission(), 2500);
+    }
+  }, [appReady]);
+
+  // Toast notification helper
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, color = T.navy) => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Wrap addFine to show toast
+  const addFineWithToast = async d => {
+    await addFine(d);
+    const m = members.find(x => String(x.id) === String(d.memberId));
+    showToast(`🟥 Multa de ${d.amount}€ atribuída a ${m?.name || "jogador"}`, T.brand);
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("Multeam", { body: `Multa de ${d.amount}€ atribuída a ${m?.name || "jogador"}`, icon: "/multeam/apple-touch-icon.png" });
+    }
+  };
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
@@ -1796,12 +1813,13 @@ export default function App() {
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
+      {toast && <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div>}
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}dd)`, color:"#fff", padding:"52px 16px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
@@ -1830,7 +1848,7 @@ export default function App() {
       </div>
 
       {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} />}
-      {modal==="fine"    && isAdmin && <AddFineModal team={team} myUserId={myUserId} token={token} onAdd={addFine} onClose={()=>setModal(null)} />}
+      {modal==="fine"    && isAdmin && <AddFineModal team={team} myUserId={myUserId} token={token} onAdd={addFineWithToast} onClose={()=>setModal(null)} />}
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
