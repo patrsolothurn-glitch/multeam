@@ -3895,20 +3895,308 @@ var FinesTab = function FinesTab(_ref51) {
     }
   }, "+"));
 };
-var TreinosPage = function TreinosPage(_ref52) {
-  var team = _ref52.team,
-    trainings = _ref52.trainings,
-    members = _ref52.members,
-    myUserId = _ref52.myUserId,
-    isAdmin = _ref52.isAdmin,
-    presences = _ref52.presences,
-    onSetPresence = _ref52.onSetPresence,
-    onAddType = _ref52.onAddType,
-    onDelete = _ref52.onDelete,
-    onEdit = _ref52.onEdit,
-    onBack = _ref52.onBack,
-    modal = _ref52.modal,
-    setModal = _ref52.setModal;
+var PresCounter = function PresCounter(_ref52) {
+  var count = _ref52.count,
+    color = _ref52.color;
+  return React.createElement("div", {
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: 7,
+      background: color,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#fff",
+      fontSize: 13,
+      fontWeight: 800
+    }
+  }, count);
+};
+var PresBar = function PresBar(_ref53) {
+  var t = _ref53.t,
+    presences = _ref53.presences,
+    myMember = _ref53.myMember,
+    team = _ref53.team,
+    members = _ref53.members,
+    onSetPresence = _ref53.onSetPresence;
+  var pres = presences[t.id] || {};
+  var tm = members.filter(function (m) {
+    return m.teamId === team.id;
+  });
+  var ok = Object.values(pres).filter(function (s) {
+    return s === "present";
+  }).length;
+  var no = Object.values(pres).filter(function (s) {
+    return s === "absent";
+  }).length;
+  var pend = tm.length - ok - no;
+  var me = pres[myMember === null || myMember === void 0 ? void 0 : myMember.id];
+  return React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      paddingTop: 10,
+      marginTop: 8,
+      borderTop: "1px solid ".concat(T.border)
+    }
+  }, React.createElement(PresCounter, {
+    count: ok,
+    color: T.green
+  }), React.createElement(PresCounter, {
+    count: no,
+    color: "#FF6B00"
+  }), React.createElement(PresCounter, {
+    count: pend,
+    color: T.sub
+  }), !isPast(t.date) && myMember && React.createElement("div", {
+    style: {
+      marginLeft: "auto",
+      display: "flex",
+      gap: 6
+    }
+  }, React.createElement("button", {
+    onClick: function onClick() {
+      return onSetPresence(t.id, myMember.id, me === "present" ? null : "present");
+    },
+    style: {
+      padding: "6px 12px",
+      borderRadius: 18,
+      border: "1.5px solid ".concat(T.green),
+      background: me === "present" ? T.green : "transparent",
+      color: me === "present" ? "#fff" : T.green,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2713 Presente"), React.createElement("button", {
+    onClick: function onClick() {
+      return onSetPresence(t.id, myMember.id, me === "absent" ? null : "absent");
+    },
+    style: {
+      padding: "6px 12px",
+      borderRadius: 18,
+      border: "1.5px solid #FF6B00",
+      background: me === "absent" ? "#FF6B00" : "transparent",
+      color: me === "absent" ? "#fff" : "#FF6B00",
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "\u2717 Ausente")));
+};
+var EventCard = function EventCard(_ref54) {
+  var t = _ref54.t,
+    team = _ref54.team,
+    members = _ref54.members,
+    isAdmin = _ref54.isAdmin,
+    ctxMenu = _ref54.ctxMenu,
+    setCtxMenu = _ref54.setCtxMenu,
+    onDelete = _ref54.onDelete,
+    setEditTarget = _ref54.setEditTarget,
+    myMember = _ref54.myMember,
+    presences = _ref54.presences,
+    onSetPresence = _ref54.onSetPresence;
+  var past = isPast(t.date);
+  var isJogo = t.type === "jogo";
+  var dt = new Date(t.date + "T00:00:00");
+  var dayNum = dt.getDate();
+  var weekday = dt.toLocaleDateString("pt-PT", {
+    weekday: "long"
+  });
+  var squadMembers = isJogo ? (t.squad || []).map(function (id) {
+    return members.find(function (m) {
+      return m.id === id;
+    });
+  }).filter(Boolean) : [];
+  return React.createElement("div", {
+    style: {
+      background: T.card,
+      borderRadius: 14,
+      marginBottom: 10,
+      overflow: "hidden",
+      borderLeft: "3px solid ".concat(past ? T.sub : isJogo ? T.brand : team.color),
+      opacity: past ? 0.65 : 1
+    }
+  }, React.createElement("div", {
+    style: {
+      padding: "14px 14px 0"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      textAlign: "center",
+      width: 38,
+      flexShrink: 0
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 26,
+      fontWeight: 900,
+      color: past ? T.sub : isJogo ? T.brand : team.color,
+      lineHeight: 1
+    }
+  }, dayNum), React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 9,
+      fontWeight: 700,
+      color: T.sub,
+      textTransform: "uppercase"
+    }
+  }, dt.toLocaleDateString("pt-PT", {
+    month: "short"
+  }))), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: 0,
+      fontWeight: 800,
+      fontSize: 16
+    }
+  }, isJogo ? "vs ".concat(t.opponent) : "Treino"), isJogo && React.createElement(Badge, {
+    label: t.homeAway === "casa" ? "🏠 Casa" : "✈️ Fora",
+    color: t.homeAway === "casa" ? T.green : T.brand
+  })), React.createElement("p", {
+    style: {
+      margin: "2px 0 0",
+      fontSize: 13,
+      color: T.sub
+    }
+  }, weekday, ", ", t.time), React.createElement("p", {
+    style: {
+      margin: "1px 0 0",
+      fontSize: 13,
+      color: T.sub
+    }
+  }, "\uD83D\uDCCD ", t.location), t.notes && React.createElement("p", {
+    style: {
+      margin: "4px 0 0",
+      fontSize: 13
+    }
+  }, t.notes), isJogo && squadMembers.length > 0 && React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 4,
+      marginTop: 6
+    }
+  }, squadMembers.map(function (m) {
+    return React.createElement("div", {
+      key: m.id,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        background: T.bg,
+        borderRadius: 6,
+        padding: "3px 7px"
+      }
+    }, React.createElement("div", {
+      style: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        background: team.color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 8,
+        fontWeight: 800,
+        color: "#fff"
+      }
+    }, m.initials), React.createElement("span", {
+      style: {
+        fontSize: 11,
+        fontWeight: 600
+      }
+    }, m.name.split(" ")[0]));
+  }))), isAdmin && React.createElement("button", {
+    onClick: function onClick() {
+      return setCtxMenu(ctxMenu === t.id ? null : t.id);
+    },
+    style: {
+      background: "none",
+      border: "none",
+      fontSize: 22,
+      cursor: "pointer",
+      color: T.sub,
+      padding: "0 4px",
+      flexShrink: 0
+    }
+  }, "\u22EE")), React.createElement(PresBar, {
+    t: t,
+    presences: presences,
+    myMember: myMember,
+    team: team,
+    members: members,
+    onSetPresence: onSetPresence
+  })), ctxMenu === t.id && React.createElement("div", {
+    style: {
+      background: T.bg,
+      borderTop: "1px solid ".concat(T.border)
+    }
+  }, [["✏️ Modificar evento", function () {
+    setEditTarget(t);
+    setCtxMenu(null);
+  }], ["🗑️ Eliminar evento", function () {
+    onDelete(t.id);
+    setCtxMenu(null);
+  }]].map(function (_ref55) {
+    var _ref56 = _slicedToArray(_ref55, 2),
+      label = _ref56[0],
+      action = _ref56[1];
+    return React.createElement("button", {
+      key: label,
+      onClick: action,
+      style: {
+        display: "block",
+        width: "100%",
+        padding: "13px 16px",
+        background: "transparent",
+        border: "none",
+        textAlign: "left",
+        fontSize: 15,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        color: label.includes("Eliminar") ? T.brand : T.text,
+        borderBottom: "1px solid ".concat(T.border)
+      }
+    }, label);
+  })));
+};
+var TreinosPage = function TreinosPage(_ref57) {
+  var team = _ref57.team,
+    trainings = _ref57.trainings,
+    members = _ref57.members,
+    myUserId = _ref57.myUserId,
+    isAdmin = _ref57.isAdmin,
+    presences = _ref57.presences,
+    onSetPresence = _ref57.onSetPresence,
+    onAddType = _ref57.onAddType,
+    onDelete = _ref57.onDelete,
+    onEdit = _ref57.onEdit,
+    onBack = _ref57.onBack,
+    modal = _ref57.modal,
+    setModal = _ref57.setModal;
   var _useState143 = useState(false),
     _useState144 = _slicedToArray(_useState143, 2),
     showPast = _useState144[0],
@@ -3959,280 +4247,6 @@ var TreinosPage = function TreinosPage(_ref52) {
     if (!byMonth[key]) byMonth[key] = [];
     byMonth[key].push(t);
   });
-  var getPres = function getPres(id) {
-    return presences[id] || {};
-  };
-  var myPres = function myPres(id) {
-    return getPres(id)[myMember === null || myMember === void 0 ? void 0 : myMember.id];
-  };
-  var PresCounter = function PresCounter(_ref53) {
-    var count = _ref53.count,
-      color = _ref53.color;
-    return React.createElement("div", {
-      style: {
-        width: 26,
-        height: 26,
-        borderRadius: 7,
-        background: color,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: 800
-      }
-    }, count);
-  };
-  var PresBar = function PresBar(_ref54) {
-    var t = _ref54.t;
-    var pres = getPres(t.id);
-    var tm = members.filter(function (m) {
-      return m.teamId === team.id;
-    });
-    var ok = Object.values(pres).filter(function (s) {
-      return s === "present";
-    }).length;
-    var no = Object.values(pres).filter(function (s) {
-      return s === "absent";
-    }).length;
-    var pend = tm.length - ok - no;
-    var me = myPres(t.id);
-    return React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        paddingTop: 10,
-        marginTop: 8,
-        borderTop: "1px solid ".concat(T.border)
-      }
-    }, React.createElement(PresCounter, {
-      count: ok,
-      color: T.green
-    }), React.createElement(PresCounter, {
-      count: no,
-      color: "#FF6B00"
-    }), React.createElement(PresCounter, {
-      count: pend,
-      color: T.sub
-    }), !isPast(t.date) && myMember && React.createElement("div", {
-      style: {
-        marginLeft: "auto",
-        display: "flex",
-        gap: 6
-      }
-    }, React.createElement("button", {
-      onClick: function onClick() {
-        return onSetPresence(t.id, myMember.id, me === "present" ? null : "present");
-      },
-      style: {
-        padding: "6px 12px",
-        borderRadius: 18,
-        border: "1.5px solid ".concat(T.green),
-        background: me === "present" ? T.green : "transparent",
-        color: me === "present" ? "#fff" : T.green,
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: "pointer",
-        fontFamily: "inherit"
-      }
-    }, "\u2713 Presente"), React.createElement("button", {
-      onClick: function onClick() {
-        return onSetPresence(t.id, myMember.id, me === "absent" ? null : "absent");
-      },
-      style: {
-        padding: "6px 12px",
-        borderRadius: 18,
-        border: "1.5px solid #FF6B00",
-        background: me === "absent" ? "#FF6B00" : "transparent",
-        color: me === "absent" ? "#fff" : "#FF6B00",
-        fontSize: 12,
-        fontWeight: 700,
-        cursor: "pointer",
-        fontFamily: "inherit"
-      }
-    }, "\u2717 Ausente")));
-  };
-  var EventCard = function EventCard(_ref55) {
-    var t = _ref55.t;
-    var past = isPast(t.date);
-    var isJogo = t.type === "jogo";
-    var dt = new Date(t.date + "T00:00:00");
-    var dayNum = dt.getDate();
-    var weekday = dt.toLocaleDateString("pt-PT", {
-      weekday: "long"
-    });
-    var squadMembers = isJogo ? (t.squad || []).map(function (id) {
-      return members.find(function (m) {
-        return m.id === id;
-      });
-    }).filter(Boolean) : [];
-    return React.createElement("div", {
-      style: {
-        background: T.card,
-        borderRadius: 14,
-        marginBottom: 10,
-        overflow: "hidden",
-        borderLeft: "3px solid ".concat(past ? T.sub : isJogo ? T.brand : team.color),
-        opacity: past ? 0.65 : 1
-      }
-    }, React.createElement("div", {
-      style: {
-        padding: "14px 14px 0"
-      }
-    }, React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 12
-      }
-    }, React.createElement("div", {
-      style: {
-        textAlign: "center",
-        width: 38,
-        flexShrink: 0
-      }
-    }, React.createElement("p", {
-      style: {
-        margin: 0,
-        fontSize: 26,
-        fontWeight: 900,
-        color: past ? T.sub : isJogo ? T.brand : team.color,
-        lineHeight: 1
-      }
-    }, dayNum), React.createElement("p", {
-      style: {
-        margin: 0,
-        fontSize: 9,
-        fontWeight: 700,
-        color: past ? T.sub : T.sub,
-        textTransform: "uppercase"
-      }
-    }, dt.toLocaleDateString("pt-PT", {
-      month: "short"
-    }))), React.createElement("div", {
-      style: {
-        flex: 1
-      }
-    }, React.createElement("div", {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        flexWrap: "wrap"
-      }
-    }, React.createElement("p", {
-      style: {
-        margin: 0,
-        fontWeight: 800,
-        fontSize: 16
-      }
-    }, isJogo ? "vs ".concat(t.opponent) : "Treino"), isJogo && React.createElement(Badge, {
-      label: t.homeAway === "casa" ? "🏠 Casa" : "✈️ Fora",
-      color: t.homeAway === "casa" ? T.green : T.brand
-    })), React.createElement("p", {
-      style: {
-        margin: "2px 0 0",
-        fontSize: 13,
-        color: T.sub
-      }
-    }, weekday, ", ", t.time), React.createElement("p", {
-      style: {
-        margin: "1px 0 0",
-        fontSize: 13,
-        color: T.sub
-      }
-    }, "\uD83D\uDCCD ", t.location), t.notes && React.createElement("p", {
-      style: {
-        margin: "4px 0 0",
-        fontSize: 13
-      }
-    }, t.notes), isJogo && squadMembers.length > 0 && React.createElement("div", {
-      style: {
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 4,
-        marginTop: 6
-      }
-    }, squadMembers.map(function (m) {
-      return React.createElement("div", {
-        key: m.id,
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          background: T.bg,
-          borderRadius: 6,
-          padding: "3px 7px"
-        }
-      }, React.createElement("div", {
-        style: {
-          width: 18,
-          height: 18,
-          borderRadius: 9,
-          background: team.color,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 8,
-          fontWeight: 800,
-          color: "#fff"
-        }
-      }, m.initials), React.createElement("span", {
-        style: {
-          fontSize: 11,
-          fontWeight: 600
-        }
-      }, m.name.split(" ")[0]));
-    }))), isAdmin && React.createElement("button", {
-      onClick: function onClick() {
-        return setCtxMenu(ctxMenu === t.id ? null : t.id);
-      },
-      style: {
-        background: "none",
-        border: "none",
-        fontSize: 22,
-        cursor: "pointer",
-        color: T.sub,
-        padding: "0 4px",
-        flexShrink: 0
-      }
-    }, "\u22EE")), React.createElement(PresBar, {
-      t: t
-    })), ctxMenu === t.id && React.createElement("div", {
-      style: {
-        background: T.bg,
-        borderTop: "1px solid ".concat(T.border)
-      }
-    }, [["✏️ Modificar evento", function () {
-      setEditTarget(t);
-      setCtxMenu(null);
-    }], ["🗑️ Eliminar evento", function () {
-      onDelete(t.id);
-      setCtxMenu(null);
-    }]].map(function (_ref56) {
-      var _ref57 = _slicedToArray(_ref56, 2),
-        label = _ref57[0],
-        action = _ref57[1];
-      return React.createElement("button", {
-        key: label,
-        onClick: action,
-        style: {
-          display: "block",
-          width: "100%",
-          padding: "13px 16px",
-          background: "transparent",
-          border: "none",
-          textAlign: "left",
-          fontSize: 15,
-          cursor: "pointer",
-          fontFamily: "inherit",
-          color: label.includes("Eliminar") ? T.brand : T.text,
-          borderBottom: "1px solid ".concat(T.border)
-        }
-      }, label);
-    })));
-  };
   return React.createElement("div", {
     style: {
       background: T.bg,
@@ -4492,7 +4506,17 @@ var TreinosPage = function TreinosPage(_ref52) {
     }, month), evts.map(function (t) {
       return React.createElement(EventCard, {
         key: t.id,
-        t: t
+        t: t,
+        team: team,
+        members: members,
+        isAdmin: isAdmin,
+        ctxMenu: ctxMenu,
+        setCtxMenu: setCtxMenu,
+        onDelete: onDelete,
+        setEditTarget: setEditTarget,
+        myMember: myMember,
+        presences: presences,
+        onSetPresence: onSetPresence
       });
     }));
   }), Object.keys(byMonth).length === 0 && recurring.length === 0 && React.createElement("div", {
@@ -7468,7 +7492,30 @@ function App() {
     }
   }, team.name), isAdmin && React.createElement(AdminHeaderBadge, {
     teamColor: team.color
-  })), React.createElement("button", {
+  })), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center"
+    }
+  }, React.createElement("button", {
+    onClick: function onClick() {
+      return window.location.reload();
+    },
+    style: {
+      background: "rgba(255,255,255,0.15)",
+      border: "none",
+      color: "#fff",
+      borderRadius: 20,
+      width: 36,
+      height: 36,
+      fontSize: 18,
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center"
+    }
+  }, "\u21BA"), React.createElement("button", {
     onClick: function onClick() {
       return setModal("picker");
     },
@@ -7483,7 +7530,7 @@ function App() {
       fontWeight: 700,
       fontFamily: "inherit"
     }
-  }, team.emoji, " Trocar \u25BE")), tab === "home" && React.createElement(HomeTab, {
+  }, team.emoji, " Trocar \u25BE"))), tab === "home" && React.createElement(HomeTab, {
     team: team,
     fines: fines,
     members: members,
