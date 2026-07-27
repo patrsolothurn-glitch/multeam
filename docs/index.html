@@ -39,7 +39,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
   <!-- App bundle -->
-  <script src="app.js?v=77"></script>
+  <script src="app.js?v=79"></script>
 
   <!-- Hide splash after app loads -->
   <script>
@@ -98,28 +98,10 @@
       }, { passive: true });
     })();
 
-    // PWA Service Worker - update banner (safe, no reload loops)
+    // PWA Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('sw.js').then(function(reg) {
-          reg.addEventListener('updatefound', function() {
-            var newSW = reg.installing;
-            if (!newSW) return;
-            newSW.addEventListener('statechange', function() {
-              // New SW ready and old SW exists → show banner
-              if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-                var banner = document.createElement('div');
-                banner.id = 'sw-update-banner';
-                banner.innerHTML = '🔄 Nova versão disponível';
-                banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#1D3557;color:#fff;text-align:center;padding:14px 16px;font-size:15px;font-weight:700;font-family:-apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,0.3)';
-                banner.onclick = function() { window.location.reload(); };
-                document.body.appendChild(banner);
-                // Auto-reload after 4 seconds if user doesn't interact
-                setTimeout(function() { window.location.reload(); }, 4000);
-              }
-            });
-          });
-        }).catch(function(){});
+        navigator.serviceWorker.register('sw.js').catch(function(){});
       });
     }
   </script>
