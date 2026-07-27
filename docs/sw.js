@@ -1,5 +1,5 @@
 // Multeam Service Worker - network first for app.js + index.html
-const CACHE = 'multeam-v117';
+const CACHE = 'multeam-v119';
 const STATIC = ['/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -17,7 +17,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
   // Always fetch app.js and index.html fresh (change every deploy)
-  if (url.includes('app.js') || url.includes('index.html') || url.endsWith('/multeam') || url.endsWith('/multeam/')) {
+  if (url.includes('app.js') || url.includes('index.html') || url.endsWith('multeam.ch') || url.endsWith('multeam.ch/')) {
     e.respondWith(
       fetch(e.request, { cache: 'no-store' })
         .catch(() => caches.match(e.request))
@@ -45,8 +45,8 @@ self.addEventListener('push', e => {
   e.waitUntil(
     self.registration.showNotification(title, {
       body: body,
-      icon: '/multeam/apple-touch-icon.png',
-      badge: '/multeam/apple-touch-icon.png',
+      icon: '/apple-touch-icon.png',
+      badge: '/apple-touch-icon.png',
       tag: 'multeam',
       vibrate: [200, 100, 200],
     })
@@ -55,7 +55,7 @@ self.addEventListener('push', e => {
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || '/multeam/';
+  const url = (e.notification.data && e.notification.data.url) || '/';
   e.waitUntil(clients.matchAll({ type: 'window' }).then(list => {
     for (const c of list) { if (c.url.includes('multeam') && 'focus' in c) return c.focus(); }
     return clients.openWindow(url);
