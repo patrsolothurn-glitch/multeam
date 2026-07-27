@@ -924,6 +924,87 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onSe
 };
 
 // ── TREINOS PAGE (full-screen) ────────────────────────────────
+// ── TREINOS COMPONENTS (module-level = no remount on parent render) ──
+const PresCounter = ({ count, color }) => (
+  <div style={{ width:26, height:26, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800 }}>{count}</div>
+);
+
+const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
+  const pres = presences[t.id] || {};
+  const tm = members.filter(m => m.teamId === team.id);
+  const ok = Object.values(pres).filter(s=>s==="present").length;
+  const no = Object.values(pres).filter(s=>s==="absent").length;
+  const pend = tm.length - ok - no;
+  const me = pres[myMember?.id];
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
+      <PresCounter count={ok}   color={T.green} />
+      <PresCounter count={no}   color="#FF6B00" />
+      <PresCounter count={pend} color={T.sub} />
+      {!isPast(t.date) && myMember && (
+        <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+          <button onClick={() => onSetPresence(t.id, myMember.id, me==="present" ? null : "present")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid ${T.green}`, background:me==="present"?T.green:"transparent", color:me==="present"?"#fff":T.green, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Presente</button>
+          <button onClick={() => onSetPresence(t.id, myMember.id, me==="absent" ? null : "absent")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid #FF6B00`, background:me==="absent"?"#FF6B00":"transparent", color:me==="absent"?"#fff":"#FF6B00", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✗ Ausente</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const EventCard = ({ t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, setEditTarget, myMember, presences, onSetPresence }) => {
+  const past = isPast(t.date);
+  const isJogo = t.type === "jogo";
+  const dt = new Date(t.date+"T00:00:00");
+  const dayNum = dt.getDate();
+  const weekday = dt.toLocaleDateString("pt-PT",{weekday:"long"});
+  const squadMembers = isJogo ? (t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean) : [];
+  return (
+    <div style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden", borderLeft:`3px solid ${past?T.sub:isJogo?T.brand:team.color}`, opacity:past?0.65:1 }}>
+      <div style={{ padding:"14px 14px 0" }}>
+        <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+          <div style={{ textAlign:"center", width:38, flexShrink:0 }}>
+            <p style={{ margin:0, fontSize:26, fontWeight:900, color:past?T.sub:isJogo?T.brand:team.color, lineHeight:1 }}>{dayNum}</p>
+            <p style={{ margin:0, fontSize:9, fontWeight:700, color:T.sub, textTransform:"uppercase" }}>{dt.toLocaleDateString("pt-PT",{month:"short"})}</p>
+          </div>
+          <div style={{ flex:1 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{isJogo ? `vs ${t.opponent}` : "Treino"}</p>
+              {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
+            </div>
+            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}</p>
+            <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}</p>
+            {t.notes && <p style={{ margin:"4px 0 0", fontSize:13 }}>{t.notes}</p>}
+            {isJogo && squadMembers.length>0 && (
+              <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
+                {squadMembers.map(m=>(
+                  <div key={m.id} style={{ display:"flex", alignItems:"center", gap:4, background:T.bg, borderRadius:6, padding:"3px 7px" }}>
+                    <div style={{ width:18, height:18, borderRadius:9, background:team.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800, color:"#fff" }}>{m.initials}</div>
+                    <span style={{ fontSize:11, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {isAdmin && (
+            <button onClick={() => setCtxMenu(ctxMenu===t.id?null:t.id)} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:T.sub, padding:"0 4px", flexShrink:0 }}>⋮</button>
+          )}
+        </div>
+        <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} />
+      </div>
+      {ctxMenu===t.id && (
+        <div style={{ background:T.bg, borderTop:`1px solid ${T.border}` }}>
+          {[
+            ["✏️ Modificar evento", () => { setEditTarget(t); setCtxMenu(null); }],
+            ["🗑️ Eliminar evento",  () => { onDelete(t.id); setCtxMenu(null); }],
+          ].map(([label,action]) => (
+            <button key={label} onClick={action} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"none", textAlign:"left", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:label.includes("Eliminar")?T.brand:T.text, borderBottom:`1px solid ${T.border}` }}>{label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onBack, modal, setModal }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
@@ -937,8 +1018,6 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
   const dated = tt.filter(t => t.type !== "recorrente").sort((a,b) => new Date(a.date)-new Date(b.date));
   let filtered = showPast ? dated : dated.filter(t => !isPast(t.date));
   if (filterType) filtered = filtered.filter(t => t.type === filterType);
-
-  // Group by month
   const byMonth = {};
   filtered.forEach(t => {
     const dt = new Date(t.date+"T00:00:00");
@@ -946,93 +1025,6 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
     if (!byMonth[key]) byMonth[key] = [];
     byMonth[key].push(t);
   });
-
-  const getPres = id => presences[id] || {};
-  const myPres = id => getPres(id)[myMember?.id];
-
-  const PresCounter = ({ count, color }) => (
-    <div style={{ width:26, height:26, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800 }}>{count}</div>
-  );
-
-  const PresBar = ({ t }) => {
-    const pres = getPres(t.id);
-    const tm = members.filter(m => m.teamId === team.id);
-    const ok = Object.values(pres).filter(s=>s==="present").length;
-    const no = Object.values(pres).filter(s=>s==="absent").length;
-    const pend = tm.length - ok - no;
-    const me = myPres(t.id);
-    return (
-      <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
-        <PresCounter count={ok}   color={T.green} />
-        <PresCounter count={no}   color="#FF6B00" />
-        <PresCounter count={pend} color={T.sub} />
-        {!isPast(t.date) && myMember && (
-          <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
-            <button onClick={() => onSetPresence(t.id, myMember.id, me==="present" ? null : "present")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid ${T.green}`, background:me==="present"?T.green:"transparent", color:me==="present"?"#fff":T.green, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Presente</button>
-            <button onClick={() => onSetPresence(t.id, myMember.id, me==="absent" ? null : "absent")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid #FF6B00`, background:me==="absent"?"#FF6B00":"transparent", color:me==="absent"?"#fff":"#FF6B00", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✗ Ausente</button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const EventCard = ({ t }) => {
-    const past = isPast(t.date);
-    const isJogo = t.type === "jogo";
-    const dt = new Date(t.date+"T00:00:00");
-    const dayNum = dt.getDate();
-    const weekday = dt.toLocaleDateString("pt-PT",{weekday:"long"});
-    const squadMembers = isJogo ? (t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean) : [];
-    return (
-      <div style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden", borderLeft:`3px solid ${past?T.sub:isJogo?T.brand:team.color}`, opacity:past?0.65:1 }}>
-        <div style={{ padding:"14px 14px 0" }}>
-          <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
-            {/* Day number */}
-            <div style={{ textAlign:"center", width:38, flexShrink:0 }}>
-              <p style={{ margin:0, fontSize:26, fontWeight:900, color:past?T.sub:isJogo?T.brand:team.color, lineHeight:1 }}>{dayNum}</p>
-              <p style={{ margin:0, fontSize:9, fontWeight:700, color:past?T.sub:T.sub, textTransform:"uppercase" }}>{dt.toLocaleDateString("pt-PT",{month:"short"})}</p>
-            </div>
-            <div style={{ flex:1 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{isJogo ? `vs ${t.opponent}` : "Treino"}</p>
-                {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
-              </div>
-              <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}</p>
-              <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}</p>
-              {t.notes && <p style={{ margin:"4px 0 0", fontSize:13 }}>{t.notes}</p>}
-              {isJogo && squadMembers.length>0 && (
-                <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
-                  {squadMembers.map(m=>(
-                    <div key={m.id} style={{ display:"flex", alignItems:"center", gap:4, background:T.bg, borderRadius:6, padding:"3px 7px" }}>
-                      <div style={{ width:18, height:18, borderRadius:9, background:team.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800, color:"#fff" }}>{m.initials}</div>
-                      <span style={{ fontSize:11, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {/* Context menu */}
-            {isAdmin && (
-              <button onClick={() => setCtxMenu(ctxMenu===t.id?null:t.id)} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:T.sub, padding:"0 4px", flexShrink:0 }}>⋮</button>
-            )}
-          </div>
-          <PresBar t={t} />
-        </div>
-        {/* Context menu dropdown */}
-        {ctxMenu===t.id && (
-          <div style={{ background:T.bg, borderTop:`1px solid ${T.border}` }}>
-            {[
-              ["✏️ Modificar evento", () => { setEditTarget(t); setCtxMenu(null); }],
-              ["🗑️ Eliminar evento", () => { onDelete(t.id); setCtxMenu(null); }],
-
-            ].map(([label,action]) => (
-              <button key={label} onClick={action} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"none", textAlign:"left", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:label.includes("Eliminar")?T.brand:T.text, borderBottom:`1px solid ${T.border}` }}>{label}</button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
@@ -1091,7 +1083,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
         {Object.entries(byMonth).map(([month, evts]) => (
           <div key={month}>
             <p style={{ margin:"16px 0 10px", fontSize:15, fontWeight:900, color:team.color, textTransform:"uppercase", letterSpacing:0.8 }}>{month}</p>
-            {evts.map(t => <EventCard key={t.id} t={t} />)}
+            {evts.map(t => <EventCard key={t.id} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} />)}
           </div>
         ))}
 
@@ -1817,7 +1809,10 @@ export default function App() {
           <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>{team.name}</h2>
           {isAdmin && <AdminHeaderBadge teamColor={team.color} />}
         </div>
-        <button onClick={()=>setModal("picker")} style={{ background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={()=>window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:36, height:36, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
+          <button onClick={()=>setModal("picker")} style={{ background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
+        </div>
       </div>
 
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} />}
