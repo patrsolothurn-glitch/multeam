@@ -1159,11 +1159,46 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
 // ── SUB-SCREENS ───────────────────────────────────────────────
 
 // ── FINE TYPES MANAGER ────────────────────────────────────────
-const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, token }) => {
+const FINE_EMOJIS = [
+  // Cartões
+  "🟨","🟥",
+  // Tempo/atraso
+  "⏰","⌚","🏃","🏃‍♂️",
+  // Equipamento
+  "👕","🎽","👟","⚽",
+  // Comportamento
+  "🚫","❌","🤦","😤","🗣️","📵",
+  // Físico/treino
+  "🤕","💪","🏋️","🦵",
+  // Extra
+  "🍺","💸","🚗","🎯","💬","🤳",
+];
+
+const EmojiPicker = ({ value, onChange, color }) => (
+  <div style={{ marginBottom:12 }}>
+    <p style={{ margin:"0 0 6px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Emoji</p>
+    <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+      {FINE_EMOJIS.map(e => (
+        <button key={e} onClick={()=>onChange(e)} style={{
+          fontSize:22, width:42, height:42, display:"flex", alignItems:"center", justifyContent:"center",
+          background:value===e?`${color}20`:"transparent",
+          border:`2px solid ${value===e?color:T.border}`,
+          borderRadius:10, cursor:"pointer", transition:"all 0.1s"
+        }}>{e}</button>
+      ))}
+    </div>
+    <p style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Selecionado: <span style={{ fontSize:20 }}>{value}</span></p>
+  </div>
+);
+
+const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, token }) => {
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [emoji, setEmoji] = useState("🟥");
+  const [editEmoji, setEditEmoji] = useState("🟥");
   const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const tf = fineTypes.filter(f => f.teamId === team.id);
+
   const save = async () => {
     if (!name.trim() || !amount) return;
     setSaving(true); setErr("");
@@ -1175,31 +1210,52 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, token }) => {
     } catch(e) { setErr(e.message); }
     setSaving(false);
   };
+
+  const saveEmoji = async (id) => {
+    setSaving(true);
+    try {
+      await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji }, token);
+      onUpdated(id, editEmoji);
+      setEditingId(null);
+    } catch(e) { setErr(e.message); }
+    setSaving(false);
+  };
+
   const del = async id => {
     try { await api.del(`fine_types?id=eq.${id}`, token); onDeleted(id); } catch(e) { setErr(e.message); }
   };
+
   return (
     <div style={{ marginBottom:16 }}>
+      {err && <p style={{ color:T.brand, fontSize:13, margin:"0 0 8px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
       {tf.map(ft => (
-        <div key={ft.id} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-          <span style={{ fontSize:22 }}>{ft.emoji}</span>
-          <div style={{ flex:1 }}>
-            <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{ft.name}</p>
-            <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€</p>
+        <div key={ft.id}>
+          <div style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={() => { setEditingId(editingId===ft.id?null:ft.id); setEditEmoji(ft.emoji); }} style={{ fontSize:26, background:editingId===ft.id?`${team.color}15`:"transparent", border:`2px solid ${editingId===ft.id?team.color:"transparent"}`, borderRadius:10, padding:"2px 6px", cursor:"pointer" }}>{ft.emoji}</button>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{ft.name}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€ {editingId===ft.id ? "· toca no emoji para editar ↑" : "· toca no emoji para mudar"}</p>
+            </div>
+            <button onClick={() => del(ft.id)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub, padding:"4px 8px" }}>🗑️</button>
           </div>
-          <button onClick={() => del(ft.id)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub, padding:"4px 8px" }}>🗑️</button>
+          {editingId===ft.id && (
+            <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8, marginTop:-4 }}>
+              <EmojiPicker value={editEmoji} onChange={setEditEmoji} color={team.color} />
+              <div style={{ display:"flex", gap:8 }}>
+                <PrimaryBtn onClick={() => saveEmoji(ft.id)} disabled={saving} color={team.color}>
+                  {saving ? "A guardar..." : "✓ Guardar emoji"}
+                </PrimaryBtn>
+                <button onClick={()=>setEditingId(null)} style={{ flex:1, padding:"15px", borderRadius:14, border:`1.5px solid ${T.border}`, background:"transparent", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14 }}>Cancelar</button>
+              </div>
+            </div>
+          )}
         </div>
       ))}
       {adding ? (
         <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8 }}>
-          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-            {["⏰","🏃","👕","🟨","🟥","🚫","💊","📵"].map(e => (
-              <button key={e} onClick={()=>setEmoji(e)} style={{ fontSize:20, background:emoji===e?`${team.color}20`:"transparent", border:`2px solid ${emoji===e?team.color:T.border}`, borderRadius:8, padding:"4px 6px", cursor:"pointer" }}>{e}</button>
-            ))}
-          </div>
+          <EmojiPicker value={emoji} onChange={setEmoji} color={team.color} />
           <FI value={name} onChange={e=>setName(e.target.value)} placeholder="Nome (ex: Atraso)" />
           <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Valor em € (ex: 5)" />
-          {err && <p style={{ color:T.brand, fontSize:13, margin:"0 0 8px" }}>{err}</p>}
           <div style={{ display:"flex", gap:8 }}>
             <PrimaryBtn onClick={save} disabled={!name.trim()||!amount||saving} color={team.color}>
               {saving ? "A guardar..." : "✓ Adicionar"}
@@ -1313,7 +1369,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 
         {/* Fine Types Management */}
         <Sec label="Tipos de multa" />
-        <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} token={token} />
+        <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} onUpdated={(id, emoji) => setFineTypes(p=>p.map(x=>x.id===id?{...x,emoji}:x))} token={token} />
 
         {/* Danger zone */}
         <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
