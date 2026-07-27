@@ -732,44 +732,58 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         })).sort((a,b)=>b.unpaid-a.unpaid);
 
         if (ranked.length < 1) return null;
-        const top3 = ranked.slice(0,3);
+
+        // Build podium correctly for 1, 2 or 3+ members
+        let podiumItems = [];
+        if (ranked.length === 1) {
+          podiumItems = [{ m: ranked[0], place: 1, medal: "🥇", h: 108, sz: 56 }];
+        } else if (ranked.length === 2) {
+          podiumItems = [
+            { m: ranked[1], place: 2, medal: "🥈", h: 76, sz: 44 },
+            { m: ranked[0], place: 1, medal: "🥇", h: 108, sz: 56 },
+          ];
+        } else {
+          podiumItems = [
+            { m: ranked[1], place: 2, medal: "🥈", h: 76, sz: 44 },
+            { m: ranked[0], place: 1, medal: "🥇", h: 108, sz: 56 },
+            { m: ranked[2], place: 3, medal: "🥉", h: 56, sz: 38 },
+          ];
+        }
         const rest = ranked.slice(3);
-        const podium = [top3[1], top3[0], top3[2]].filter(Boolean);
-        const MEDALS = { 0:"🥈", 1:"🥇", 2:"🥉" };
-        const NUMS   = { 0:2, 1:1, 2:3 };
-        const H      = [76, 108, 56];
-        const SZ     = [44, 56, 38];
+        const PLACE_COLORS = { 1: "#FFD700", 2: "#C0C0C0", 3: "#CD7F32" };
 
         return (
           <div style={{ marginBottom:20 }}>
-            <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🏆 Ranking de dívidas</p>
-            <div style={{ background:T.card, borderRadius:18, padding:"20px 12px 0", display:"flex", alignItems:"flex-end", justifyContent:"center", gap:6 }}>
-              {podium.map((m, i) => {
-                const isFirst = NUMS[i] === 1;
-                const sz = SZ[i]; const h = H[i];
-                return (
-                  <div key={m.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-                    <span style={{ fontSize:isFirst?30:22 }}>{MEDALS[i]}</span>
-                    <div style={{ width:sz, height:sz, borderRadius:sz/2, background:isFirst?`linear-gradient(135deg,${team.color},${team.color}bb)`:T.bg, border:`2.5px solid ${isFirst?team.color:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:isFirst?"#fff":T.sub, fontWeight:800, fontSize:sz*0.3 }}>
-                      {m.initials}
+            <p style={{ margin:"0 0 12px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🏆 Ranking de dívidas</p>
+            <div style={{ background:`linear-gradient(160deg, ${team.color}22, ${team.color}08)`, borderRadius:18, padding:"20px 12px 0", border:`1.5px solid ${team.color}30` }}>
+              <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"center", gap:8 }}>
+                {podiumItems.map(({ m, place, medal, h, sz }) => {
+                  const isFirst = place === 1;
+                  const pc = PLACE_COLORS[place];
+                  return (
+                    <div key={m.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                      <span style={{ fontSize:isFirst?34:24 }}>{medal}</span>
+                      <div style={{ width:sz, height:sz, borderRadius:sz/2, background:isFirst?`linear-gradient(135deg,${team.color},${team.color}aa)`:`${pc}22`, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:isFirst?"#fff":T.text, fontWeight:900, fontSize:sz*0.3, boxShadow:isFirst?`0 4px 16px ${team.color}44`:"none" }}>
+                        {m.initials}
+                      </div>
+                      <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</p>
+                      <div style={{ background:m.unpaid>0?(isFirst?T.brand:`${T.brand}22`):isFirst?`${T.green}22`:T.bg, borderRadius:10, padding:"4px 10px" }}>
+                        <p style={{ margin:0, fontWeight:900, fontSize:isFirst?18:14, color:m.unpaid>0?(isFirst?"#fff":T.brand):(isFirst?T.green:T.sub) }}>
+                          {m.unpaid>0?`${m.unpaid}€`:"✓ OK"}
+                        </p>
+                      </div>
+                      <div style={{ width:"100%", height:h, background:`${pc}25`, borderRadius:"10px 10px 0 0", marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`inset 0 -3px 0 ${pc}60` }}>
+                        <p style={{ margin:0, fontWeight:900, fontSize:28, color:pc, opacity:0.6 }}>{place}</p>
+                      </div>
                     </div>
-                    <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name}</p>
-                    <div style={{ background:m.unpaid>0?(isFirst?T.brand:`${T.brand}18`):T.bg, borderRadius:10, padding:"4px 10px", minWidth:36, textAlign:"center" }}>
-                      <p style={{ margin:0, fontWeight:900, fontSize:isFirst?17:14, color:m.unpaid>0?(isFirst?"#fff":T.brand):T.sub }}>
-                        {m.unpaid>0?`${m.unpaid}€`:"✓"}
-                      </p>
-                    </div>
-                    <div style={{ width:"100%", height:h, background:isFirst?`${team.color}20`:`${T.sub}10`, borderRadius:"8px 8px 0 0", marginTop:6, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      <p style={{ margin:0, fontWeight:900, fontSize:26, color:isFirst?team.color:T.sub, opacity:0.3 }}>{NUMS[i]}</p>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
             {rest.map((m, i) => (
               <div key={m.id} style={{ background:T.card, borderRadius:14, padding:"12px 16px", marginTop:6, display:"flex", alignItems:"center", gap:12 }}>
-                <span style={{ fontSize:18, width:28, textAlign:"center", color:T.sub, fontWeight:700 }}>{i+4}</span>
-                <div style={{ width:38, height:38, borderRadius:19, background:T.bg, border:`2px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:T.sub }}>{m.initials}</div>
+                <span style={{ fontSize:16, width:28, textAlign:"center", color:T.sub, fontWeight:700 }}>{i+4}</span>
+                <div style={{ width:36, height:36, borderRadius:18, background:T.bg, border:`2px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:T.sub }}>{m.initials}</div>
                 <p style={{ margin:0, flex:1, fontWeight:600, fontSize:15 }}>{m.name}</p>
                 <p style={{ margin:0, fontWeight:800, fontSize:15, color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?`${m.unpaid}€`:"✓"}</p>
               </div>
