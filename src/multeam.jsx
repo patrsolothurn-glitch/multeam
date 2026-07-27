@@ -1961,6 +1961,16 @@ export default function App() {
       sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${d.amount}€ — ${d.reason || "Multa atribuída"}`).catch(()=>{});
     }
   };
+  // Auto-login with magic link token
+  useEffect(() => {
+    if (!magicToken || token) return;
+    fetch(`${SB_URL}/auth/v1/user`, {
+      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${magicToken.access}` }
+    }).then(r => r.json()).then(u => {
+      if (u.id) { setToken(magicToken.access); setMyUserId(u.id); window.history.replaceState(null, "", "/"); }
+    }).catch(() => {});
+  }, [magicToken]);
+
   if (recoveryToken) return <ResetPasswordScreen accessToken={recoveryToken} onDone={()=>{ window.history.replaceState(null,"","/"); window.location.reload(); }} />;
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
