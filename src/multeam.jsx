@@ -10,6 +10,7 @@ const T = {
 // ── SUPABASE ─────────────────────────────────────────────────
 const SB_URL = "https://syakniwyvcfdqsrwsalk.supabase.co";
 const SB_KEY = "sb_publishable_MRMHqVQ-key1c5kf7UOLUA_rwyu85BI";
+const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRFVOnO37rQ81o-cYoOuTCwmo--CQnEk";
 
 const api = {
   h(tok) { return { 'apikey':SB_KEY, 'Authorization':`Bearer ${tok||SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' }; },
@@ -1691,7 +1692,15 @@ export default function App() {
   const addTraining = async d => {
     const res = await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token);
     const t = Array.isArray(res) ? res[0] : res;
-    if(t) setTrainings(p=>[...p,aTraining(t)]);
+    if(t) {
+      setTrainings(p=>[...p,aTraining(t)]);
+      // Send push notification to all team members
+      const tm = members.filter(m => m.teamId === d.teamId);
+      const isJogo = d.type === "jogo";
+      const title = isJogo ? `⚽ Jogo marcado${d.opponent ? ` vs ${d.opponent}` : ""}` : "📅 Novo treino agendado";
+      const body = `${d.date ? new Date(d.date+"T00:00:00").toLocaleDateString("pt-PT",{weekday:"short",day:"numeric",month:"short"}) : "Recorrente"} · ${d.time} · ${d.location||""}`;
+      sendPushToTeam(d.teamId, tm, title, body).catch(()=>{});
+    }
   };
   const delTraining = async id => {
     try { await api.del(`trainings?id=eq.${id}`,token); setTrainings(p=>p.filter(t=>t.id!==id)); } catch(e){console.error(e);}
@@ -1819,12 +1828,38 @@ export default function App() {
     }
   }, [appReady, pendingInvite]);
 
+  // Subscribe to push notifications and store subscription in Supabase
+  const subscribeToPush = async (tok, uid) => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      const sub = existing || await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: VAPID_PUBLIC,
+      });
+      const subJson = sub.toJSON();
+      // Store subscription in Supabase (upsert by endpoint)
+      await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
+        method: "POST",
+        headers: { "apikey": SB_KEY, "Authorization": `Bearer ${tok}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ user_id: uid, endpoint: subJson.endpoint, p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth }),
+      });
+    } catch(e) { console.warn("Push subscribe failed:", e.message); }
+  };
+
   // Request notification permission once after login
   useEffect(() => {
-    if (appReady && "Notification" in window && Notification.permission === "default") {
-      setTimeout(() => Notification.requestPermission(), 2500);
+    if (!appReady || !token || !myUserId) return;
+    if ("Notification" in window && Notification.permission === "default") {
+      setTimeout(async () => {
+        const perm = await Notification.requestPermission();
+        if (perm === "granted") subscribeToPush(token, myUserId);
+      }, 2500);
+    } else if ("Notification" in window && Notification.permission === "granted") {
+      subscribeToPush(token, myUserId);
     }
-  }, [appReady]);
+  }, [appReady, token, myUserId]);
 
   // Toast notification helper
   const [toast, setToast] = useState(null);
@@ -1834,12 +1869,26 @@ export default function App() {
   };
 
   // Wrap addFine to show toast
+  // Send push to all subscribed members via Supabase Edge Function
+  const sendPushToTeam = async (teamId, members, title, body) => {
+    const userIds = members.map(m => m.userId).filter(Boolean);
+    if (!userIds.length) return;
+    try {
+      await fetch(`${SB_URL}/functions/v1/send-team-push`, {
+        method: "POST",
+        headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ team_id: teamId, user_ids: userIds, title, body }),
+      });
+    } catch(e) { console.warn("Push send failed:", e.message); }
+  };
+
   const addFineWithToast = async d => {
     await addFine(d);
     const m = members.find(x => String(x.id) === String(d.memberId));
     showToast(`🟥 Multa de ${d.amount}€ atribuída a ${m?.name || "jogador"}`, T.brand);
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Multeam", { body: `Multa de ${d.amount}€ atribuída a ${m?.name || "jogador"}`, icon: "/multeam/apple-touch-icon.png" });
+    // Send push to the fined member
+    if (m?.userId) {
+      sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${d.amount}€ — ${d.reason || "Multa atribuída"}`).catch(()=>{});
     }
   };
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
