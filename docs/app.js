@@ -5814,9 +5814,10 @@ var LoginScreen = function LoginScreen(_ref77) {
     style: {
       color: "rgba(255,255,255,0.45)",
       margin: "5px 0 0",
-      fontSize: 15
+      fontSize: 14,
+      letterSpacing: 0.3
     }
-  }, "Gest\xE3o de multas de balne\xE1rio")), React.createElement("div", {
+  }, "Equipas \xB7 Multas \xB7 Treinos")), React.createElement("div", {
     style: {
       width: "100%",
       maxWidth: 340
@@ -5915,18 +5916,43 @@ var AuthScreen = function AuthScreen(_ref78) {
       marginBottom: 36,
       textAlign: "center"
     }
-  }, React.createElement("img", {
-    src: "/icon-192.png",
-    alt: "Multeam",
+  }, React.createElement("div", {
     style: {
       width: 80,
       height: 80,
       borderRadius: 22,
       margin: "0 auto 18px",
-      display: "block",
-      boxShadow: "0 8px 32px rgba(230,57,70,0.5)"
+      background: "#12121f",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxShadow: "0 8px 32px rgba(230,57,70,0.5)",
+      position: "relative",
+      overflow: "visible"
     }
-  }), React.createElement("h1", {
+  }, React.createElement("svg", {
+    width: "60",
+    height: "72",
+    viewBox: "0 0 60 72",
+    style: {
+      position: "absolute"
+    }
+  }, React.createElement("rect", {
+    x: "18",
+    y: "4",
+    width: "36",
+    height: "48",
+    rx: "5",
+    fill: "#FFCC00",
+    transform: "rotate(12 36 28)"
+  }), React.createElement("rect", {
+    x: "6",
+    y: "6",
+    width: "36",
+    height: "48",
+    rx: "5",
+    fill: "#E63946"
+  }))), React.createElement("h1", {
     style: {
       color: "#fff",
       fontSize: 34,
@@ -5938,9 +5964,10 @@ var AuthScreen = function AuthScreen(_ref78) {
     style: {
       color: "rgba(255,255,255,0.45)",
       margin: "5px 0 0",
-      fontSize: 15
+      fontSize: 14,
+      letterSpacing: 0.3
     }
-  }, "Gest\xE3o de multas de balne\xE1rio")), React.createElement("div", {
+  }, "Equipas \xB7 Multas \xB7 Treinos")), React.createElement("div", {
     style: {
       width: "100%",
       maxWidth: 340
