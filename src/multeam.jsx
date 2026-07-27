@@ -405,6 +405,104 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
   );
 };
 
+// ── EDITAR TREINO ÚNICO ────────────────────────────────────────
+const EditSingleTrainingModal = ({ team, training, onEdit, onClose }) => {
+  const [date, setDate] = useState(training.date);
+  const [time, setTime] = useState(training.time||"19:00");
+  const [loc, setLoc] = useState(training.location);
+  const [notes, setNotes] = useState(training.notes);
+  const [err, setErr] = useState("");
+  const ok = date && time;
+  return (
+    <Sheet title="✏️ Editar treino" onClose={onClose}>
+      <FL>Data</FL><FI type="date" value={date} onChange={e=>setDate(e.target.value)} />
+      <FL>Hora</FL><FI type="time" value={time} onChange={e=>setTime(e.target.value)} />
+      <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Municipal..." />
+      <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos..." />
+      {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); }}} disabled={!ok} color={team.color}>
+        💾 Guardar alterações
+      </PrimaryBtn>
+    </Sheet>
+  );
+};
+
+// ── EDITAR JOGO ────────────────────────────────────────────────
+const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
+  const tm = members.filter(m=>m.teamId===team.id);
+  const [opponent, setOpponent] = useState(training.opponent||"");
+  const [date, setDate] = useState(training.date);
+  const [time, setTime] = useState(training.time||"15:00");
+  const [loc, setLoc] = useState(training.location);
+  const [homeAway, setHomeAway] = useState(training.homeAway||"casa");
+  const [notes, setNotes] = useState(training.notes);
+  const [squad, setSquad] = useState(training.squad||tm.map(m=>m.id));
+  const [err, setErr] = useState("");
+  const ok = opponent && date && time;
+  const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
+  return (
+    <Sheet title="✏️ Editar jogo" onClose={onClose}>
+      <FL>Adversário</FL><FI value={opponent} onChange={e=>setOpponent(e.target.value)} placeholder="Ex: FC Grenchen" />
+      <FL>Casa ou fora?</FL>
+      <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+        {[["casa","🏠 Casa"],["fora","✈️ Fora"]].map(([v,l]) => (
+          <button key={v} onClick={()=>setHomeAway(v)} style={{ flex:1, padding:"12px", borderRadius:12, border:`2px solid ${homeAway===v?team.color:T.border}`, background:homeAway===v?`${team.color}15`:T.inputBg, cursor:"pointer", fontWeight:700, fontSize:15, fontFamily:"inherit" }}>{l}</button>
+        ))}
+      </div>
+      <FL>Data</FL><FI type="date" value={date} onChange={e=>setDate(e.target.value)} />
+      <FL>Hora</FL><FI type="time" value={time} onChange={e=>setTime(e.target.value)} />
+      <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Municipal..." />
+      <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex: Campeonato cantonal..." />
+      <FL>Convocatória ({squad.length}/{tm.length})</FL>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
+        {tm.map(m => (
+          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10, border:`2px solid ${squad.includes(m.id)?team.color:T.border}`, background:squad.includes(m.id)?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit" }}>
+            <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
+            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
+          </button>
+        ))}
+      </div>
+      {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc||"A definir", notes, opponent, homeAway, squad }); onClose(); } catch(e){ setErr(e.message); }}} disabled={!ok} color={T.brand}>
+        💾 Guardar alterações
+      </PrimaryBtn>
+    </Sheet>
+  );
+};
+
+// ── EDITAR RECORRENTE ─────────────────────────────────────────
+const EditRecurringModal = ({ team, training, onEdit, onClose }) => {
+  const [days, setDays] = useState(training.days||[]);
+  const [time, setTime] = useState(training.time||"19:30");
+  const [loc, setLoc] = useState(training.location);
+  const [notes, setNotes] = useState(training.notes);
+  const [err, setErr] = useState("");
+  const ok = days.length > 0 && time;
+  const toggleDay = d => setDays(p => p.includes(d) ? p.filter(x=>x!==d) : [...p,d]);
+  return (
+    <Sheet title="✏️ Editar recorrente" onClose={onClose}>
+      <FL>Dias da semana</FL>
+      <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+        {DAYS_PT.map((d,i) => (
+          <button key={i} onClick={()=>toggleDay(i)} style={{ width:44, height:44, borderRadius:22, border:`2px solid ${days.includes(i)?team.color:T.border}`, background:days.includes(i)?`${team.color}18`:T.inputBg, cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"inherit", color:days.includes(i)?team.color:T.sub }}>{d}</button>
+        ))}
+      </div>
+      <FL>Hora</FL><FI type="time" value={time} onChange={e=>setTime(e.target.value)} />
+      <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Principal..." />
+      <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos..." />
+      <div style={{ background:`${team.color}12`, borderRadius:12, padding:"10px 14px", marginBottom:14 }}>
+        <p style={{ margin:0, fontSize:13, color:team.color, fontWeight:600 }}>
+          🔄 {days.length>0 ? `Repete às ${days.sort().map(d=>DAYS_PT[d]).join(", ")}` : "Seleciona os dias"} · {time}
+        </p>
+      </div>
+      {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { recurring:true, days:days.sort(), time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); }}} disabled={!ok} color={team.color}>
+        💾 Guardar alterações
+      </PrimaryBtn>
+    </Sheet>
+  );
+};
+
 const POSITIONS = ["Guarda-redes","Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Libero","Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante","Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro","Fixo","Ala","Pivot","Universal","Treinador","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Diretor Desportivo","Presidente","Massagista / Fisioterapeuta","Delegado","Team Manager","Médico","Outro"];
 
 const POSITIONS_GROUPED = {
@@ -826,11 +924,12 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onSe
 };
 
 // ── TREINOS PAGE (full-screen) ────────────────────────────────
-const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onBack, modal, setModal }) => {
+const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onBack, modal, setModal }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
   const [showFilter, setShowFilter] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
 
   const myMember = members.find(m => m.teamId === team.id && m.userId === myUserId);
   const tt = trainings.filter(t => t.teamId === team.id);
@@ -923,9 +1022,9 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
         {ctxMenu===t.id && (
           <div style={{ background:T.bg, borderTop:`1px solid ${T.border}` }}>
             {[
-              ["✏️ Modificar evento", () => setCtxMenu(null)],
+              ["✏️ Modificar evento", () => { setEditTarget(t); setCtxMenu(null); }],
               ["🗑️ Eliminar evento", () => { onDelete(t.id); setCtxMenu(null); }],
-              ["🔔 Enviar lembrete", () => setCtxMenu(null)],
+
             ].map(([label,action]) => (
               <button key={label} onClick={action} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"none", textAlign:"left", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:label.includes("Eliminar")?T.brand:T.text, borderBottom:`1px solid ${T.border}` }}>{label}</button>
             ))}
@@ -979,7 +1078,10 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                   <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
                   {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
                 </div>
-                {isAdmin&&<button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>}
+                {isAdmin&&<div style={{ display:"flex", gap:6 }}>
+                  <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
+                  <button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
+                </div>}
               </div>
             ))}
           </>
@@ -1020,6 +1122,9 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
       {modal==="treino"      && <AddSingleTrainingModal team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
       {modal==="recorrente"  && <AddRecurringModal team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
       {modal==="jogo"        && <AddMatchModal team={team} members={members} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
+      {editTarget && editTarget.type==="treino"      && <EditSingleTrainingModal team={team} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
+      {editTarget && editTarget.type==="jogo"        && <EditMatchModal team={team} members={members} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
+      {editTarget && editTarget.type==="recorrente"  && <EditRecurringModal team={team} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
     </div>
   );
 };
@@ -1550,6 +1655,20 @@ export default function App() {
   const delTraining = async id => {
     try { await api.del(`trainings?id=eq.${id}`,token); setTrainings(p=>p.filter(t=>t.id!==id)); } catch(e){console.error(e);}
   };
+  const editTraining = async (id, d) => {
+    const patch = {};
+    if(d.date      !== undefined) patch.date      = d.date||null;
+    if(d.time      !== undefined) patch.time      = d.time||null;
+    if(d.location  !== undefined) patch.location  = d.location;
+    if(d.notes     !== undefined) patch.notes     = d.notes;
+    if(d.days      !== undefined) patch.days      = d.days;
+    if(d.opponent  !== undefined) patch.opponent  = d.opponent||null;
+    if(d.homeAway  !== undefined) patch.home_away = d.homeAway;
+    if(d.squad     !== undefined) patch.squad     = d.squad;
+    const res = await api.patch(`trainings?id=eq.${id}`,patch,token);
+    const t = Array.isArray(res) ? res[0] : res;
+    if(t) setTrainings(p=>p.map(x=>x.id===id?aTraining(t):x));
+  };
   const setPresence = async (tid,mid,status) => {
     try {
       if(!status){ await api.del(`presences?training_id=eq.${tid}&member_id=eq.${mid}`,token); setPresences(p=>{const t={...(p[tid]||{})};delete t[mid];return{...p,[tid]:t};}); }
@@ -1679,7 +1798,7 @@ export default function App() {
 
   if (tab==="treinos") return (
     <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
-      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={isAdmin} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
+      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={isAdmin} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} />);
