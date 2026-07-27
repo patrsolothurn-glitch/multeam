@@ -7797,6 +7797,23 @@ function App() {
       return _ref110.apply(this, arguments);
     };
   }();
+  useEffect(function () {
+    if (!magicToken || token) return;
+    fetch("".concat(SB_URL, "/auth/v1/user"), {
+      headers: {
+        "apikey": SB_KEY,
+        "Authorization": "Bearer ".concat(magicToken.access)
+      }
+    }).then(function (r) {
+      return r.json();
+    }).then(function (u) {
+      if (u.id) {
+        setToken(magicToken.access);
+        setMyUserId(u.id);
+        window.history.replaceState(null, "", "/");
+      }
+    }).catch(function () {});
+  }, [magicToken]);
   if (recoveryToken) return React.createElement(ResetPasswordScreen, {
     accessToken: recoveryToken,
     onDone: function onDone() {
