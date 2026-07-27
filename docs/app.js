@@ -5883,6 +5883,10 @@ var AuthScreen = function AuthScreen(_ref78) {
     _useState186 = _slicedToArray(_useState185, 2),
     name = _useState186[0],
     setName = _useState186[1];
+  var _useState187 = useState(false),
+    _useState188 = _slicedToArray(_useState187, 2),
+    showPass = _useState188[0],
+    setShowPass = _useState188[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -5911,20 +5915,18 @@ var AuthScreen = function AuthScreen(_ref78) {
       marginBottom: 36,
       textAlign: "center"
     }
-  }, React.createElement("div", {
+  }, React.createElement("img", {
+    src: "icon-192.png",
+    alt: "Multeam",
     style: {
       width: 80,
       height: 80,
       borderRadius: 22,
-      background: T.brand,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: 38,
       margin: "0 auto 18px",
-      boxShadow: "0 8px 32px ".concat(T.brand, "66")
+      display: "block",
+      boxShadow: "0 8px 32px rgba(230,57,70,0.5)"
     }
-  }, "\uD83D\uDFE5"), React.createElement("h1", {
+  }), React.createElement("h1", {
     style: {
       color: "#fff",
       fontSize: 34,
@@ -5988,15 +5990,41 @@ var AuthScreen = function AuthScreen(_ref78) {
     onChange: function onChange(e) {
       return setEmail(e.target.value);
     }
-  }), React.createElement("input", {
-    style: inp,
-    type: "password",
+  }), React.createElement("div", {
+    style: {
+      position: "relative",
+      marginBottom: 12
+    }
+  }, React.createElement("input", {
+    style: _objectSpread(_objectSpread({}, inp), {}, {
+      marginBottom: 0,
+      paddingRight: 50
+    }),
+    type: showPass ? "text" : "password",
     placeholder: "Password",
     value: pass,
     onChange: function onChange(e) {
       return setPass(e.target.value);
     }
-  }), error && React.createElement("div", {
+  }), React.createElement("button", {
+    onClick: function onClick() {
+      return setShowPass(function (p) {
+        return !p;
+      });
+    },
+    style: {
+      position: "absolute",
+      right: 14,
+      top: "50%",
+      transform: "translateY(-50%)",
+      background: "none",
+      border: "none",
+      color: "rgba(255,255,255,0.55)",
+      fontSize: 20,
+      cursor: "pointer",
+      padding: 4
+    }
+  }, showPass ? "🙈" : "👁️")), error && React.createElement("div", {
     style: {
       background: "rgba(230,57,70,0.2)",
       borderRadius: 10,
@@ -6056,82 +6084,82 @@ var Spinner = function Spinner(_ref81) {
   }, msg), React.createElement("style", null, "@keyframes spin{to{transform:rotate(360deg)}} .spin{animation:spin 1s linear infinite}"));
 };
 function App() {
-  var _useState187 = useState(null),
-    _useState188 = _slicedToArray(_useState187, 2),
-    token = _useState188[0],
-    setToken = _useState188[1];
   var _useState189 = useState(null),
     _useState190 = _slicedToArray(_useState189, 2),
-    myUserId = _useState190[0],
-    setMyUserId = _useState190[1];
+    token = _useState190[0],
+    setToken = _useState190[1];
   var _useState191 = useState(null),
     _useState192 = _slicedToArray(_useState191, 2),
-    profile = _useState192[0],
-    setProfile = _useState192[1];
-  var _useState193 = useState([]),
+    myUserId = _useState192[0],
+    setMyUserId = _useState192[1];
+  var _useState193 = useState(null),
     _useState194 = _slicedToArray(_useState193, 2),
-    teams = _useState194[0],
-    setTeams = _useState194[1];
+    profile = _useState194[0],
+    setProfile = _useState194[1];
   var _useState195 = useState([]),
     _useState196 = _slicedToArray(_useState195, 2),
-    members = _useState196[0],
-    setMembers = _useState196[1];
+    teams = _useState196[0],
+    setTeams = _useState196[1];
   var _useState197 = useState([]),
     _useState198 = _slicedToArray(_useState197, 2),
-    fineTypes = _useState198[0],
-    setFineTypes = _useState198[1];
+    members = _useState198[0],
+    setMembers = _useState198[1];
   var _useState199 = useState([]),
     _useState200 = _slicedToArray(_useState199, 2),
-    fines = _useState200[0],
-    setFines = _useState200[1];
+    fineTypes = _useState200[0],
+    setFineTypes = _useState200[1];
   var _useState201 = useState([]),
     _useState202 = _slicedToArray(_useState201, 2),
-    expenses = _useState202[0],
-    setExpenses = _useState202[1];
+    fines = _useState202[0],
+    setFines = _useState202[1];
   var _useState203 = useState([]),
     _useState204 = _slicedToArray(_useState203, 2),
-    trainings = _useState204[0],
-    setTrainings = _useState204[1];
-  var _useState205 = useState({}),
+    expenses = _useState204[0],
+    setExpenses = _useState204[1];
+  var _useState205 = useState([]),
     _useState206 = _slicedToArray(_useState205, 2),
-    presences = _useState206[0],
-    setPresences = _useState206[1];
-  var _useState207 = useState(null),
+    trainings = _useState206[0],
+    setTrainings = _useState206[1];
+  var _useState207 = useState({}),
     _useState208 = _slicedToArray(_useState207, 2),
-    teamId = _useState208[0],
-    setTeamId = _useState208[1];
-  var _useState209 = useState("home"),
+    presences = _useState208[0],
+    setPresences = _useState208[1];
+  var _useState209 = useState(null),
     _useState210 = _slicedToArray(_useState209, 2),
-    tab = _useState210[0],
-    setTab = _useState210[1];
-  var _useState211 = useState(null),
+    teamId = _useState210[0],
+    setTeamId = _useState210[1];
+  var _useState211 = useState("home"),
     _useState212 = _slicedToArray(_useState211, 2),
-    sub = _useState212[0],
-    setSub = _useState212[1];
+    tab = _useState212[0],
+    setTab = _useState212[1];
   var _useState213 = useState(null),
     _useState214 = _slicedToArray(_useState213, 2),
-    modal = _useState214[0],
-    setModal = _useState214[1];
+    sub = _useState214[0],
+    setSub = _useState214[1];
   var _useState215 = useState(null),
     _useState216 = _slicedToArray(_useState215, 2),
-    treinosModal = _useState216[0],
-    setTreinosModal = _useState216[1];
-  var _useState217 = useState(false),
+    modal = _useState216[0],
+    setModal = _useState216[1];
+  var _useState217 = useState(null),
     _useState218 = _slicedToArray(_useState217, 2),
-    loading = _useState218[0],
-    setLoading = _useState218[1];
+    treinosModal = _useState218[0],
+    setTreinosModal = _useState218[1];
   var _useState219 = useState(false),
     _useState220 = _slicedToArray(_useState219, 2),
-    appReady = _useState220[0],
-    setAppReady = _useState220[1];
+    loading = _useState220[0],
+    setLoading = _useState220[1];
   var _useState221 = useState(false),
     _useState222 = _slicedToArray(_useState221, 2),
-    refreshing = _useState222[0],
-    setRefreshing = _useState222[1];
-  var _useState223 = useState(null),
+    appReady = _useState222[0],
+    setAppReady = _useState222[1];
+  var _useState223 = useState(false),
     _useState224 = _slicedToArray(_useState223, 2),
-    authError = _useState224[0],
-    setAuthError = _useState224[1];
+    refreshing = _useState224[0],
+    setRefreshing = _useState224[1];
+  var _useState225 = useState(null),
+    _useState226 = _slicedToArray(_useState225, 2),
+    authError = _useState226[0],
+    setAuthError = _useState226[1];
   var team = teams.find(function (t) {
     return t.id === teamId;
   });
@@ -6990,10 +7018,10 @@ function App() {
       return _ref98.apply(this, arguments);
     };
   }();
-  var _useState225 = useState(null),
-    _useState226 = _slicedToArray(_useState225, 2),
-    teamError = _useState226[0],
-    setTeamError = _useState226[1];
+  var _useState227 = useState(null),
+    _useState228 = _slicedToArray(_useState227, 2),
+    teamError = _useState228[0],
+    setTeamError = _useState228[1];
   var createTeam = function () {
     var _ref99 = _asyncToGenerator(_regenerator().m(function _callee40(d) {
       var tid, invCode, sr, se, tr, newTeam, _t44;
@@ -7210,13 +7238,13 @@ function App() {
       return _ref102.apply(this, arguments);
     };
   }();
-  var _useState227 = useState(function () {
+  var _useState229 = useState(function () {
       var p = new URLSearchParams(window.location.search);
       return p.get('invite') || null;
     }),
-    _useState228 = _slicedToArray(_useState227, 2),
-    pendingInvite = _useState228[0],
-    setPendingInvite = _useState228[1];
+    _useState230 = _slicedToArray(_useState229, 2),
+    pendingInvite = _useState230[0],
+    setPendingInvite = _useState230[1];
   useEffect(function () {
     if (appReady && pendingInvite) {
       setModal("join");
@@ -7312,10 +7340,10 @@ function App() {
       subscribeToPush(token, myUserId);
     }
   }, [appReady, token, myUserId]);
-  var _useState229 = useState(null),
-    _useState230 = _slicedToArray(_useState229, 2),
-    toast = _useState230[0],
-    setToast = _useState230[1];
+  var _useState231 = useState(null),
+    _useState232 = _slicedToArray(_useState231, 2),
+    toast = _useState232[0],
+    setToast = _useState232[1];
   var showToast = function showToast(msg) {
     var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : T.navy;
     setToast({
