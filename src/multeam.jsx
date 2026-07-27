@@ -1569,12 +1569,22 @@ const Spinner = ({ msg="A carregar..." }) => (
 
 // ── MAIN APP ──────────────────────────────────────────────────
 export default function App() {
-  // Detect password recovery token from email link (hash or search params)
+  // Detect tokens from email links (magic link or password recovery)
   const [recoveryToken] = useState(() => {
-    const full = window.location.hash + "&" + window.location.search;
-    if (!full.includes("type=recovery")) return null;
-    const m = full.match(/access_token=([^&#]+)/);
+    const h = window.location.hash;
+    if (!h.includes("type=recovery")) return null;
+    const m = h.match(/access_token=([^&#&]+)/);
     return m ? decodeURIComponent(m[1]) : null;
+  });
+  // Auto-login from magic link
+  const [magicToken] = useState(() => {
+    const h = window.location.hash;
+    if (!h.includes("access_token=")) return null;
+    if (h.includes("type=recovery")) return null;
+    const at = h.match(/access_token=([^&#&]+)/);
+    const rt = h.match(/refresh_token=([^&#&]+)/);
+    if (!at) return null;
+    return { access: decodeURIComponent(at[1]), refresh: rt ? decodeURIComponent(rt[1]) : "" };
   });
 
   const [token, setToken]       = useState(null);
