@@ -1569,6 +1569,14 @@ const Spinner = ({ msg="A carregar..." }) => (
 
 // ── MAIN APP ──────────────────────────────────────────────────
 export default function App() {
+  // Detect password recovery token from email link (hash or search params)
+  const [recoveryToken] = useState(() => {
+    const full = window.location.hash + "&" + window.location.search;
+    if (!full.includes("type=recovery")) return null;
+    const m = full.match(/access_token=([^&#]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  });
+
   const [token, setToken]       = useState(null);
   const [myUserId, setMyUserId] = useState(null);
   const [profile, setProfile]   = useState(null);
@@ -1943,6 +1951,7 @@ export default function App() {
       sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${d.amount}€ — ${d.reason || "Multa atribuída"}`).catch(()=>{});
     }
   };
+  if (recoveryToken) return <ResetPasswordScreen accessToken={recoveryToken} onDone={()=>{ window.history.replaceState(null,"","/"); window.location.reload(); }} />;
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
