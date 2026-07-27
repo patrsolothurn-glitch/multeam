@@ -1512,6 +1512,7 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         <button disabled={loading} onClick={()=>mode==="login"?onLogin(email,pass):onRegister(email,pass,name)} style={{ width:"100%", padding:16, borderRadius:14, border:"none", background:loading?T.sub:T.brand, color:"#fff", fontSize:17, fontWeight:800, cursor:loading?"default":"pointer", fontFamily:"inherit", marginTop:4 }}>
           {loading?"A carregar...":(mode==="login"?"Entrar":"Criar conta")}
         </button>
+        {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13, marginTop:14, cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
       </div>
     </div>
   );
