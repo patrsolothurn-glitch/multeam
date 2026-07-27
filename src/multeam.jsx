@@ -22,6 +22,7 @@ const api = {
   async upsert(p,b,tok) { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'resolution=merge-duplicates,return=representation'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
   async signIn(email,password) { const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||d.error); return d; },
   async signUp(email,password,name) { const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password,data:{name}})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||d.msg||'Erro'); return d; },
+  async resetPassword(email) { await fetch(`${SB_URL}/auth/v1/recover`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email})}); },
 };
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
@@ -1512,6 +1513,7 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         <button disabled={loading} onClick={()=>mode==="login"?onLogin(email,pass):onRegister(email,pass,name)} style={{ width:"100%", padding:16, borderRadius:14, border:"none", background:loading?T.sub:T.brand, color:"#fff", fontSize:17, fontWeight:800, cursor:loading?"default":"pointer", fontFamily:"inherit", marginTop:4 }}>
           {loading?"A carregar...":(mode==="login"?"Entrar":"Criar conta")}
         </button>
+        {mode==="login" && <p onClick={async()=>{ if(!email){alert("Escreve o teu email primeiro");return;} await supabase.resetPassword(email); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13, marginTop:14, cursor:"pointer", textDecoration:"underline" }}>Esqueceste a password?</p>}
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13, marginTop:14, cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
       </div>
     </div>
