@@ -23,6 +23,7 @@ const api = {
   async signIn(email,password) { const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||d.error); return d; },
   async signUp(email,password,name) { const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password,data:{name}})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||d.msg||'Erro'); return d; },
   async resetPassword(email) { await fetch(`${SB_URL}/auth/v1/recover`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email})}); },
+  async updatePassword(newPass, accessToken) { const r=await fetch(`${SB_URL}/auth/v1/user`,{method:'PUT',headers:{'apikey':SB_KEY,'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({password:newPass})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||'Erro'); return d; },
 };
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
@@ -1477,6 +1478,43 @@ const LoginScreen = ({ onLogin }) => {
 };
 
 // ── MAIN ──────────────────────────────────────────────────────
+// ── RESET PASSWORD SCREEN ─────────────────────────────────────
+const ResetPasswordScreen = ({ accessToken, onDone }) => {
+  const [pass, setPass] = useState(""); const [pass2, setPass2] = useState("");
+  const [showPass, setShowPass] = useState(false); const [err, setErr] = useState(""); const [done, setDone] = useState(false); const [loading, setLoading] = useState(false);
+  const inp = { width:"100%", padding:"14px 16px", borderRadius:14, border:"none", background:"rgba(255,255,255,0.12)", color:"#fff", fontSize:16, marginBottom:12, boxSizing:"border-box", outline:"none", fontFamily:"inherit" };
+  const save = async () => {
+    if (pass.length < 6) return setErr("Mínimo 6 caracteres");
+    if (pass !== pass2) return setErr("As passwords não coincidem");
+    setLoading(true); setErr("");
+    try { await supabase.updatePassword(pass, accessToken); setDone(true); setTimeout(onDone, 2500); }
+    catch(e) { setErr(e.message); }
+    setLoading(false);
+  };
+  return (
+    <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, #1D3557 0%, #0a1628 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:28 }}>
+      <div style={{ marginBottom:28, textAlign:"center" }}>
+        <div style={{ fontSize:48, marginBottom:12 }}>🔑</div>
+        <h2 style={{ color:"#fff", fontSize:26, fontWeight:900, margin:0 }}>Nova password</h2>
+        <p style={{ color:"rgba(255,255,255,0.45)", margin:"6px 0 0", fontSize:14 }}>Define a tua nova password</p>
+      </div>
+      {done ? <div style={{ background:"rgba(45,198,83,0.2)", borderRadius:14, padding:"16px 20px", color:"#7fff9a", textAlign:"center", fontWeight:700 }}>✅ Password alterada! A redirecionar...</div> : (
+        <div style={{ width:"100%", maxWidth:340 }}>
+          <div style={{ position:"relative", marginBottom:12 }}>
+            <input style={{ ...inp, marginBottom:0, paddingRight:50 }} type={showPass?"text":"password"} placeholder="Nova password" value={pass} onChange={e=>setPass(e.target.value)} />
+            <button onClick={()=>setShowPass(p=>!p)} style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:20, cursor:"pointer", padding:4 }}>{showPass?"🙈":"👁️"}</button>
+          </div>
+          <input style={inp} type="password" placeholder="Confirmar password" value={pass2} onChange={e=>setPass2(e.target.value)} />
+          {err && <div style={{ background:"rgba(230,57,70,0.2)", borderRadius:10, padding:"10px 14px", marginBottom:12, color:"#FFB3B8", fontSize:13 }}>{err}</div>}
+          <button disabled={loading||!pass||!pass2} onClick={save} style={{ width:"100%", padding:16, borderRadius:14, border:"none", background:loading?"#666":"#E63946", color:"#fff", fontSize:17, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+            {loading?"A guardar...":"💾 Guardar password"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── AUTH SCREEN ───────────────────────────────────────────────
 const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
   const [mode, setMode] = useState("login");
