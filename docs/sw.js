@@ -1,5 +1,5 @@
 // Multeam Service Worker - network first for app.js + index.html
-const CACHE = 'multeam-v93';
+const CACHE = 'multeam-v95';
 const STATIC = ['/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -33,4 +33,30 @@ self.addEventListener('fetch', e => {
       return res;
     })).catch(() => caches.match('/index.html'))
   );
+});
+
+// Push notifications
+self.addEventListener('push', e => {
+  if (!e.data) return;
+  let data = {};
+  try { data = e.data.json(); } catch { data = { title: 'Multeam', body: e.data.text() }; }
+  e.waitUntil(
+    self.registration.showNotification(data.title || 'Multeam', {
+      body: data.body || '',
+      icon: '/multeam/apple-touch-icon.png',
+      badge: '/multeam/apple-touch-icon.png',
+      tag: data.tag || 'multeam',
+      data: data.url ? { url: data.url } : {},
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/multeam/';
+  e.waitUntil(clients.matchAll({ type: 'window' }).then(list => {
+    for (const c of list) { if (c.url.includes('multeam') && 'focus' in c) return c.focus(); }
+    return clients.openWindow(url);
+  }));
 });
