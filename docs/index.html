@@ -39,7 +39,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
   <!-- App bundle -->
-  <script src="app.js?v=73"></script>
+  <script src="app.js?v=75"></script>
 
   <!-- Hide splash after app loads -->
   <script>
@@ -98,10 +98,18 @@
       }, { passive: true });
     })();
 
-    // PWA Service Worker
+    // PWA Service Worker - auto-reload on new version
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
+        // Track if first install (no existing SW) — don't reload then
+        var firstInstall = !navigator.serviceWorker.controller;
         navigator.serviceWorker.register('sw.js').catch(function(){});
+        // When a new SW takes control (update deployed), reload once
+        var reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (firstInstall) { firstInstall = false; return; }
+          if (!reloading) { reloading = true; window.location.reload(); }
+        });
       });
     }
   </script>
