@@ -5982,7 +5982,7 @@ var ResetPasswordScreen = function ResetPasswordScreen(_ref78) {
             setErr("");
             _context25.p = 3;
             _context25.n = 4;
-            return supabase.updatePassword(pass, accessToken);
+            return api.updatePassword(pass, accessToken);
           case 4:
             setDone(true);
             setTimeout(onDone, 2500);
@@ -6346,7 +6346,7 @@ var AuthScreen = function AuthScreen(_ref80) {
             return _context26.a(2);
           case 1:
             _context26.n = 2;
-            return supabase.resetPassword(email);
+            return api.resetPassword(email);
           case 2:
             alert("Email de recuperação enviado para " + email);
           case 3:
