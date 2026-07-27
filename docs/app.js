@@ -5916,7 +5916,7 @@ var AuthScreen = function AuthScreen(_ref78) {
       textAlign: "center"
     }
   }, React.createElement("img", {
-    src: "icon-192.png",
+    src: "/icon-192.png",
     alt: "Multeam",
     style: {
       width: 80,
