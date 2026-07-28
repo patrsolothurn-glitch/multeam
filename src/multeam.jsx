@@ -1213,15 +1213,19 @@ const AppAdminTab = ({ token }) => {
               {(teamDetail.trainings||[]).length > 0 && (
                 <>
                   <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>📅 Treinos / Jogos</p>
-                  {(teamDetail.trainings||[]).map((t,i) => (
+                  {(teamDetail.trainings||[]).map((t,i) => {
+                    const dateStr = t.date ? new Date(t.date+"T00:00:00").toLocaleDateString("pt-PT",{day:"numeric",month:"short",year:"numeric"}) : "Recorrente";
+                    const timeStr = t.time ? t.time.slice(0,5) : "";
+                    return (
                     <div key={i} style={{ background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6, display:"flex", alignItems:"center", gap:10 }}>
                       <span style={{ fontSize:20 }}>{t.type==="jogo"?"⚽":t.type==="recorrente"?"🔄":"🏃"}</span>
                       <div>
                         <p style={{ margin:0, fontWeight:700, fontSize:13 }}>{t.type==="jogo"?`vs ${t.opponent||"?"}`:t.type==="recorrente"?"Recorrente":"Treino"}</p>
-                        <p style={{ margin:0, fontSize:12, color:T.sub }}>{t.date||"—"} {t.time||""} · {t.location||"—"}</p>
+                        <p style={{ margin:0, fontSize:12, color:T.sub }}>{dateStr}{timeStr?` · ${timeStr}`:""}{t.location?` · ${t.location}`:""}</p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </>
@@ -1243,9 +1247,9 @@ const AppAdminTab = ({ token }) => {
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
       <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
-        <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Super Admin</p>
-        <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Painel da App</h2>
-        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Só visible para ti · Leitura apenas</p>
+        <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Gestão</p>
+        <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Visão Geral</h2>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Monitorização da plataforma</p>
       </div>
       <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
         {tabs.map(([id,label]) => (
