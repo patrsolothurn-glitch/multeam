@@ -2224,7 +2224,7 @@ export default function App() {
         method: 'POST',
         headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          p_member_id: Number(id),
+          p_member_id: id,
           p_team_id: m?.teamId,
           p_name: data.name || '',
           p_phone: data.phone || '',
