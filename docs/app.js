@@ -3580,10 +3580,15 @@ var HomeTab = function HomeTab(_ref51) {
           return f.teamId === team.id && f.memberId === m.id && !f.paid;
         }).reduce(function (s, f) {
           return s + f.amount;
+        }, 0),
+        total: fines.filter(function (f) {
+          return f.teamId === team.id && f.memberId === m.id;
+        }).reduce(function (s, f) {
+          return s + f.amount;
         }, 0)
       });
     }).sort(function (a, b) {
-      return b.unpaid - a.unpaid;
+      return b.total - a.total || b.unpaid - a.unpaid;
     });
     if (ranked.length < 1) return null;
     var podiumItems = [];
@@ -3712,7 +3717,7 @@ var HomeTab = function HomeTab(_ref51) {
         }
       }, m.name.split(" ")[0]), React.createElement("div", {
         style: {
-          background: m.unpaid > 0 ? isFirst ? T.brand : "".concat(T.brand, "22") : isFirst ? "".concat(T.green, "22") : T.bg,
+          background: m.total > 0 ? isFirst ? T.brand : "".concat(T.brand, "22") : isFirst ? "".concat(T.green, "22") : T.bg,
           borderRadius: 10,
           padding: "4px 10px"
         }
@@ -3723,7 +3728,7 @@ var HomeTab = function HomeTab(_ref51) {
           fontSize: isFirst ? 18 : 14,
           color: m.unpaid > 0 ? isFirst ? "#fff" : T.brand : isFirst ? T.green : T.sub
         }
-      }, m.unpaid > 0 ? "".concat(m.unpaid, "\u20AC") : "✓ OK")), React.createElement("div", {
+      }, m.total > 0 ? "".concat(m.total, "\u20AC") : "✓ OK")), React.createElement("div", {
         style: {
           width: "100%",
           height: h,
