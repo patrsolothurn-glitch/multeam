@@ -1648,35 +1648,52 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 
   const copyCode = () => { setCopied(true); setTimeout(()=>setCopied(false), 2000); };
 
-  const Row = ({ m }) => (
-    <div style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-      <Avatar initials={m.initials} color={team.color} size={44} />
-      <div style={{ flex:1 }}>
-        <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-          <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}</p>
-          {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
-          <RoleBadgeLight role={m.role} />
+  const [expandedMember, setExpandedMember] = useState(null);
+
+  const Row = ({ m }) => {
+    const expanded = expandedMember === m.id;
+    return (
+      <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden" }}>
+        {/* Collapsed header - always visible */}
+        <div onClick={() => setExpandedMember(expanded ? null : m.id)}
+          style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
+          <Avatar initials={m.initials} color={team.color} size={44} />
+          <div style={{ flex:1 }}>
+            <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}</p>
+              {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
+              <RoleBadgeLight role={m.role} />
+            </div>
+            <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}</p>
+          </div>
+          <span style={{ color:T.sub, fontSize:18, transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
         </div>
-        <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position}{m.phone?` · ${m.phone}`:""}</p>
-        {m.birthday && <p style={{ margin:0, fontSize:12, color:T.sub }}>🎂 {fmtDate(m.birthday)}</p>}
-      </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-        <button onClick={() => setEditingMember(m)} style={{ padding:"5px 10px", borderRadius:8, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-          ✏️ Editar
-        </button>
-        {m.userId !== myUserId && (
-          <>
-            <button onClick={() => onToggleRole(m.id)} style={{ padding:"5px 10px", borderRadius:8, border:`1.5px solid ${m.role==="admin"?T.sub:T.yellow}`, background:"transparent", color:m.role==="admin"?T.sub:T.yellow, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              {m.role==="admin"?"↓ Jogador":"↑ Admin"}
-            </button>
-            <button onClick={() => setConfirmRemove(m)} style={{ padding:"5px 10px", borderRadius:8, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-              🗑 Remover
-            </button>
-          </>
+
+        {/* Expanded details + actions */}
+        {expanded && (
+          <div style={{ borderTop:`1px solid ${T.border}`, padding:"12px 14px" }}>
+            {m.phone && <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>📱 {m.phone}</p>}
+            {m.birthday && <p style={{ margin:"0 0 12px", fontSize:13, color:T.sub }}>🎂 {fmtDate(m.birthday)}</p>}
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <button onClick={() => { setEditingMember(m); setExpandedMember(null); }} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                ✏️ Editar
+              </button>
+              {m.userId !== myUserId && (
+                <>
+                  <button onClick={() => onToggleRole(m.id)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${m.role==="admin"?T.sub:T.yellow}`, background:"transparent", color:m.role==="admin"?T.sub:T.yellow, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {m.role==="admin"?"↓ Jogador":"↑ Admin"}
+                  </button>
+                  <button onClick={() => setConfirmRemove(m)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    🗑 Remover
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh" }}>
