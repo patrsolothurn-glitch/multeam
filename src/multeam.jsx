@@ -1112,13 +1112,16 @@ const AppAdminTab = ({ token }) => {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [section, setSection] = useState("stats");
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [teamDetail, setTeamDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const rpc = (fn) => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
-          method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}'
+        const rpc = (fn, body="{}") => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+          method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body
         });
         const [sr, ur, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_app_user_list"), rpc("get_all_teams_admin")]);
         if (sr.ok) setStats(await sr.json());
@@ -1130,7 +1133,95 @@ const AppAdminTab = ({ token }) => {
     load();
   }, [token]);
 
+  const openTeam = async (team) => {
+    setSelectedTeam(team); setTeamDetail(null); setDetailLoading(true);
+    try {
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/get_team_details_admin`, {
+        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+        body: JSON.stringify({ p_team_id: team.id })
+      });
+      if (r.ok) setTeamDetail(await r.json());
+    } catch(e) { console.error(e); }
+    setDetailLoading(false);
+  };
+
   if (loading) return <Spinner msg="A carregar painel admin..." />;
+
+  // Team detail view
+  if (selectedTeam) {
+    return (
+      <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
+        <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
+          <button onClick={()=>setSelectedTeam(null)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12 }}>← Voltar</button>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <span style={{ fontSize:32 }}>{selectedTeam.emoji}</span>
+            <div>
+              <h2 style={{ margin:0, color:"#fff", fontSize:20, fontWeight:900 }}>{selectedTeam.name}</h2>
+              <p style={{ margin:0, fontSize:13, color:"rgba(255,255,255,0.5)" }}>{selectedTeam.season} · {selectedTeam.members_count} membros</p>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:"16px" }}>
+          {detailLoading && <Spinner msg="A carregar..." />}
+          {teamDetail && (
+            <>
+              {/* Members */}
+              <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>👥 Membros</p>
+              {(teamDetail.members||[]).map((m,i) => (
+                <div key={i} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:38, height:38, borderRadius:19, background:m.role==="admin"?T.navy:T.bg, border:`2px solid ${m.role==="admin"?T.navy:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:m.role==="admin"?"#fff":T.sub, flexShrink:0 }}>
+                    {(m.name||"?")[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{m.name||"—"}</p>
+                    <p style={{ margin:0, fontSize:12, color:T.sub }}>{m.position||"—"} · {m.role==="admin"?"Admin":"Jogador"}</p>
+                  </div>
+                  {m.unpaid_amount > 0 && (
+                    <div style={{ background:`${T.brand}15`, borderRadius:10, padding:"4px 10px" }}>
+                      <p style={{ margin:0, fontWeight:900, fontSize:13, color:T.brand }}>{m.unpaid_amount}€</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Recent fines */}
+              {(teamDetail.recent_fines||[]).length > 0 && (
+                <>
+                  <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🟥 Multas recentes</p>
+                  {(teamDetail.recent_fines||[]).map((f,i) => (
+                    <div key={i} style={{ background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6, display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:20 }}>{f.emoji||"🟥"}</span>
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:0, fontWeight:700, fontSize:13 }}>{f.member_name} — {f.amount}€</p>
+                        <p style={{ margin:0, fontSize:12, color:T.sub }}>{f.reason||"—"} · {f.date}</p>
+                      </div>
+                      <span style={{ fontSize:11, fontWeight:700, color:f.paid?T.green:T.brand }}>{f.paid?"✓ Pago":"Por pagar"}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Trainings */}
+              {(teamDetail.trainings||[]).length > 0 && (
+                <>
+                  <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>📅 Treinos / Jogos</p>
+                  {(teamDetail.trainings||[]).map((t,i) => (
+                    <div key={i} style={{ background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6, display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:20 }}>{t.type==="jogo"?"⚽":t.type==="recorrente"?"🔄":"🏃"}</span>
+                      <div>
+                        <p style={{ margin:0, fontWeight:700, fontSize:13 }}>{t.type==="jogo"?`vs ${t.opponent||"?"}`:t.type==="recorrente"?"Recorrente":"Treino"}</p>
+                        <p style={{ margin:0, fontSize:12, color:T.sub }}>{t.date||"—"} {t.time||""} · {t.location||"—"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const StatCard = ({ label, value, color }) => (
     <div style={{ background:T.card, borderRadius:14, padding:"14px 16px", flex:1, minWidth:0 }}>
@@ -1143,23 +1234,17 @@ const AppAdminTab = ({ token }) => {
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
-      {/* Header */}
       <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
         <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Super Admin</p>
         <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Painel da App</h2>
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Só visible para ti · Leitura apenas</p>
       </div>
-
-      {/* Section tabs */}
       <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
         {tabs.map(([id,label]) => (
           <button key={id} onClick={()=>setSection(id)} style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
       </div>
-
       <div style={{ padding:"16px" }}>
-
-        {/* STATS */}
         {section==="stats" && stats && (
           <>
             <div style={{ display:"flex", gap:8, marginBottom:8 }}>
@@ -1177,28 +1262,21 @@ const AppAdminTab = ({ token }) => {
             </div>
           </>
         )}
-
-        {/* TEAMS */}
         {section==="teams" && (
           <>
-            {teams.length === 0 && <p style={{ color:T.sub, textAlign:"center", padding:"20px 0" }}>Nenhuma equipa ainda</p>}
+            {teams.length===0 && <p style={{ color:T.sub, textAlign:"center", padding:"20px 0" }}>Nenhuma equipa ainda</p>}
             {teams.map(t => (
-              <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10 }}>
+              <div key={t.id} onClick={()=>{ setSection("teams"); openTeam(t); }} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", border:`1.5px solid ${T.border}` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
                   <span style={{ fontSize:28 }}>{t.emoji}</span>
                   <div style={{ flex:1 }}>
                     <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{t.name}</p>
                     <p style={{ margin:0, fontSize:12, color:T.sub }}>{t.season} · criada {new Date(t.created_at).toLocaleDateString("pt-PT")}</p>
                   </div>
-                  <div style={{ width:14, height:14, borderRadius:7, background:t.color }} />
+                  <span style={{ color:T.sub, fontSize:18 }}>›</span>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
-                  {[
-                    ["👥", t.members_count, "membros"],
-                    ["🟥", t.fines_count, "multas"],
-                    ["💸", `${t.unpaid_total}€`, "por pagar"],
-                    ["📅", t.trainings_count, "treinos"],
-                  ].map(([icon, val, label]) => (
+                  {[["👥",t.members_count,"membros"],["🟥",t.fines_count,"multas"],["💸",`${t.unpaid_total}€`,"por pagar"],["📅",t.trainings_count,"treinos"]].map(([icon,val,label]) => (
                     <div key={label} style={{ flex:1, background:T.bg, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
                       <p style={{ margin:0, fontSize:10, color:T.sub }}>{icon}</p>
                       <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{val}</p>
@@ -1210,8 +1288,6 @@ const AppAdminTab = ({ token }) => {
             ))}
           </>
         )}
-
-        {/* USERS */}
         {section==="users" && (
           <>
             {users.map(u => (
@@ -1234,11 +1310,27 @@ const AppAdminTab = ({ token }) => {
             ))}
           </>
         )}
-
       </div>
     </div>
   );
 };
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const rpc = (fn) => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+          method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}'
+        });
+        const [sr, ur, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_app_user_list"), rpc("get_all_teams_admin")]);
+        if (sr.ok) setStats(await sr.json());
+        if (ur.ok) setUsers(await ur.json() || []);
+        if (tr.ok) setTeams(await tr.json() || []);
+      } catch(e) { console.error(e); }
+      setLoading(false);
+    };
+    load();
+  }, [token]);
+
 
 const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout }) => {
   const myTeams = teams.filter(t => 
