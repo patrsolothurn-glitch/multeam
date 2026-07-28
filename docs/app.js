@@ -3635,11 +3635,20 @@ var HomeTab = function HomeTab(_ref51) {
         sz: 38
       }];
     }
-    var rest = ranked.slice(3);
     var PLACE_COLORS = {
       1: "#FFD700",
-      2: "#C0C0C0",
-      3: "#CD7F32"
+      2: "#B8C4D0",
+      3: "#C8854A"
+    };
+    var PLACE_GRAD = {
+      1: "linear-gradient(135deg,#FFD700,#FFA500)",
+      2: "linear-gradient(135deg,#C8D6E0,#8FA3B0)",
+      3: "linear-gradient(135deg,#CD7F32,#9B5E1F)"
+    };
+    var AVATAR_GRAD = {
+      1: "linear-gradient(135deg,#FFD700,#FF8C00)",
+      2: "linear-gradient(135deg,#B0BEC5,#607D8B)",
+      3: "linear-gradient(135deg,#CD7F32,#795548)"
     };
     return React.createElement("div", {
       style: {
@@ -3654,12 +3663,11 @@ var HomeTab = function HomeTab(_ref51) {
         textTransform: "uppercase",
         letterSpacing: 1
       }
-    }, "\uD83C\uDFC6 Ranking de pagamentos"), React.createElement("div", {
+    }, "\uD83C\uDFC6 Ranking de multas pagas"), React.createElement("div", {
       style: {
-        background: "linear-gradient(160deg, ".concat(team.color, "22, ").concat(team.color, "08)"),
+        background: "linear-gradient(160deg,#1a1a2e,#16213e)",
         borderRadius: 18,
-        padding: "20px 12px 0",
-        border: "1.5px solid ".concat(team.color, "30")
+        padding: "20px 12px 8px"
       }
     }, React.createElement("div", {
       style: {
@@ -3676,6 +3684,10 @@ var HomeTab = function HomeTab(_ref51) {
         sz = _ref54.sz;
       var isFirst = place === 1;
       var pc = PLACE_COLORS[place];
+      var ag = AVATAR_GRAD[place];
+      var pg = PLACE_GRAD[place];
+      var paidAmt = m.paid || 0;
+      var unpaidAmt = m.unpaid || 0;
       return React.createElement("div", {
         key: m.id,
         style: {
@@ -3687,22 +3699,22 @@ var HomeTab = function HomeTab(_ref51) {
         }
       }, React.createElement("span", {
         style: {
-          fontSize: isFirst ? 34 : 24
+          fontSize: isFirst ? 36 : 24
         }
       }, medal), React.createElement("div", {
         style: {
           width: sz,
           height: sz,
           borderRadius: sz / 2,
-          background: isFirst ? "linear-gradient(135deg,".concat(team.color, ",").concat(team.color, "aa)") : "".concat(pc, "22"),
+          background: ag,
           border: "3px solid ".concat(pc),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: isFirst ? "#fff" : T.text,
+          color: "#fff",
           fontWeight: 900,
           fontSize: sz * 0.3,
-          boxShadow: isFirst ? "0 4px 16px ".concat(team.color, "44") : "none"
+          boxShadow: "0 4px 20px ".concat(pc, "66")
         }
       }, m.initials), React.createElement("p", {
         style: {
@@ -3713,40 +3725,41 @@ var HomeTab = function HomeTab(_ref51) {
           maxWidth: 90,
           overflow: "hidden",
           textOverflow: "ellipsis",
-          whiteSpace: "nowrap"
+          whiteSpace: "nowrap",
+          color: "#fff"
         }
       }, m.name.split(" ")[0]), React.createElement("div", {
         style: {
-          background: m.paid > 0 ? isFirst ? T.green : "".concat(T.green, "22") : T.bg,
+          background: paidAmt > 0 ? "".concat(pc, "30") : "rgba(255,255,255,0.08)",
+          border: "1px solid ".concat(paidAmt > 0 ? pc : "rgba(255,255,255,0.1)"),
           borderRadius: 10,
-          padding: "4px 10px"
+          padding: "5px 12px"
         }
       }, React.createElement("p", {
         style: {
           margin: 0,
           fontWeight: 900,
           fontSize: isFirst ? 18 : 14,
-          color: m.unpaid > 0 ? isFirst ? "#fff" : T.brand : isFirst ? T.green : T.sub
+          color: paidAmt > 0 ? pc : "rgba(255,255,255,0.4)"
         }
-      }, m.paid > 0 ? "".concat(m.paid, "\u20AC") : "✓")), React.createElement("div", {
+      }, paidAmt > 0 ? "".concat(paidAmt, "\u20AC") : unpaidAmt > 0 ? "".concat(unpaidAmt, "\u20AC deve") : "✓")), React.createElement("div", {
         style: {
           width: "100%",
           height: h,
-          background: "".concat(pc, "25"),
+          background: pg,
           borderRadius: "10px 10px 0 0",
-          marginTop: 4,
+          marginTop: 6,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "inset 0 -3px 0 ".concat(pc, "60")
+          opacity: 0.9
         }
       }, React.createElement("p", {
         style: {
           margin: 0,
           fontWeight: 900,
-          fontSize: 28,
-          color: pc,
-          opacity: 0.6
+          fontSize: isFirst ? 32 : 24,
+          color: "rgba(0,0,0,0.25)"
         }
       }, place)));
     }))), rest.map(function (m, i) {
