@@ -139,6 +139,11 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [addingType, setAddingType] = useState(false);
+  const [newName, setNewName] = useState(""); const [newAmount, setNewAmount] = useState(""); const [newEmoji, setNewEmoji] = useState("🟥");
+  const [savingType, setSavingType] = useState(false);
+
+  const QUICK_EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤"];
 
   useEffect(() => {
     const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
@@ -146,7 +151,6 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, { headers: H }).then(r => r.json()),
       fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H }).then(r => r.json()),
     ]).then(async ([mRaw, ftRaw]) => {
-      // Members + profiles
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
       let profMap = {};
       if (uids.length) {
@@ -157,13 +161,30 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
         name: profMap[m.user_id]?.name || 'Utilizador'
       })));
-      // Fine types
       setTft((Array.isArray(ftRaw) ? ftRaw : []).map(ft => ({
         id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥'
       })));
       setLoading(false);
     }).catch(e => { setErr(e.message); setLoading(false); });
   }, []);
+
+  const saveNewType = async () => {
+    if (!newName.trim() || !newAmount) return;
+    setSavingType(true);
+    try {
+      const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+      const r = await fetch(`${SB_URL}/rest/v1/fine_types`, { method:'POST', headers: H, body: JSON.stringify({ team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: newEmoji }) });
+      const data = await r.json();
+      const ft = Array.isArray(data) ? data[0] : data;
+      if (ft?.id) {
+        const newFt = { id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥' };
+        setTft(p => [...p, newFt]);
+        setSft(newFt);
+      }
+      setAddingType(false); setNewName(""); setNewAmount(""); setNewEmoji("🟥");
+    } catch(e) { setErr(e.message); }
+    setSavingType(false);
+  };
 
   const canSubmit = mid && sft;
 
@@ -181,24 +202,80 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       {loading ? (
         <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar...</p>
       ) : (<>
+        {/* Player selector */}
         <FL>Jogador ({tm.length})</FL>
         <FSel value={mid} onChange={e => setMid(e.target.value)}>
           <option value="">— Selecionar jogador —</option>
           {tm.map(m => <option key={m.id} value={m.id}>{m.name}{m.role==='admin'?' (Admin)':''}</option>)}
         </FSel>
+
+        {/* Fine type grid */}
         <FL>Tipo de multa</FL>
-        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
           {tft.map(ft => (
-            <button key={ft.id} onClick={() => setSft(ft)} style={{ padding:"10px 14px", borderRadius:12, border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`, background:sft?.id===ft.id?`${T.brand}18`:T.inputBg, cursor:"pointer", fontSize:14, fontWeight:600, fontFamily:"inherit" }}>
-              {ft.emoji} {ft.name} — <strong>{ft.amount}€</strong>
+            <button key={ft.id} onClick={() => setSft(ft)} style={{
+              padding:"14px 12px", borderRadius:14, textAlign:"left",
+              border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`,
+              background:sft?.id===ft.id?`${T.brand}12`:T.inputBg,
+              cursor:"pointer", fontFamily:"inherit",
+              boxShadow: sft?.id===ft.id?`0 2px 10px ${T.brand}30`:"none",
+              transition:"all 0.15s"
+            }}>
+              <div style={{ fontSize:28, marginBottom:4 }}>{ft.emoji}</div>
+              <p style={{ margin:0, fontWeight:700, fontSize:13, color:sft?.id===ft.id?T.brand:T.text }}>{ft.name}</p>
+              <p style={{ margin:"2px 0 0", fontWeight:900, fontSize:18, color:sft?.id===ft.id?T.brand:T.navy }}>{ft.amount}€</p>
             </button>
           ))}
+
+          {/* Add new type button */}
+          <button onClick={() => setAddingType(true)} style={{
+            padding:"14px 12px", borderRadius:14, textAlign:"left",
+            border:`2px dashed ${T.border}`, background:"transparent",
+            cursor:"pointer", fontFamily:"inherit"
+          }}>
+            <div style={{ fontSize:28, marginBottom:4 }}>➕</div>
+            <p style={{ margin:0, fontWeight:700, fontSize:13, color:T.sub }}>Nova</p>
+            <p style={{ margin:"2px 0 0", fontWeight:700, fontSize:13, color:T.sub }}>multa</p>
+          </button>
         </div>
+
+        {/* Inline new type creator */}
+        {addingType && (
+          <div style={{ background:T.inputBg, borderRadius:14, padding:"14px", marginBottom:12, border:`1.5px solid ${T.border}` }}>
+            <p style={{ margin:"0 0 10px", fontWeight:700, fontSize:13 }}>➕ Novo tipo de multa</p>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+              {QUICK_EMOJIS.map(e => (
+                <button key={e} onClick={()=>setNewEmoji(e)} style={{ fontSize:20, width:38, height:38, borderRadius:10, border:`2px solid ${newEmoji===e?T.brand:T.border}`, background:newEmoji===e?`${T.brand}15`:"transparent", cursor:"pointer" }}>{e}</button>
+              ))}
+            </div>
+            <FI value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nome (ex: Cartão azul)" />
+            <FI type="number" value={newAmount} onChange={e=>setNewAmount(e.target.value)} placeholder="Valor em € (ex: 10)" />
+            <div style={{ display:"flex", gap:8 }}>
+              <PrimaryBtn onClick={saveNewType} disabled={!newName.trim()||!newAmount||savingType} color={team.color}>
+                {savingType ? "A guardar..." : "✓ Criar"}
+              </PrimaryBtn>
+              <button onClick={()=>setAddingType(false)} style={{ flex:1, padding:"15px", borderRadius:14, border:`1.5px solid ${T.border}`, background:"transparent", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14 }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {/* Selected summary */}
+        {sft && (
+          <div style={{ background:`${T.brand}10`, border:`1.5px solid ${T.brand}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:24 }}>{sft.emoji}</span>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{sft.name}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>Valor: <strong style={{ color:T.brand }}>{sft.amount}€</strong></p>
+            </div>
+            <button onClick={()=>setSft(null)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub }}>✕</button>
+          </div>
+        )}
+
         <FL>Motivo (opcional)</FL>
         <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
         {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-        <PrimaryBtn onClick={submit} disabled={!canSubmit}>
-          {canSubmit ? `Atribuir ${sft.amount}€ de multa` : (!mid ? "← Seleciona um jogador" : "← Seleciona o tipo")}
+        <PrimaryBtn onClick={submit} disabled={!canSubmit} color={T.brand}>
+          {canSubmit ? `🟥 Atribuir ${sft.amount}€ a ${tm.find(m=>m.id===mid)?.name||"jogador"}` : (!mid ? "← Seleciona um jogador" : "← Seleciona o tipo")}
         </PrimaryBtn>
       </>)}
     </Sheet>
