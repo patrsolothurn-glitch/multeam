@@ -853,8 +853,9 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         const tm = members.filter(m => m.teamId===team.id);
         const ranked = tm.map(m => ({
           ...m,
-          unpaid: fines.filter(f=>f.teamId===team.id&&f.memberId===m.id&&!f.paid).reduce((s,f)=>s+f.amount,0)
-        })).sort((a,b)=>b.unpaid-a.unpaid);
+          unpaid: fines.filter(f=>f.teamId===team.id&&f.memberId===m.id&&!f.paid).reduce((s,f)=>s+f.amount,0),
+          total: fines.filter(f=>f.teamId===team.id&&f.memberId===m.id).reduce((s,f)=>s+f.amount,0)
+        })).sort((a,b)=>b.total-a.total||b.unpaid-a.unpaid);
 
         if (ranked.length < 1) return null;
 
@@ -892,9 +893,9 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                         {m.initials}
                       </div>
                       <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</p>
-                      <div style={{ background:m.unpaid>0?(isFirst?T.brand:`${T.brand}22`):isFirst?`${T.green}22`:T.bg, borderRadius:10, padding:"4px 10px" }}>
+                      <div style={{ background:m.total>0?(isFirst?T.brand:`${T.brand}22`):isFirst?`${T.green}22`:T.bg, borderRadius:10, padding:"4px 10px" }}>
                         <p style={{ margin:0, fontWeight:900, fontSize:isFirst?18:14, color:m.unpaid>0?(isFirst?"#fff":T.brand):(isFirst?T.green:T.sub) }}>
-                          {m.unpaid>0?`${m.unpaid}€`:"✓ OK"}
+                          {m.total>0?`${m.total}€`:"✓ OK"}
                         </p>
                       </div>
                       <div style={{ width:"100%", height:h, background:`${pc}25`, borderRadius:"10px 10px 0 0", marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`inset 0 -3px 0 ${pc}60` }}>
