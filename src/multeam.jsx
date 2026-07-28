@@ -143,6 +143,36 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   const [newName, setNewName] = useState(""); const [newAmount, setNewAmount] = useState(""); const [newEmoji, setNewEmoji] = useState("🟥");
   const [savingType, setSavingType] = useState(false);
 
+  const [editingFt, setEditingFt] = useState(null);
+  const [editName, setEditName] = useState(""); const [editAmount, setEditAmount] = useState(""); const [editEmoji, setEditEmoji] = useState("🟥");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEdit = (ft, e) => { e.stopPropagation(); setEditingFt(ft); setEditName(ft.name); setEditAmount(String(ft.amount)); setEditEmoji(ft.emoji); };
+
+  const saveEdit = async () => {
+    if (!editName.trim() || !editAmount) return;
+    setSavingEdit(true);
+    try {
+      const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+      await fetch(`${SB_URL}/rest/v1/fine_types?id=eq.${editingFt.id}`, { method:'PATCH', headers: H, body: JSON.stringify({ name: editName.trim(), amount: Number(editAmount), emoji: editEmoji }) });
+      setTft(p => p.map(x => x.id===editingFt.id ? {...x, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji} : x));
+      if (sft?.id===editingFt.id) setSft(f => ({...f, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji}));
+      setEditingFt(null);
+    } catch(e) { setErr(e.message); }
+    setSavingEdit(false);
+  };
+
+  const deleteFt = async (ft, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Apagar "${ft.name}"?`)) return;
+    try {
+      const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
+      await fetch(`${SB_URL}/rest/v1/fine_types?id=eq.${ft.id}`, { method:'DELETE', headers: H });
+      setTft(p => p.filter(x => x.id !== ft.id));
+      if (sft?.id===ft.id) setSft(null);
+    } catch(e) { setErr(e.message); }
+  };
+
   const QUICK_EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤"];
 
   useEffect(() => {
@@ -212,18 +242,36 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         {/* Fine type grid */}
         <FL>Tipo de multa</FL>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
-          {tft.map(ft => (
+          {tft.map(ft => editingFt?.id===ft.id ? (
+            <div key={ft.id} style={{ gridColumn:"1 / -1", background:T.inputBg, borderRadius:14, padding:"14px", border:`1.5px solid ${T.brand}` }}>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
+                {QUICK_EMOJIS.map(e => (
+                  <button key={e} onClick={()=>setEditEmoji(e)} style={{ fontSize:18, width:34, height:34, borderRadius:8, border:`2px solid ${editEmoji===e?T.brand:T.border}`, background:editEmoji===e?`${T.brand}15`:"transparent", cursor:"pointer" }}>{e}</button>
+                ))}
+              </div>
+              <FI value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome" />
+              <FI type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)} placeholder="Valor €" />
+              <div style={{ display:"flex", gap:8 }}>
+                <PrimaryBtn onClick={saveEdit} disabled={!editName.trim()||!editAmount||savingEdit} color={T.brand}>{savingEdit?"A guardar...":"✓ Guardar"}</PrimaryBtn>
+                <button onClick={()=>setEditingFt(null)} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
             <button key={ft.id} onClick={() => setSft(ft)} style={{
-              padding:"14px 12px", borderRadius:14, textAlign:"left",
+              padding:"12px 10px", borderRadius:14, textAlign:"left", position:"relative",
               border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`,
               background:sft?.id===ft.id?`${T.brand}12`:T.inputBg,
               cursor:"pointer", fontFamily:"inherit",
               boxShadow: sft?.id===ft.id?`0 2px 10px ${T.brand}30`:"none",
-              transition:"all 0.15s"
             }}>
-              <div style={{ fontSize:28, marginBottom:4 }}>{ft.emoji}</div>
-              <p style={{ margin:0, fontWeight:700, fontSize:13, color:sft?.id===ft.id?T.brand:T.text }}>{ft.name}</p>
-              <p style={{ margin:"2px 0 0", fontWeight:900, fontSize:18, color:sft?.id===ft.id?T.brand:T.navy }}>{ft.amount}€</p>
+              {/* Edit/Delete buttons */}
+              <div style={{ position:"absolute", top:6, right:6, display:"flex", gap:2 }}>
+                <button onClick={(e)=>startEdit(ft,e)} style={{ background:"rgba(0,0,0,0.06)", border:"none", borderRadius:6, width:24, height:24, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>
+                <button onClick={(e)=>deleteFt(ft,e)} style={{ background:"rgba(0,0,0,0.06)", border:"none", borderRadius:6, width:24, height:24, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
+              </div>
+              <div style={{ fontSize:26, marginBottom:4 }}>{ft.emoji}</div>
+              <p style={{ margin:0, fontWeight:700, fontSize:12, color:sft?.id===ft.id?T.brand:T.text, paddingRight:52 }}>{ft.name}</p>
+              <p style={{ margin:"2px 0 0", fontWeight:900, fontSize:16, color:sft?.id===ft.id?T.brand:T.navy }}>{ft.amount}€</p>
             </button>
           ))}
 
