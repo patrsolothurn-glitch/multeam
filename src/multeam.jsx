@@ -1672,8 +1672,29 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         {/* Expanded details + actions */}
         {expanded && (
           <div style={{ borderTop:`1px solid ${T.border}`, padding:"12px 14px" }}>
-            {m.phone && <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>📱 {m.phone}</p>}
-            {m.birthday && <p style={{ margin:"0 0 12px", fontSize:13, color:T.sub }}>🎂 {fmtDate(m.birthday)}</p>}
+            <div style={{ marginBottom:12, display:"flex", flexDirection:"column", gap:6 }}>
+              {m.position && (
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ fontSize:14, width:20 }}>⚽</span>
+                  <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Posição: </span><strong>{m.position}</strong></p>
+                </div>
+              )}
+              {m.phone && (
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ fontSize:14, width:20 }}>📱</span>
+                  <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Telefone: </span><strong>{m.phone}</strong></p>
+                </div>
+              )}
+              {m.birthday && (
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ fontSize:14, width:20 }}>🎂</span>
+                  <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Aniversário: </span><strong>{fmtDate(m.birthday)}</strong></p>
+                </div>
+              )}
+              {!m.position && !m.phone && !m.birthday && (
+                <p style={{ margin:0, fontSize:13, color:T.sub, fontStyle:"italic" }}>Sem informações adicionais</p>
+              )}
+            </div>
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <button onClick={() => { setEditingMember(m); setExpandedMember(null); }} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 ✏️ Editar
