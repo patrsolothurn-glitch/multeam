@@ -1,5 +1,5 @@
 // Multeam Service Worker - network first for app.js + index.html
-const CACHE = 'multeam-v165';
+const CACHE = 'multeam-v167';
 const STATIC = ['/manifest.json'];
 
 self.addEventListener('install', e => {
