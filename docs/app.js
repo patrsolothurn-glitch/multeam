@@ -3635,6 +3635,7 @@ var HomeTab = function HomeTab(_ref51) {
         sz: 38
       }];
     }
+    var rest = ranked.slice(3);
     var PLACE_COLORS = {
       1: "#FFD700",
       2: "#B8C4D0",
