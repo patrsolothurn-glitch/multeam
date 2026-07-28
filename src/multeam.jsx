@@ -875,6 +875,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
             { m: ranked[2], place: 3, medal: "🥉", h: 56, sz: 38 },
           ];
         }
+        const rest = ranked.slice(3);
         const PLACE_COLORS = { 1: "#FFD700", 2: "#B8C4D0", 3: "#C8854A" };
         const PLACE_GRAD   = { 1: "linear-gradient(135deg,#FFD700,#FFA500)", 2: "linear-gradient(135deg,#C8D6E0,#8FA3B0)", 3: "linear-gradient(135deg,#CD7F32,#9B5E1F)" };
         const AVATAR_GRAD  = { 1: "linear-gradient(135deg,#FFD700,#FF8C00)", 2: "linear-gradient(135deg,#B0BEC5,#607D8B)", 3: "linear-gradient(135deg,#CD7F32,#795548)" };
