@@ -50,6 +50,10 @@ async function main() {
     ['docs/app.js',                        './docs/app.js'],
     ['docs/manifest.json',                 './docs/manifest.json'],
     ['docs/sw.js',                         './docs/sw.js'],
+    ['docs/CNAME',                         './docs/CNAME'],
+    ['docs/icon-192.png',                  './docs/icon-192.png'],
+    ['docs/icon-512.png',                  './docs/icon-512.png'],
+    ['docs/apple-touch-icon.png',          './docs/apple-touch-icon.png'],
     ['.github/workflows/deploy.yml',       './.github/workflows/deploy.yml'],
   ];
 
