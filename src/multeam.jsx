@@ -1315,21 +1315,7 @@ const AppAdminTab = ({ token }) => {
   );
 };
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const rpc = (fn) => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
-          method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}'
-        });
-        const [sr, ur, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_app_user_list"), rpc("get_all_teams_admin")]);
-        if (sr.ok) setStats(await sr.json());
-        if (ur.ok) setUsers(await ur.json() || []);
-        if (tr.ok) setTeams(await tr.json() || []);
-      } catch(e) { console.error(e); }
-      setLoading(false);
-    };
-    load();
-  }, [token]);
+
 
 
 const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout }) => {
