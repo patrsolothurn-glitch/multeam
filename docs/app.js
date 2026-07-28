@@ -6506,19 +6506,81 @@ var ManageTeamScreen = function ManageTeamScreen(_ref86) {
         borderTop: "1px solid ".concat(T.border),
         padding: "12px 14px"
       }
-    }, m.phone && React.createElement("p", {
+    }, React.createElement("div", {
       style: {
-        margin: "0 0 4px",
-        fontSize: 13,
+        marginBottom: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6
+      }
+    }, m.position && React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        alignItems: "center"
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 14,
+        width: 20
+      }
+    }, "\u26BD"), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13
+      }
+    }, React.createElement("span", {
+      style: {
         color: T.sub
       }
-    }, "\uD83D\uDCF1 ", m.phone), m.birthday && React.createElement("p", {
+    }, "Posi\xE7\xE3o: "), React.createElement("strong", null, m.position))), m.phone && React.createElement("div", {
       style: {
-        margin: "0 0 12px",
-        fontSize: 13,
+        display: "flex",
+        gap: 8,
+        alignItems: "center"
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 14,
+        width: 20
+      }
+    }, "\uD83D\uDCF1"), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13
+      }
+    }, React.createElement("span", {
+      style: {
         color: T.sub
       }
-    }, "\uD83C\uDF82 ", fmtDate(m.birthday)), React.createElement("div", {
+    }, "Telefone: "), React.createElement("strong", null, m.phone))), m.birthday && React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        alignItems: "center"
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 14,
+        width: 20
+      }
+    }, "\uD83C\uDF82"), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13
+      }
+    }, React.createElement("span", {
+      style: {
+        color: T.sub
+      }
+    }, "Anivers\xE1rio: "), React.createElement("strong", null, fmtDate(m.birthday)))), !m.position && !m.phone && !m.birthday && React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13,
+        color: T.sub,
+        fontStyle: "italic"
+      }
+    }, "Sem informa\xE7\xF5es adicionais")), React.createElement("div", {
       style: {
         display: "flex",
         gap: 8,
