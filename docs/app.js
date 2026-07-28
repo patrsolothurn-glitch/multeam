@@ -4923,6 +4923,12 @@ var AppAdminTab = function AppAdminTab(_ref67) {
         letterSpacing: 1
       }
     }, "\uD83D\uDCC5 Treinos / Jogos"), (teamDetail.trainings || []).map(function (t, i) {
+      var dateStr = t.date ? new Date(t.date + "T00:00:00").toLocaleDateString("pt-PT", {
+        day: "numeric",
+        month: "short",
+        year: "numeric"
+      }) : "Recorrente";
+      var timeStr = t.time ? t.time.slice(0, 5) : "";
       return React.createElement("div", {
         key: i,
         style: {
@@ -4950,7 +4956,7 @@ var AppAdminTab = function AppAdminTab(_ref67) {
           fontSize: 12,
           color: T.sub
         }
-      }, t.date || "—", " ", t.time || "", " \xB7 ", t.location || "—")));
+      }, dateStr, timeStr ? " \xB7 ".concat(timeStr) : "", t.location ? " \xB7 ".concat(t.location) : "")));
     })))));
   }
   var StatCard = function StatCard(_ref70) {
@@ -5004,20 +5010,20 @@ var AppAdminTab = function AppAdminTab(_ref67) {
       textTransform: "uppercase",
       letterSpacing: 1
     }
-  }, "\uD83D\uDEE1\uFE0F Super Admin"), React.createElement("h2", {
+  }, "\uD83D\uDEE1\uFE0F Gest\xE3o"), React.createElement("h2", {
     style: {
       margin: 0,
       color: "#fff",
       fontSize: 22,
       fontWeight: 900
     }
-  }, "Painel da App"), React.createElement("p", {
+  }, "Vis\xE3o Geral"), React.createElement("p", {
     style: {
       margin: "4px 0 0",
       fontSize: 13,
       color: "rgba(255,255,255,0.4)"
     }
-  }, "S\xF3 visible para ti \xB7 Leitura apenas")), React.createElement("div", {
+  }, "Monitoriza\xE7\xE3o da plataforma")), React.createElement("div", {
     style: {
       display: "flex",
       gap: 6,
