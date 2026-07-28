@@ -1110,17 +1110,20 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
 const AppAdminTab = ({ token }) => {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [section, setSection] = useState("stats");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [sr, ur] = await Promise.all([
-          fetch(`${SB_URL}/rest/v1/rpc/get_app_admin_stats`, { method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}' }),
-          fetch(`${SB_URL}/rest/v1/rpc/get_app_user_list`,   { method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}' }),
-        ]);
+        const rpc = (fn) => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+          method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}'
+        });
+        const [sr, ur, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_app_user_list"), rpc("get_all_teams_admin")]);
         if (sr.ok) setStats(await sr.json());
         if (ur.ok) setUsers(await ur.json() || []);
+        if (tr.ok) setTeams(await tr.json() || []);
       } catch(e) { console.error(e); }
       setLoading(false);
     };
@@ -1132,53 +1135,107 @@ const AppAdminTab = ({ token }) => {
   const StatCard = ({ label, value, color }) => (
     <div style={{ background:T.card, borderRadius:14, padding:"14px 16px", flex:1, minWidth:0 }}>
       <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</p>
-      <p style={{ margin:0, fontSize:28, fontWeight:900, color: color||T.navy }}>{value}</p>
+      <p style={{ margin:0, fontSize:26, fontWeight:900, color: color||T.navy }}>{value}</p>
     </div>
   );
 
+  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"]];
+
   return (
-    <div style={{ padding:"16px 16px 80px", background:T.bg, minHeight:"100vh" }}>
-      <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, borderRadius:18, padding:"18px 16px", marginBottom:20 }}>
+    <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
+      {/* Header */}
+      <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
         <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Super Admin</p>
         <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Painel da App</h2>
-        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.45)" }}>Visível apenas para ti</p>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Só visible para ti · Leitura apenas</p>
       </div>
 
-      {stats && (
-        <>
-          <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>📊 Estatísticas globais</p>
-          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-            <StatCard label="Equipas"      value={stats.teams}   color={T.navy} />
-            <StatCard label="Utilizadores" value={stats.users}   color="#6c47ff" />
-            <StatCard label="Membros"      value={stats.members} color={T.green} />
-          </div>
-          <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-            <StatCard label="Multas"       value={stats.fines}           color={T.brand} />
-            <StatCard label="Total €"      value={`${stats.fines_total}€`} color={T.brand} />
-            <StatCard label="Por pagar"    value={`${stats.fines_unpaid}€`} color="#FF6B00" />
-          </div>
-        </>
-      )}
+      {/* Section tabs */}
+      <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
+        {tabs.map(([id,label]) => (
+          <button key={id} onClick={()=>setSection(id)} style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
 
-      <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>👥 Utilizadores ({users.length})</p>
-      {users.map(u => (
-        <div key={u.id} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:40, height:40, borderRadius:20, background:u.is_admin?T.navy:T.bg, border:`2px solid ${u.is_admin?T.navy:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:u.is_admin?"#fff":T.sub, fontWeight:800, fontSize:14, flexShrink:0 }}>
-              {(u.name||u.email||"?")[0].toUpperCase()}
+      <div style={{ padding:"16px" }}>
+
+        {/* STATS */}
+        {section==="stats" && stats && (
+          <>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <StatCard label="Equipas"      value={stats.teams}   color={T.navy} />
+              <StatCard label="Utilizadores" value={stats.users}   color="#6c47ff" />
+              <StatCard label="Membros"      value={stats.members} color={T.green} />
             </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name||"—"}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</p>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <StatCard label="Multas"    value={stats.fines}             color={T.brand} />
+              <StatCard label="Total €"   value={`${stats.fines_total}€`} color={T.brand} />
+              <StatCard label="Por pagar" value={`${stats.fines_unpaid}€`} color="#FF6B00" />
             </div>
-            <div style={{ textAlign:"right", flexShrink:0 }}>
-              <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub }}>{u.teams_count} equipa{u.teams_count!==1?"s":""}</p>
-              {u.is_admin && <span style={{ fontSize:10, background:T.navy, color:"#fff", borderRadius:6, padding:"2px 6px", fontWeight:700 }}>ADMIN</span>}
+            <div style={{ display:"flex", gap:8 }}>
+              <StatCard label="Treinos/Jogos" value={stats.trainings} color={T.green} />
             </div>
-          </div>
-          {u.last_sign_in_at && <p style={{ margin:"6px 0 0", fontSize:11, color:T.sub }}>Último acesso: {new Date(u.last_sign_in_at).toLocaleDateString("pt-PT")}</p>}
-        </div>
-      ))}
+          </>
+        )}
+
+        {/* TEAMS */}
+        {section==="teams" && (
+          <>
+            {teams.length === 0 && <p style={{ color:T.sub, textAlign:"center", padding:"20px 0" }}>Nenhuma equipa ainda</p>}
+            {teams.map(t => (
+              <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                  <span style={{ fontSize:28 }}>{t.emoji}</span>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{t.name}</p>
+                    <p style={{ margin:0, fontSize:12, color:T.sub }}>{t.season} · criada {new Date(t.created_at).toLocaleDateString("pt-PT")}</p>
+                  </div>
+                  <div style={{ width:14, height:14, borderRadius:7, background:t.color }} />
+                </div>
+                <div style={{ display:"flex", gap:6 }}>
+                  {[
+                    ["👥", t.members_count, "membros"],
+                    ["🟥", t.fines_count, "multas"],
+                    ["💸", `${t.unpaid_total}€`, "por pagar"],
+                    ["📅", t.trainings_count, "treinos"],
+                  ].map(([icon, val, label]) => (
+                    <div key={label} style={{ flex:1, background:T.bg, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
+                      <p style={{ margin:0, fontSize:10, color:T.sub }}>{icon}</p>
+                      <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{val}</p>
+                      <p style={{ margin:0, fontSize:9, color:T.sub }}>{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* USERS */}
+        {section==="users" && (
+          <>
+            {users.map(u => (
+              <div key={u.id} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:40, height:40, borderRadius:20, background:u.is_admin?T.navy:T.bg, border:`2px solid ${u.is_admin?T.navy:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:u.is_admin?"#fff":T.sub, fontWeight:800, fontSize:14, flexShrink:0 }}>
+                    {(u.name||u.email||"?")[0].toUpperCase()}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name||"—"}</p>
+                    <p style={{ margin:0, fontSize:12, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</p>
+                  </div>
+                  <div style={{ textAlign:"right", flexShrink:0 }}>
+                    <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub }}>{u.teams_count} equipa{u.teams_count!==1?"s":""}</p>
+                    {u.is_admin && <span style={{ fontSize:10, background:T.navy, color:"#fff", borderRadius:6, padding:"2px 6px", fontWeight:700 }}>ADMIN</span>}
+                  </div>
+                </div>
+                {u.last_sign_in_at && <p style={{ margin:"6px 0 0", fontSize:11, color:T.sub }}>Último acesso: {new Date(u.last_sign_in_at).toLocaleDateString("pt-PT")}</p>}
+              </div>
+            ))}
+          </>
+        )}
+
+      </div>
     </div>
   );
 };
