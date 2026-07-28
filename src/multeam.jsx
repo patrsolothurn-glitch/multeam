@@ -1106,6 +1106,83 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
   );
 };
 
+// ── APP ADMIN TAB ─────────────────────────────────────────────
+const AppAdminTab = ({ token }) => {
+  const [stats, setStats] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [sr, ur] = await Promise.all([
+          fetch(`${SB_URL}/rest/v1/rpc/get_app_admin_stats`, { method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}' }),
+          fetch(`${SB_URL}/rest/v1/rpc/get_app_user_list`,   { method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}' }),
+        ]);
+        if (sr.ok) setStats(await sr.json());
+        if (ur.ok) setUsers(await ur.json() || []);
+      } catch(e) { console.error(e); }
+      setLoading(false);
+    };
+    load();
+  }, [token]);
+
+  if (loading) return <Spinner msg="A carregar painel admin..." />;
+
+  const StatCard = ({ label, value, color }) => (
+    <div style={{ background:T.card, borderRadius:14, padding:"14px 16px", flex:1, minWidth:0 }}>
+      <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</p>
+      <p style={{ margin:0, fontSize:28, fontWeight:900, color: color||T.navy }}>{value}</p>
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"16px 16px 80px", background:T.bg, minHeight:"100vh" }}>
+      <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, borderRadius:18, padding:"18px 16px", marginBottom:20 }}>
+        <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Super Admin</p>
+        <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Painel da App</h2>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.45)" }}>Visível apenas para ti</p>
+      </div>
+
+      {stats && (
+        <>
+          <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>📊 Estatísticas globais</p>
+          <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+            <StatCard label="Equipas"      value={stats.teams}   color={T.navy} />
+            <StatCard label="Utilizadores" value={stats.users}   color="#6c47ff" />
+            <StatCard label="Membros"      value={stats.members} color={T.green} />
+          </div>
+          <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+            <StatCard label="Multas"       value={stats.fines}           color={T.brand} />
+            <StatCard label="Total €"      value={`${stats.fines_total}€`} color={T.brand} />
+            <StatCard label="Por pagar"    value={`${stats.fines_unpaid}€`} color="#FF6B00" />
+          </div>
+        </>
+      )}
+
+      <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>👥 Utilizadores ({users.length})</p>
+      {users.map(u => (
+        <div key={u.id} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:40, height:40, borderRadius:20, background:u.is_admin?T.navy:T.bg, border:`2px solid ${u.is_admin?T.navy:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:u.is_admin?"#fff":T.sub, fontWeight:800, fontSize:14, flexShrink:0 }}>
+              {(u.name||u.email||"?")[0].toUpperCase()}
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name||"—"}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</p>
+            </div>
+            <div style={{ textAlign:"right", flexShrink:0 }}>
+              <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub }}>{u.teams_count} equipa{u.teams_count!==1?"s":""}</p>
+              {u.is_admin && <span style={{ fontSize:10, background:T.navy, color:"#fff", borderRadius:6, padding:"2px 6px", fontWeight:700 }}>ADMIN</span>}
+            </div>
+          </div>
+          {u.last_sign_in_at && <p style={{ margin:"6px 0 0", fontSize:11, color:T.sub }}>Último acesso: {new Date(u.last_sign_in_at).toLocaleDateString("pt-PT")}</p>}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout }) => {
   const myTeams = teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
@@ -1670,7 +1747,7 @@ export default function App() {
         } catch(e) { console.warn('Profile creation fallback failed:', e); }
       }
 
-      if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'' });
+      if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'', isAppAdmin: p.is_admin===true });
 
       // Load teams via RPC (bypasses RLS, handles member + creator)
       const myTeamsR = await fetch(`${SB_URL}/rest/v1/rpc/get_my_teams`, {
@@ -1989,7 +2066,7 @@ export default function App() {
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
-  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🟥",label:"Multas"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
+  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🟥",label:"Multas"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}, ...(profile?.isAppAdmin ? [{id:"appadmin",emoji:"🛡️",label:"Admin"}] : [])];
   const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{ch}</div>;
 
   if (!team) return (
@@ -2037,6 +2114,7 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
       {tab==="geral" && <GeneralTab user={profile||{}} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} />}
+      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
