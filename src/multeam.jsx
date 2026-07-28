@@ -2216,13 +2216,27 @@ export default function App() {
   const removeMember = async id => {
     try { await api.del(`team_members?id=eq.${id}`,token); setMembers(p=>p.filter(m=>m.id!==id)); } catch(e){console.error(e);}
   };
-  const editMember = async (id,data) => {
+  const editMember = async (id, data) => {
     try {
-      await api.patch(`team_members?id=eq.${id}`,{position:data.position},token);
-      const m=members.find(m=>m.id===id);
-      if(m?.userId===myUserId) await api.patch(`profiles?id=eq.${myUserId}`,{name:data.name,phone:data.phone,birthday:data.birthday},token);
-      setMembers(p=>p.map(m=>m.id===id?{...m,...data}:m));
-    } catch(e){console.error(e);}
+      const m = members.find(m => m.id === id);
+      // Use RPC to allow admin to update any member's profile (bypasses RLS)
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/update_team_member_profile`, {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          p_member_id: Number(id),
+          p_team_id: m?.teamId,
+          p_name: data.name || '',
+          p_phone: data.phone || '',
+          p_birthday: data.birthday || '',
+          p_position: data.position || ''
+        })
+      });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.message || 'Erro ao guardar'); }
+      setMembers(p => p.map(m => m.id === id ? { ...m, ...data } : m));
+      // Update own profile state too
+      if (m?.userId === myUserId) setProfile(p => ({ ...p, ...data }));
+    } catch(e) { console.error(e); alert('Erro: ' + e.message); }
   };
   const [teamError, setTeamError] = useState(null);
 
