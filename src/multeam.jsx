@@ -875,31 +875,36 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
             { m: ranked[2], place: 3, medal: "🥉", h: 56, sz: 38 },
           ];
         }
-        const rest = ranked.slice(3);
-        const PLACE_COLORS = { 1: "#FFD700", 2: "#C0C0C0", 3: "#CD7F32" };
+        const PLACE_COLORS = { 1: "#FFD700", 2: "#B8C4D0", 3: "#C8854A" };
+        const PLACE_GRAD   = { 1: "linear-gradient(135deg,#FFD700,#FFA500)", 2: "linear-gradient(135deg,#C8D6E0,#8FA3B0)", 3: "linear-gradient(135deg,#CD7F32,#9B5E1F)" };
+        const AVATAR_GRAD  = { 1: "linear-gradient(135deg,#FFD700,#FF8C00)", 2: "linear-gradient(135deg,#B0BEC5,#607D8B)", 3: "linear-gradient(135deg,#CD7F32,#795548)" };
 
         return (
           <div style={{ marginBottom:20 }}>
-            <p style={{ margin:"0 0 12px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🏆 Ranking de pagamentos</p>
-            <div style={{ background:`linear-gradient(160deg, ${team.color}22, ${team.color}08)`, borderRadius:18, padding:"20px 12px 0", border:`1.5px solid ${team.color}30` }}>
+            <p style={{ margin:"0 0 12px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🏆 Ranking de multas pagas</p>
+            <div style={{ background:`linear-gradient(160deg,#1a1a2e,#16213e)`, borderRadius:18, padding:"20px 12px 8px" }}>
               <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"center", gap:8 }}>
                 {podiumItems.map(({ m, place, medal, h, sz }) => {
                   const isFirst = place === 1;
                   const pc = PLACE_COLORS[place];
+                  const ag = AVATAR_GRAD[place];
+                  const pg = PLACE_GRAD[place];
+                  const paidAmt = m.paid || 0;
+                  const unpaidAmt = m.unpaid || 0;
                   return (
                     <div key={m.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                      <span style={{ fontSize:isFirst?34:24 }}>{medal}</span>
-                      <div style={{ width:sz, height:sz, borderRadius:sz/2, background:isFirst?`linear-gradient(135deg,${team.color},${team.color}aa)`:`${pc}22`, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:isFirst?"#fff":T.text, fontWeight:900, fontSize:sz*0.3, boxShadow:isFirst?`0 4px 16px ${team.color}44`:"none" }}>
+                      <span style={{ fontSize:isFirst?36:24 }}>{medal}</span>
+                      <div style={{ width:sz, height:sz, borderRadius:sz/2, background:ag, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:sz*0.3, boxShadow:`0 4px 20px ${pc}66` }}>
                         {m.initials}
                       </div>
-                      <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</p>
-                      <div style={{ background:m.paid>0?(isFirst?T.green:`${T.green}22`):T.bg, borderRadius:10, padding:"4px 10px" }}>
-                        <p style={{ margin:0, fontWeight:900, fontSize:isFirst?18:14, color:m.unpaid>0?(isFirst?"#fff":T.brand):(isFirst?T.green:T.sub) }}>
-                          {m.paid>0?`${m.paid}€`:"✓"}
+                      <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#fff" }}>{m.name.split(" ")[0]}</p>
+                      <div style={{ background: paidAmt>0?`${pc}30`:"rgba(255,255,255,0.08)", border:`1px solid ${paidAmt>0?pc:"rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"5px 12px" }}>
+                        <p style={{ margin:0, fontWeight:900, fontSize:isFirst?18:14, color: paidAmt>0?pc:"rgba(255,255,255,0.4)" }}>
+                          {paidAmt>0?`${paidAmt}€`:unpaidAmt>0?`${unpaidAmt}€ deve`:"✓"}
                         </p>
                       </div>
-                      <div style={{ width:"100%", height:h, background:`${pc}25`, borderRadius:"10px 10px 0 0", marginTop:4, display:"flex", alignItems:"center", justifyContent:"center", boxShadow:`inset 0 -3px 0 ${pc}60` }}>
-                        <p style={{ margin:0, fontWeight:900, fontSize:28, color:pc, opacity:0.6 }}>{place}</p>
+                      <div style={{ width:"100%", height:h, background:pg, borderRadius:"10px 10px 0 0", marginTop:6, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.9 }}>
+                        <p style={{ margin:0, fontWeight:900, fontSize:isFirst?32:24, color:"rgba(0,0,0,0.25)" }}>{place}</p>
                       </div>
                     </div>
                   );
