@@ -7816,6 +7816,7 @@ var Spinner = function Spinner(_ref97) {
   }, msg), React.createElement("style", null, "@keyframes spin{to{transform:rotate(360deg)}} .spin{animation:spin 1s linear infinite}"));
 };
 function App() {
+  var _members$find;
   var _useState241 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("type=recovery")) return null;
@@ -9588,7 +9589,11 @@ function App() {
       return setModal("expense");
     }
   }), tab === "geral" && React.createElement(GeneralTab, {
-    user: profile || {},
+    user: _objectSpread(_objectSpread({}, profile || {}), {}, {
+      position: ((_members$find = members.find(function (m) {
+        return m.userId === myUserId && m.teamId === teamId;
+      })) === null || _members$find === void 0 ? void 0 : _members$find.position) || (profile === null || profile === void 0 ? void 0 : profile.position) || ''
+    }),
     myUserId: myUserId,
     teams: teams,
     members: members,
@@ -9688,14 +9693,14 @@ function App() {
     user: profile || {},
     onSave: (function () {
       var _ref124 = _asyncToGenerator(_regenerator().m(function _callee59(u) {
-        var _members$find;
+        var _members$find2;
         return _regenerator().w(function (_context59) {
           while (1) switch (_context59.n) {
             case 0:
               _context59.n = 1;
-              return editMember((_members$find = members.find(function (m) {
+              return editMember((_members$find2 = members.find(function (m) {
                 return m.userId === myUserId && m.teamId === teamId;
-              })) === null || _members$find === void 0 ? void 0 : _members$find.id, u);
+              })) === null || _members$find2 === void 0 ? void 0 : _members$find2.id, u);
             case 1:
               setProfile(function (p) {
                 return _objectSpread(_objectSpread({}, p), u);
