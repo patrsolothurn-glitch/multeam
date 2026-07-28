@@ -1133,15 +1133,22 @@ const AppAdminTab = ({ token }) => {
     load();
   }, [token]);
 
+  const [detailError, setDetailError] = useState(null);
+
   const openTeam = async (team) => {
-    setSelectedTeam(team); setTeamDetail(null); setDetailLoading(true);
+    setSelectedTeam(team); setTeamDetail(null); setDetailLoading(true); setDetailError(null);
     try {
       const r = await fetch(`${SB_URL}/rest/v1/rpc/get_team_details_admin`, {
         method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
         body: JSON.stringify({ p_team_id: team.id })
       });
-      if (r.ok) setTeamDetail(await r.json());
-    } catch(e) { console.error(e); }
+      const data = await r.json();
+      if (r.ok) {
+        setTeamDetail(data || { members:[], recent_fines:[], trainings:[] });
+      } else {
+        setDetailError(data?.message || data?.error || `Erro ${r.status}`);
+      }
+    } catch(e) { setDetailError(e.message); }
     setDetailLoading(false);
   };
 
@@ -1163,6 +1170,7 @@ const AppAdminTab = ({ token }) => {
         </div>
         <div style={{ padding:"16px" }}>
           {detailLoading && <Spinner msg="A carregar..." />}
+          {detailError && <div style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", color:"#c0392b", fontSize:14 }}>❌ {detailError}</div>}
           {teamDetail && (
             <>
               {/* Members */}
