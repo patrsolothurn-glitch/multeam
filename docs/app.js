@@ -8729,45 +8729,62 @@ function App() {
   }();
   var editMember = function () {
     var _ref114 = _asyncToGenerator(_regenerator().m(function _callee49(id, data) {
-      var m, _t54;
+      var m, r, e, _t54;
       return _regenerator().w(function (_context49) {
         while (1) switch (_context49.p = _context49.n) {
           case 0:
             _context49.p = 0;
-            _context49.n = 1;
-            return api.patch("team_members?id=eq.".concat(id), {
-              position: data.position
-            }, token);
-          case 1:
             m = members.find(function (m) {
               return m.id === id;
             });
-            if (!((m === null || m === void 0 ? void 0 : m.userId) === myUserId)) {
-              _context49.n = 2;
+            _context49.n = 1;
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/update_team_member_profile"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(token),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                p_member_id: Number(id),
+                p_team_id: m === null || m === void 0 ? void 0 : m.teamId,
+                p_name: data.name || '',
+                p_phone: data.phone || '',
+                p_birthday: data.birthday || '',
+                p_position: data.position || ''
+              })
+            });
+          case 1:
+            r = _context49.v;
+            if (r.ok) {
+              _context49.n = 3;
               break;
             }
             _context49.n = 2;
-            return api.patch("profiles?id=eq.".concat(myUserId), {
-              name: data.name,
-              phone: data.phone,
-              birthday: data.birthday
-            }, token);
+            return r.json();
           case 2:
+            e = _context49.v;
+            throw new Error(e.message || 'Erro ao guardar');
+          case 3:
             setMembers(function (p) {
               return p.map(function (m) {
                 return m.id === id ? _objectSpread(_objectSpread({}, m), data) : m;
               });
             });
-            _context49.n = 4;
+            if ((m === null || m === void 0 ? void 0 : m.userId) === myUserId) setProfile(function (p) {
+              return _objectSpread(_objectSpread({}, p), data);
+            });
+            _context49.n = 5;
             break;
-          case 3:
-            _context49.p = 3;
+          case 4:
+            _context49.p = 4;
             _t54 = _context49.v;
             console.error(_t54);
-          case 4:
+            alert('Erro: ' + _t54.message);
+          case 5:
             return _context49.a(2);
         }
-      }, _callee49, null, [[0, 3]]);
+      }, _callee49, null, [[0, 4]]);
     }));
     return function editMember(_x32, _x33) {
       return _ref114.apply(this, arguments);
