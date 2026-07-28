@@ -3581,14 +3581,14 @@ var HomeTab = function HomeTab(_ref51) {
         }).reduce(function (s, f) {
           return s + f.amount;
         }, 0),
-        total: fines.filter(function (f) {
-          return f.teamId === team.id && f.memberId === m.id;
+        paid: fines.filter(function (f) {
+          return f.teamId === team.id && f.memberId === m.id && f.paid;
         }).reduce(function (s, f) {
           return s + f.amount;
         }, 0)
       });
     }).sort(function (a, b) {
-      return b.total - a.total || b.unpaid - a.unpaid;
+      return b.paid - a.paid || b.unpaid - a.unpaid;
     });
     if (ranked.length < 1) return null;
     var podiumItems = [];
@@ -3654,7 +3654,7 @@ var HomeTab = function HomeTab(_ref51) {
         textTransform: "uppercase",
         letterSpacing: 1
       }
-    }, "\uD83C\uDFC6 Ranking de d\xEDvidas"), React.createElement("div", {
+    }, "\uD83C\uDFC6 Ranking de pagamentos"), React.createElement("div", {
       style: {
         background: "linear-gradient(160deg, ".concat(team.color, "22, ").concat(team.color, "08)"),
         borderRadius: 18,
@@ -3717,7 +3717,7 @@ var HomeTab = function HomeTab(_ref51) {
         }
       }, m.name.split(" ")[0]), React.createElement("div", {
         style: {
-          background: m.total > 0 ? isFirst ? T.brand : "".concat(T.brand, "22") : isFirst ? "".concat(T.green, "22") : T.bg,
+          background: m.paid > 0 ? isFirst ? T.green : "".concat(T.green, "22") : T.bg,
           borderRadius: 10,
           padding: "4px 10px"
         }
@@ -3728,7 +3728,7 @@ var HomeTab = function HomeTab(_ref51) {
           fontSize: isFirst ? 18 : 14,
           color: m.unpaid > 0 ? isFirst ? "#fff" : T.brand : isFirst ? T.green : T.sub
         }
-      }, m.total > 0 ? "".concat(m.total, "\u20AC") : "✓ OK")), React.createElement("div", {
+      }, m.paid > 0 ? "".concat(m.paid, "\u20AC") : "✓")), React.createElement("div", {
         style: {
           width: "100%",
           height: h,
