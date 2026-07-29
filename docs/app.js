@@ -5081,7 +5081,8 @@ var TreasuryTab = function TreasuryTab(_ref69) {
   }));
 };
 var AppAdminTab = function AppAdminTab(_ref70) {
-  var token = _ref70.token;
+  var token = _ref70.token,
+    onBack = _ref70.onBack;
   var _useState173 = useState(null),
     _useState174 = _slicedToArray(_useState173, 2),
     stats = _useState174[0],
@@ -5533,7 +5534,21 @@ var AppAdminTab = function AppAdminTab(_ref70) {
       background: "linear-gradient(135deg,".concat(T.navy, ",#0d1f36)"),
       padding: "52px 16px 16px"
     }
-  }, React.createElement("p", {
+  }, React.createElement("button", {
+    onClick: onBack,
+    style: {
+      background: "rgba(255,255,255,0.15)",
+      border: "none",
+      color: "#fff",
+      borderRadius: 20,
+      padding: "6px 14px",
+      cursor: "pointer",
+      fontFamily: "inherit",
+      fontWeight: 700,
+      marginBottom: 12,
+      fontSize: 13
+    }
+  }, "\u2190 Voltar"), React.createElement("p", {
     style: {
       margin: "0 0 2px",
       fontSize: 12,
@@ -5818,13 +5833,34 @@ var GeneralTab = function GeneralTab(_ref78) {
     onManageTeam = _ref78.onManageTeam,
     onCreateTeam = _ref78.onCreateTeam,
     onJoinTeam = _ref78.onJoinTeam,
-    onLogout = _ref78.onLogout;
+    onLogout = _ref78.onLogout,
+    onAdminOpen = _ref78.onAdminOpen,
+    isAppAdmin = _ref78.isAppAdmin;
   var myTeams = teams.filter(function (t) {
     return members.some(function (m) {
       return m.teamId === t.id && m.userId === myUserId;
     }) || t.createdBy === myUserId;
   });
   var myAge = age(user.birthday);
+  var _useState191 = useState(0),
+    _useState192 = _slicedToArray(_useState191, 2),
+    tapCount = _useState192[0],
+    setTapCount = _useState192[1];
+  var tapTimer = React.useRef(null);
+  var handleAvatarTap = function handleAvatarTap() {
+    if (!isAppAdmin) return;
+    var next = tapCount + 1;
+    setTapCount(next);
+    clearTimeout(tapTimer.current);
+    if (next >= 3) {
+      setTapCount(0);
+      onAdminOpen();
+      return;
+    }
+    tapTimer.current = setTimeout(function () {
+      return setTapCount(0);
+    }, 800);
+  };
   return React.createElement("div", {
     style: {
       padding: "16px 16px 100px"
@@ -5861,11 +5897,16 @@ var GeneralTab = function GeneralTab(_ref78) {
       marginBottom: 18,
       paddingRight: 80
     }
+  }, React.createElement("div", {
+    onClick: handleAvatarTap,
+    style: {
+      cursor: isAppAdmin ? "pointer" : "default"
+    }
   }, React.createElement(Avatar, {
     initials: user.initials,
     color: T.navy,
     size: 54
-  }), React.createElement("div", {
+  })), React.createElement("div", {
     style: {
       flex: 1,
       minWidth: 0
@@ -6101,38 +6142,38 @@ var FineTypesManager = function FineTypesManager(_ref82) {
     onDeleted = _ref82.onDeleted,
     onUpdated = _ref82.onUpdated,
     token = _ref82.token;
-  var _useState191 = useState(false),
-    _useState192 = _slicedToArray(_useState191, 2),
-    adding = _useState192[0],
-    setAdding = _useState192[1];
-  var _useState193 = useState(null),
+  var _useState193 = useState(false),
     _useState194 = _slicedToArray(_useState193, 2),
-    editingId = _useState194[0],
-    setEditingId = _useState194[1];
-  var _useState195 = useState(""),
+    adding = _useState194[0],
+    setAdding = _useState194[1];
+  var _useState195 = useState(null),
     _useState196 = _slicedToArray(_useState195, 2),
-    name = _useState196[0],
-    setName = _useState196[1];
+    editingId = _useState196[0],
+    setEditingId = _useState196[1];
   var _useState197 = useState(""),
     _useState198 = _slicedToArray(_useState197, 2),
-    amount = _useState198[0],
-    setAmount = _useState198[1];
-  var _useState199 = useState("🟥"),
+    name = _useState198[0],
+    setName = _useState198[1];
+  var _useState199 = useState(""),
     _useState200 = _slicedToArray(_useState199, 2),
-    emoji = _useState200[0],
-    setEmoji = _useState200[1];
+    amount = _useState200[0],
+    setAmount = _useState200[1];
   var _useState201 = useState("🟥"),
     _useState202 = _slicedToArray(_useState201, 2),
-    editEmoji = _useState202[0],
-    setEditEmoji = _useState202[1];
-  var _useState203 = useState(""),
+    emoji = _useState202[0],
+    setEmoji = _useState202[1];
+  var _useState203 = useState("🟥"),
     _useState204 = _slicedToArray(_useState203, 2),
-    err = _useState204[0],
-    setErr = _useState204[1];
-  var _useState205 = useState(false),
+    editEmoji = _useState204[0],
+    setEditEmoji = _useState204[1];
+  var _useState205 = useState(""),
     _useState206 = _slicedToArray(_useState205, 2),
-    saving = _useState206[0],
-    setSaving = _useState206[1];
+    err = _useState206[0],
+    setErr = _useState206[1];
+  var _useState207 = useState(false),
+    _useState208 = _slicedToArray(_useState207, 2),
+    saving = _useState208[0],
+    setSaving = _useState208[1];
   var tf = fineTypes.filter(function (f) {
     return f.teamId === team.id;
   });
@@ -6437,28 +6478,28 @@ var ManageTeamScreen = function ManageTeamScreen(_ref86) {
   var players = tm.filter(function (m) {
     return m.role === "player";
   });
-  var _useState207 = useState(null),
-    _useState208 = _slicedToArray(_useState207, 2),
-    confirmRemove = _useState208[0],
-    setConfirmRemove = _useState208[1];
   var _useState209 = useState(null),
     _useState210 = _slicedToArray(_useState209, 2),
-    editingMember = _useState210[0],
-    setEditingMember = _useState210[1];
-  var _useState211 = useState(false),
+    confirmRemove = _useState210[0],
+    setConfirmRemove = _useState210[1];
+  var _useState211 = useState(null),
     _useState212 = _slicedToArray(_useState211, 2),
-    copied = _useState212[0],
-    setCopied = _useState212[1];
+    editingMember = _useState212[0],
+    setEditingMember = _useState212[1];
+  var _useState213 = useState(false),
+    _useState214 = _slicedToArray(_useState213, 2),
+    copied = _useState214[0],
+    setCopied = _useState214[1];
   var copyCode = function copyCode() {
     setCopied(true);
     setTimeout(function () {
       return setCopied(false);
     }, 2000);
   };
-  var _useState213 = useState(null),
-    _useState214 = _slicedToArray(_useState213, 2),
-    expandedMember = _useState214[0],
-    setExpandedMember = _useState214[1];
+  var _useState215 = useState(null),
+    _useState216 = _slicedToArray(_useState215, 2),
+    expandedMember = _useState216[0],
+    setExpandedMember = _useState216[1];
   var Row = function Row(_ref87) {
     var m = _ref87.m;
     var expanded = expandedMember === m.id;
@@ -7212,14 +7253,14 @@ var MemberDetailScreen = function MemberDetailScreen(_ref88) {
 };
 var LoginScreen = function LoginScreen(_ref89) {
   var onLogin = _ref89.onLogin;
-  var _useState215 = useState("patricio@multeam.app"),
-    _useState216 = _slicedToArray(_useState215, 2),
-    email = _useState216[0],
-    setEmail = _useState216[1];
-  var _useState217 = useState("••••••••"),
+  var _useState217 = useState("patricio@multeam.app"),
     _useState218 = _slicedToArray(_useState217, 2),
-    pass = _useState218[0],
-    setPass = _useState218[1];
+    email = _useState218[0],
+    setEmail = _useState218[1];
+  var _useState219 = useState("••••••••"),
+    _useState220 = _slicedToArray(_useState219, 2),
+    pass = _useState220[0],
+    setPass = _useState220[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -7325,30 +7366,30 @@ var LoginScreen = function LoginScreen(_ref89) {
 var ResetPasswordScreen = function ResetPasswordScreen(_ref90) {
   var accessToken = _ref90.accessToken,
     onDone = _ref90.onDone;
-  var _useState219 = useState(""),
-    _useState220 = _slicedToArray(_useState219, 2),
-    pass = _useState220[0],
-    setPass = _useState220[1];
   var _useState221 = useState(""),
     _useState222 = _slicedToArray(_useState221, 2),
-    pass2 = _useState222[0],
-    setPass2 = _useState222[1];
-  var _useState223 = useState(false),
+    pass = _useState222[0],
+    setPass = _useState222[1];
+  var _useState223 = useState(""),
     _useState224 = _slicedToArray(_useState223, 2),
-    showPass = _useState224[0],
-    setShowPass = _useState224[1];
-  var _useState225 = useState(""),
+    pass2 = _useState224[0],
+    setPass2 = _useState224[1];
+  var _useState225 = useState(false),
     _useState226 = _slicedToArray(_useState225, 2),
-    err = _useState226[0],
-    setErr = _useState226[1];
-  var _useState227 = useState(false),
+    showPass = _useState226[0],
+    setShowPass = _useState226[1];
+  var _useState227 = useState(""),
     _useState228 = _slicedToArray(_useState227, 2),
-    done = _useState228[0],
-    setDone = _useState228[1];
+    err = _useState228[0],
+    setErr = _useState228[1];
   var _useState229 = useState(false),
     _useState230 = _slicedToArray(_useState229, 2),
-    loading = _useState230[0],
-    setLoading = _useState230[1];
+    done = _useState230[0],
+    setDone = _useState230[1];
+  var _useState231 = useState(false),
+    _useState232 = _slicedToArray(_useState231, 2),
+    loading = _useState232[0],
+    setLoading = _useState232[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -7525,26 +7566,26 @@ var AuthScreen = function AuthScreen(_ref92) {
     onRegister = _ref92.onRegister,
     error = _ref92.error,
     loading = _ref92.loading;
-  var _useState231 = useState("login"),
-    _useState232 = _slicedToArray(_useState231, 2),
-    mode = _useState232[0],
-    setMode = _useState232[1];
-  var _useState233 = useState(""),
+  var _useState233 = useState("login"),
     _useState234 = _slicedToArray(_useState233, 2),
-    email = _useState234[0],
-    setEmail = _useState234[1];
+    mode = _useState234[0],
+    setMode = _useState234[1];
   var _useState235 = useState(""),
     _useState236 = _slicedToArray(_useState235, 2),
-    pass = _useState236[0],
-    setPass = _useState236[1];
+    email = _useState236[0],
+    setEmail = _useState236[1];
   var _useState237 = useState(""),
     _useState238 = _slicedToArray(_useState237, 2),
-    name = _useState238[0],
-    setName = _useState238[1];
-  var _useState239 = useState(false),
+    pass = _useState238[0],
+    setPass = _useState238[1];
+  var _useState239 = useState(""),
     _useState240 = _slicedToArray(_useState239, 2),
-    showPass = _useState240[0],
-    setShowPass = _useState240[1];
+    name = _useState240[0],
+    setName = _useState240[1];
+  var _useState241 = useState(false),
+    _useState242 = _slicedToArray(_useState241, 2),
+    showPass = _useState242[0],
+    setShowPass = _useState242[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -7836,15 +7877,15 @@ var Spinner = function Spinner(_ref97) {
 };
 function App() {
   var _members$find;
-  var _useState241 = useState(function () {
+  var _useState243 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("type=recovery")) return null;
       var m = h.match(/access_token=([^&#&]+)/);
       return m ? decodeURIComponent(m[1]) : null;
     }),
-    _useState242 = _slicedToArray(_useState241, 1),
-    recoveryToken = _useState242[0];
-  var _useState243 = useState(function () {
+    _useState244 = _slicedToArray(_useState243, 1),
+    recoveryToken = _useState244[0];
+  var _useState245 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("access_token=")) return null;
       if (h.includes("type=recovery")) return null;
@@ -7856,84 +7897,84 @@ function App() {
         refresh: rt ? decodeURIComponent(rt[1]) : ""
       };
     }),
-    _useState244 = _slicedToArray(_useState243, 1),
-    magicToken = _useState244[0];
-  var _useState245 = useState(null),
-    _useState246 = _slicedToArray(_useState245, 2),
-    token = _useState246[0],
-    setToken = _useState246[1];
+    _useState246 = _slicedToArray(_useState245, 1),
+    magicToken = _useState246[0];
   var _useState247 = useState(null),
     _useState248 = _slicedToArray(_useState247, 2),
-    myUserId = _useState248[0],
-    setMyUserId = _useState248[1];
+    token = _useState248[0],
+    setToken = _useState248[1];
   var _useState249 = useState(null),
     _useState250 = _slicedToArray(_useState249, 2),
-    profile = _useState250[0],
-    setProfile = _useState250[1];
-  var _useState251 = useState([]),
+    myUserId = _useState250[0],
+    setMyUserId = _useState250[1];
+  var _useState251 = useState(null),
     _useState252 = _slicedToArray(_useState251, 2),
-    teams = _useState252[0],
-    setTeams = _useState252[1];
+    profile = _useState252[0],
+    setProfile = _useState252[1];
   var _useState253 = useState([]),
     _useState254 = _slicedToArray(_useState253, 2),
-    members = _useState254[0],
-    setMembers = _useState254[1];
+    teams = _useState254[0],
+    setTeams = _useState254[1];
   var _useState255 = useState([]),
     _useState256 = _slicedToArray(_useState255, 2),
-    fineTypes = _useState256[0],
-    setFineTypes = _useState256[1];
+    members = _useState256[0],
+    setMembers = _useState256[1];
   var _useState257 = useState([]),
     _useState258 = _slicedToArray(_useState257, 2),
-    fines = _useState258[0],
-    setFines = _useState258[1];
+    fineTypes = _useState258[0],
+    setFineTypes = _useState258[1];
   var _useState259 = useState([]),
     _useState260 = _slicedToArray(_useState259, 2),
-    expenses = _useState260[0],
-    setExpenses = _useState260[1];
+    fines = _useState260[0],
+    setFines = _useState260[1];
   var _useState261 = useState([]),
     _useState262 = _slicedToArray(_useState261, 2),
-    trainings = _useState262[0],
-    setTrainings = _useState262[1];
-  var _useState263 = useState({}),
+    expenses = _useState262[0],
+    setExpenses = _useState262[1];
+  var _useState263 = useState([]),
     _useState264 = _slicedToArray(_useState263, 2),
-    presences = _useState264[0],
-    setPresences = _useState264[1];
-  var _useState265 = useState(null),
+    trainings = _useState264[0],
+    setTrainings = _useState264[1];
+  var _useState265 = useState({}),
     _useState266 = _slicedToArray(_useState265, 2),
-    teamId = _useState266[0],
-    setTeamId = _useState266[1];
-  var _useState267 = useState("home"),
+    presences = _useState266[0],
+    setPresences = _useState266[1];
+  var _useState267 = useState(null),
     _useState268 = _slicedToArray(_useState267, 2),
-    tab = _useState268[0],
-    setTab = _useState268[1];
-  var _useState269 = useState(null),
+    teamId = _useState268[0],
+    setTeamId = _useState268[1];
+  var _useState269 = useState("home"),
     _useState270 = _slicedToArray(_useState269, 2),
-    sub = _useState270[0],
-    setSub = _useState270[1];
+    tab = _useState270[0],
+    setTab = _useState270[1];
   var _useState271 = useState(null),
     _useState272 = _slicedToArray(_useState271, 2),
-    modal = _useState272[0],
-    setModal = _useState272[1];
+    sub = _useState272[0],
+    setSub = _useState272[1];
   var _useState273 = useState(null),
     _useState274 = _slicedToArray(_useState273, 2),
-    treinosModal = _useState274[0],
-    setTreinosModal = _useState274[1];
-  var _useState275 = useState(false),
+    modal = _useState274[0],
+    setModal = _useState274[1];
+  var _useState275 = useState(null),
     _useState276 = _slicedToArray(_useState275, 2),
-    loading = _useState276[0],
-    setLoading = _useState276[1];
+    treinosModal = _useState276[0],
+    setTreinosModal = _useState276[1];
   var _useState277 = useState(false),
     _useState278 = _slicedToArray(_useState277, 2),
-    appReady = _useState278[0],
-    setAppReady = _useState278[1];
+    loading = _useState278[0],
+    setLoading = _useState278[1];
   var _useState279 = useState(false),
     _useState280 = _slicedToArray(_useState279, 2),
-    refreshing = _useState280[0],
-    setRefreshing = _useState280[1];
-  var _useState281 = useState(null),
+    appReady = _useState280[0],
+    setAppReady = _useState280[1];
+  var _useState281 = useState(false),
     _useState282 = _slicedToArray(_useState281, 2),
-    authError = _useState282[0],
-    setAuthError = _useState282[1];
+    refreshing = _useState282[0],
+    setRefreshing = _useState282[1];
+  var _useState283 = useState(null),
+    _useState284 = _slicedToArray(_useState283, 2),
+    authError = _useState284[0],
+    setAuthError = _useState284[1];
   var team = teams.find(function (t) {
     return t.id === teamId;
   });
@@ -8810,10 +8851,10 @@ function App() {
       return _ref114.apply(this, arguments);
     };
   }();
-  var _useState283 = useState(null),
-    _useState284 = _slicedToArray(_useState283, 2),
-    teamError = _useState284[0],
-    setTeamError = _useState284[1];
+  var _useState285 = useState(null),
+    _useState286 = _slicedToArray(_useState285, 2),
+    teamError = _useState286[0],
+    setTeamError = _useState286[1];
   var createTeam = function () {
     var _ref115 = _asyncToGenerator(_regenerator().m(function _callee50(d) {
       var tid, invCode, sr, se, tr, newTeam, _t55;
@@ -9030,13 +9071,13 @@ function App() {
       return _ref118.apply(this, arguments);
     };
   }();
-  var _useState285 = useState(function () {
+  var _useState287 = useState(function () {
       var p = new URLSearchParams(window.location.search);
       return p.get('invite') || null;
     }),
-    _useState286 = _slicedToArray(_useState285, 2),
-    pendingInvite = _useState286[0],
-    setPendingInvite = _useState286[1];
+    _useState288 = _slicedToArray(_useState287, 2),
+    pendingInvite = _useState288[0],
+    setPendingInvite = _useState288[1];
   useEffect(function () {
     if (appReady && pendingInvite) {
       setModal("join");
@@ -9132,10 +9173,10 @@ function App() {
       subscribeToPush(token, myUserId);
     }
   }, [appReady, token, myUserId]);
-  var _useState287 = useState(null),
-    _useState288 = _slicedToArray(_useState287, 2),
-    toast = _useState288[0],
-    setToast = _useState288[1];
+  var _useState289 = useState(null),
+    _useState290 = _slicedToArray(_useState289, 2),
+    toast = _useState290[0],
+    setToast = _useState290[1];
   var showToast = function showToast(msg) {
     var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : T.navy;
     setToast({
@@ -9269,11 +9310,7 @@ function App() {
     id: "geral",
     emoji: "👤",
     label: "Geral"
-  }].concat(_toConsumableArray(profile !== null && profile !== void 0 && profile.isAppAdmin ? [{
-    id: "appadmin",
-    emoji: "🛡️",
-    label: "Admin"
-  }] : []));
+  }];
   var wrap = function wrap(ch) {
     return React.createElement("div", {
       style: {
@@ -9631,9 +9668,16 @@ function App() {
     onJoinTeam: function onJoinTeam() {
       return setModal("join");
     },
-    onLogout: handleLogout
+    onLogout: handleLogout,
+    isAppAdmin: profile === null || profile === void 0 ? void 0 : profile.isAppAdmin,
+    onAdminOpen: function onAdminOpen() {
+      return setTab("appadmin");
+    }
   }), tab === "appadmin" && (profile === null || profile === void 0 ? void 0 : profile.isAppAdmin) && React.createElement(AppAdminTab, {
-    token: token
+    token: token,
+    onBack: function onBack() {
+      return setTab("geral");
+    }
   }), React.createElement("div", {
     style: {
       position: "fixed",
