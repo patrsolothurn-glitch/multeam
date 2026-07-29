@@ -1239,7 +1239,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
 };
 
 // ── APP ADMIN TAB ─────────────────────────────────────────────
-const AppAdminTab = ({ token }) => {
+const AppAdminTab = ({ token, onBack }) => {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -1379,6 +1379,7 @@ const AppAdminTab = ({ token }) => {
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
       <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
+        <button onClick={onBack} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12, fontSize:13 }}>← Voltar</button>
         <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Gestão</p>
         <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Visão Geral</h2>
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Monitorização da plataforma</p>
@@ -1462,18 +1463,31 @@ const AppAdminTab = ({ token }) => {
 
 
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout }) => {
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout, onAdminOpen, isAppAdmin }) => {
   const myTeams = teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
   );
   const myAge = age(user.birthday);
+  const [tapCount, setTapCount] = useState(0);
+  const tapTimer = React.useRef(null);
+
+  const handleAvatarTap = () => {
+    if (!isAppAdmin) return;
+    const next = tapCount + 1;
+    setTapCount(next);
+    clearTimeout(tapTimer.current);
+    if (next >= 3) { setTapCount(0); onAdminOpen(); return; }
+    tapTimer.current = setTimeout(() => setTapCount(0), 800);
+  };
   return (
     <div style={{ padding:"16px 16px 100px" }}>
       {/* Profile card */}
       <div style={{ background:T.card, borderRadius:20, padding:"20px", marginBottom:16, position:"relative" }}>
         <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18, paddingRight:80 }}>
-          <Avatar initials={user.initials} color={T.navy} size={54} />
+          <div onClick={handleAvatarTap} style={{ cursor: isAppAdmin ? "pointer" : "default" }}>
+            <Avatar initials={user.initials} color={T.navy} size={54} />
+          </div>
           <div style={{ flex:1, minWidth:0 }}>
             <h2 style={{ margin:0, fontSize:20, fontWeight:900 }}>{user.name}</h2>
             <p style={{ margin:0, color:T.sub, fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</p>
@@ -2397,7 +2411,7 @@ export default function App() {
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
-  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🟥",label:"Multas"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}, ...(profile?.isAppAdmin ? [{id:"appadmin",emoji:"🛡️",label:"Admin"}] : [])];
+  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🟥",label:"Multas"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{ch}</div>;
 
   if (!team) return (
@@ -2444,8 +2458,8 @@ export default function App() {
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} />}
-      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
+      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
