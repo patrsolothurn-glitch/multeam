@@ -8938,7 +8938,7 @@ function App() {
                 p_team_id: m === null || m === void 0 ? void 0 : m.teamId,
                 p_name: data.name || '',
                 p_phone: data.phone || '',
-                p_birthday: data.birthday || '',
+                p_birthday: data.birthday || null,
                 p_position: data.position || ''
               })
             });
