@@ -330,6 +330,37 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   );
 };
 
+const EditFineModal = ({ fine, onSave, onClose }) => {
+  const EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤","🍺","🎂","🍕","🚗","📱","🎯","🔇","💤","🎪","🤡","🍾","🃏","🏆","🎖️"];
+  const [emoji, setEmoji] = useState(fine.emoji || "🟥");
+  const [reason, setReason] = useState(fine.reason || "");
+  const [amount, setAmount] = useState(String(fine.amount));
+  const [saving, setSaving] = useState(false);
+  const ok = reason.trim() && amount && Number(amount) > 0;
+  const save = async () => {
+    if (!ok) return;
+    setSaving(true);
+    await onSave(fine.id, { emoji, reason: reason.trim(), amount: Number(amount) });
+    setSaving(false);
+    onClose();
+  };
+  return (
+    <Sheet title="✏️ Editar multa" onClose={onClose}>
+      <FL>Emoji</FL>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+        {EMOJIS.map(e => (
+          <button key={e} onClick={() => setEmoji(e)} style={{ width:40, height:40, borderRadius:10, border:`2px solid ${emoji===e?T.brand:T.border}`, background:emoji===e?`${T.brand}18`:"transparent", fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>{e}</button>
+        ))}
+      </div>
+      <FL>Motivo</FL>
+      <FI type="text" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Motivo da multa..." />
+      <FL>Valor (€)</FL>
+      <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0" />
+      <PrimaryBtn onClick={save} disabled={!ok||saving} color={T.brand}>{saving?"A guardar...":"Guardar alterações"}</PrimaryBtn>
+    </Sheet>
+  );
+};
+
 const AddExpenseModal = ({ team, onAdd, onClose }) => {
   const [desc, setDesc] = useState(""); const [amount, setAmount] = useState("");
   return (
@@ -972,7 +1003,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
   );
 };
 
-const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDeleteFine, onSelectMember }) => {
+const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDeleteFine, onEditFine, onSelectMember }) => {
   const [filter, setFilter] = useState("all");
   const tf = fines.filter(f=>f.teamId===team.id);
   const filtered = tf.filter(f=>filter==="all"||( filter==="unpaid"?!f.paid:f.paid)).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -1001,6 +1032,9 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
                 <button onClick={() => onTogglePaid(f.id)} style={{ padding:"4px 10px", borderRadius:8, border:`1.5px solid ${f.paid?T.green:T.brand}`, background:"transparent", color:f.paid?T.green:T.brand, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {f.paid ? "✓ Pago" : "Pagar"}
                 </button>
+              )}
+              {isAdmin && onEditFine && (
+                <button onClick={() => onEditFine(f)} style={{ padding:"3px 8px", borderRadius:8, border:`1.5px solid ${T.sub}`, background:"transparent", color:T.sub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
               )}
               {isAdmin && onDeleteFine && (
                 <button onClick={() => { if(window.confirm("Apagar esta multa?")) onDeleteFine(f.id); }} style={{ padding:"3px 8px", borderRadius:8, border:"1.5px solid #666", background:"transparent", color:"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑️</button>
@@ -2061,6 +2095,7 @@ export default function App() {
   const [tab, setTab]           = useState("home");
   const [sub, setSub]           = useState(null);
   const [modal, setModal]       = useState(null);
+  const [editingFine, setEditingFine] = useState(null);
   const [treinosModal, setTreinosModal] = useState(null);
   const [loading, setLoading]   = useState(false);
   const [appReady, setAppReady] = useState(false);
@@ -2218,6 +2253,9 @@ export default function App() {
   };
   const delFine = async id => {
     try { await api.del(`fines?id=eq.${id}`,token); setFines(p=>p.filter(f=>f.id!==id)); } catch(e){console.error(e);}
+  };
+  const editFine = async (id, data) => {
+    try { await api.patch(`fines?id=eq.${id}`,{emoji:data.emoji,reason:data.reason,amount:data.amount},token); setFines(p=>p.map(f=>f.id===id?{...f,...data}:f)); } catch(e){console.error(e);}
   };
   const addExpense = async d => {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
@@ -2497,7 +2535,7 @@ export default function App() {
       </div>
 
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} />}
-      {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onSelectMember={m=>setSub({type:"member",data:m})} />}
+      {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
@@ -2514,6 +2552,7 @@ export default function App() {
       {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} />}
       {modal==="fine"    && isAdmin && <AddFineModal team={team} myUserId={myUserId} token={token} onAdd={addFineWithToast} onClose={()=>setModal(null)} />}
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
+      {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
       {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);}} />}
