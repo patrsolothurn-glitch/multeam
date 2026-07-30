@@ -4710,10 +4710,13 @@ var TreinosPage = function TreinosPage(_ref61) {
         borderRadius: 14,
         padding: "14px",
         marginBottom: 8,
+        borderLeft: "3px solid ".concat(team.color)
+      }
+    }, React.createElement("div", {
+      style: {
         display: "flex",
         gap: 12,
-        alignItems: "center",
-        borderLeft: "3px solid ".concat(team.color)
+        alignItems: "center"
       }
     }, React.createElement("div", {
       style: {
@@ -4778,7 +4781,14 @@ var TreinosPage = function TreinosPage(_ref61) {
         cursor: "pointer",
         color: T.sub
       }
-    }, "\uD83D\uDDD1\uFE0F")));
+    }, "\uD83D\uDDD1\uFE0F"))), React.createElement(PresBar, {
+      t: t,
+      presences: presences,
+      myMember: myMember,
+      team: team,
+      members: members,
+      onSetPresence: onSetPresence
+    }));
   })), Object.entries(byMonth).map(function (_ref62) {
     var _ref63 = _slicedToArray(_ref62, 2),
       month = _ref63[0],
