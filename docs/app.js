@@ -3486,10 +3486,13 @@ var HomeTab = function HomeTab(_ref51) {
     return new Date(b.date) - new Date(a.date);
   });
   var upcoming = trainings.filter(function (t) {
-    return t.teamId === team.id && !isPast(t.date);
+    return t.teamId === team.id && t.type !== "recorrente" && !isPast(t.date);
   }).sort(function (a, b) {
     return new Date(a.date) - new Date(b.date);
   }).slice(0, 2);
+  var recurring = trainings.filter(function (t) {
+    return t.teamId === team.id && t.type === "recorrente";
+  });
   var gm = function gm(id) {
     return members.find(function (m) {
       return m.id === id;
@@ -3813,8 +3816,51 @@ var HomeTab = function HomeTab(_ref51) {
         }
       }, m.unpaid > 0 ? "".concat(m.unpaid, "\u20AC") : "✓"));
     }));
-  }(), upcoming.length > 0 && React.createElement(React.Fragment, null, React.createElement(Sec, {
+  }(), (upcoming.length > 0 || recurring.length > 0) && React.createElement(React.Fragment, null, React.createElement(Sec, {
     label: "Pr\xF3ximos treinos"
+  }), recurring.map(function (t) {
+    return React.createElement("div", {
+      key: t.id,
+      style: {
+        background: T.card,
+        borderRadius: 14,
+        padding: "13px 14px",
+        marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        gap: 12
+      }
+    }, React.createElement("div", {
+      style: {
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        background: "".concat(team.color, "18"),
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        fontSize: 22
+      }
+    }, "\uD83D\uDD04"), React.createElement("div", {
+      style: {
+        flex: 1
+      }
+    }, React.createElement("p", {
+      style: {
+        margin: 0,
+        fontWeight: 700,
+        fontSize: 15
+      }
+    }, (t.days || []).map(function (d) {
+      return DAYS_PT[d];
+    }).join(", "), " \xB7 ", t.time), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13,
+        color: T.sub
+      }
+    }, "\uD83D\uDCCD ", t.location)));
   }), upcoming.map(function (t) {
     return React.createElement("div", {
       key: t.id,
@@ -3866,7 +3912,7 @@ var HomeTab = function HomeTab(_ref51) {
         fontWeight: 700,
         fontSize: 15
       }
-    }, "\uD83D\uDD50 ", t.time), React.createElement("p", {
+    }, t.type === "jogo" ? "\u26BD vs ".concat(t.opponent) : "🕐", " ", t.time), React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 13,
