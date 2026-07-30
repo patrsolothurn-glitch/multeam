@@ -1165,17 +1165,20 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
           <>
             <p style={{ margin:"8px 0 8px", fontSize:13, fontWeight:800, color:team.color, textTransform:"uppercase", letterSpacing:0.5 }}>🔄 Recorrentes</p>
             {recurring.map(t => (
-              <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8, display:"flex", gap:12, alignItems:"center", borderLeft:`3px solid ${team.color}` }}>
-                <div style={{ width:40, height:40, borderRadius:20, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🔄</div>
-                <div style={{ flex:1 }}>
-                  <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
-                  <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
-                  {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
+              <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8, borderLeft:`3px solid ${team.color}` }}>
+                <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                  <div style={{ width:40, height:40, borderRadius:20, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🔄</div>
+                  <div style={{ flex:1 }}>
+                    <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
+                    <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
+                    {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
+                  </div>
+                  {isAdmin&&<div style={{ display:"flex", gap:6 }}>
+                    <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
+                    <button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
+                  </div>}
                 </div>
-                {isAdmin&&<div style={{ display:"flex", gap:6 }}>
-                  <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
-                  <button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
-                </div>}
+                <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} />
               </div>
             ))}
           </>
