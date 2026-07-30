@@ -962,7 +962,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
   );
 };
 
-const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onSelectMember }) => {
+const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDeleteFine, onSelectMember }) => {
   const [filter, setFilter] = useState("all");
   const tf = fines.filter(f=>f.teamId===team.id);
   const filtered = tf.filter(f=>filter==="all"||( filter==="unpaid"?!f.paid:f.paid)).sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -992,6 +992,9 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onSe
                   {f.paid ? "✓ Pago" : "Pagar"}
                 </button>
               )}
+              {isAdmin && onDeleteFine && (
+                <button onClick={() => { if(window.confirm("Apagar esta multa?")) onDeleteFine(f.id); }} style={{ padding:"3px 8px", borderRadius:8, border:"1.5px solid #666", background:"transparent", color:"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑️</button>
+              )}
             </div>
           </div>
         );
@@ -1010,6 +1013,7 @@ const PresCounter = ({ count, color }) => (
 );
 
 const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
+  const [expanded, setExpanded] = React.useState(false);
   const pres = presences[t.id] || {};
   const tm = members.filter(m => m.teamId === team.id);
   const ok = Object.values(pres).filter(s=>s==="present").length;
@@ -1017,14 +1021,32 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
   const pend = tm.length - ok - no;
   const me = pres[myMember?.id];
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
-      <PresCounter count={ok}   color={T.green} />
-      <PresCounter count={no}   color="#FF6B00" />
-      <PresCounter count={pend} color={T.sub} />
-      {!isPast(t.date) && myMember && (
-        <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
-          <button onClick={() => onSetPresence(t.id, myMember.id, me==="present" ? null : "present")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid ${T.green}`, background:me==="present"?T.green:"transparent", color:me==="present"?"#fff":T.green, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Presente</button>
-          <button onClick={() => onSetPresence(t.id, myMember.id, me==="absent" ? null : "absent")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid #FF6B00`, background:me==="absent"?"#FF6B00":"transparent", color:me==="absent"?"#fff":"#FF6B00", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✗ Ausente</button>
+    <div style={{ paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <PresCounter count={ok}   color={T.green} />
+        <PresCounter count={no}   color="#FF6B00" />
+        <PresCounter count={pend} color={T.sub} />
+        <button onClick={() => setExpanded(e=>!e)} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"3px 8px", fontSize:11, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>{expanded ? "▲" : "▼ Ver"}</button>
+        {!isPast(t.date) && myMember && (
+          <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+            <button onClick={() => onSetPresence(t.id, myMember.id, me==="present" ? null : "present")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid ${T.green}`, background:me==="present"?T.green:"transparent", color:me==="present"?"#fff":T.green, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Presente</button>
+            <button onClick={() => onSetPresence(t.id, myMember.id, me==="absent" ? null : "absent")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid #FF6B00`, background:me==="absent"?"#FF6B00":"transparent", color:me==="absent"?"#fff":"#FF6B00", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✗ Ausente</button>
+          </div>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:5 }}>
+          {tm.map(m => {
+            const st = pres[m.id];
+            const color = st==="present" ? T.green : st==="absent" ? "#FF6B00" : T.sub;
+            const icon = st==="present" ? "✓" : st==="absent" ? "✗" : "?";
+            return (
+              <div key={m.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ width:22, height:22, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:800, flexShrink:0 }}>{icon}</div>
+                <span style={{ fontSize:13, color:st ? T.text : T.sub, fontWeight:st ? 600 : 400 }}>{m.name}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1833,7 +1855,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   );
 };
 
-const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, isAdmin }) => {
+const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin }) => {
   const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const unpaid = pf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const paid = pf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
@@ -1868,6 +1890,9 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, isAdmin
                 <button onClick={() => onTogglePaid(f.id)} style={{ marginTop:4, padding:"3px 8px", borderRadius:7, border:`1.5px solid ${f.paid?T.green:T.brand}`, background:"transparent", color:f.paid?T.green:T.brand, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {f.paid?"✓":"Pagar"}
                 </button>
+              )}
+              {isAdmin && onDeleteFine && (
+                <button onClick={() => { if(window.confirm("Apagar esta multa?")) onDeleteFine(f.id); }} style={{ display:"block", marginTop:4, padding:"3px 8px", borderRadius:7, border:"1.5px solid #666", background:"transparent", color:"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑️</button>
               )}
             </div>
           </div>
@@ -2178,6 +2203,9 @@ export default function App() {
     const f=fines.find(f=>f.id===id); if(!f)return;
     try { await api.patch(`fines?id=eq.${id}`,{paid:!f.paid,paid_at:!f.paid?new Date().toISOString():null},token); setFines(p=>p.map(x=>x.id===id?{...x,paid:!x.paid}:x)); } catch(e){console.error(e);}
   };
+  const delFine = async id => {
+    try { await api.del(`fines?id=eq.${id}`,token); setFines(p=>p.filter(f=>f.id!==id)); } catch(e){console.error(e);}
+  };
   const addExpense = async d => {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
   };
@@ -2432,7 +2460,7 @@ export default function App() {
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={isAdmin} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
-  if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} />);
+  if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
     return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
@@ -2456,7 +2484,7 @@ export default function App() {
       </div>
 
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} />}
-      {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onSelectMember={m=>setSub({type:"member",data:m})} />}
+      {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
