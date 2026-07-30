@@ -828,7 +828,8 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
     if (rankDiff !== 0) return rankDiff;
     return new Date(b.date)-new Date(a.date);
   });
-  const upcoming = trainings.filter(t=>t.teamId===team.id&&!isPast(t.date)).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,2);
+  const upcoming = trainings.filter(t=>t.teamId===team.id&&t.type!=="recorrente"&&!isPast(t.date)).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,2);
+  const recurring = trainings.filter(t=>t.teamId===team.id&&t.type==="recorrente");
   const gm = id => members.find(m=>m.id===id);
   return (
     <div style={{ padding:"16px 16px 100px" }}>
@@ -923,9 +924,18 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
           </div>
         );
       })()}
-      {upcoming.length > 0 && (
+      {(upcoming.length > 0 || recurring.length > 0) && (
         <>
           <Sec label="Próximos treinos" />
+          {recurring.map(t => (
+            <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:22 }}>🔄</div>
+              <div style={{ flex:1 }}>
+                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
+                <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
+              </div>
+            </div>
+          ))}
           {upcoming.map(t => (
             <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -933,7 +943,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                 <p style={{ margin:0, fontSize:10, color:team.color, fontWeight:700 }}>{new Date(t.date+"T00:00:00").toLocaleDateString("pt-PT",{month:"short"}).toUpperCase()}</p>
               </div>
               <div style={{ flex:1 }}>
-                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>🕐 {t.time}</p>
+                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}</p>
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
               </div>
             </div>
