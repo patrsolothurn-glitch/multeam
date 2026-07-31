@@ -186,12 +186,26 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
       let profMap = {};
       if (uids.length) {
-        const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, { headers: H }).then(r => r.json()).catch(() => []);
-        (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
+        try {
+          const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/get_team_profiles`, {
+            method:'POST', headers:{...H,'Content-Type':'application/json'},
+            body: JSON.stringify({ p_team_id: team.id })
+          }).then(r=>r.ok?r.json():[]).catch(()=>[]);
+          (Array.isArray(rpcRes)?rpcRes:[]).forEach(p => { profMap[p.id] = p; });
+        } catch(e) {}
+        if (!Object.keys(profMap).length) {
+          const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, { headers: H }).then(r => r.json()).catch(() => []);
+          (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
+        }
       }
       setTm((Array.isArray(mRaw) ? mRaw : []).map(m => ({
         id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
-        name: profMap[m.user_id]?.name || 'Utilizador'
+        name: profMap[m.user_id]?.name || 'Utilizador',
+        phone: profMap[m.user_id]?.phone || '',
+        birthday: profMap[m.user_id]?.birthday || '',
+        position: m.position || profMap[m.user_id]?.position || 'Jogador',
+        avatarUrl: profMap[m.user_id]?.avatar_url || null,
+        initials: (profMap[m.user_id]?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
       })));
       setTft((Array.isArray(ftRaw) ? ftRaw : []).map(ft => ({
         id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥'
