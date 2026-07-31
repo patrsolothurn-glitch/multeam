@@ -4921,24 +4921,10 @@ var TreinosPage = function TreinosPage(_ref63) {
     }, t.notes)), isAdmin && React.createElement("div", {
       style: {
         display: "flex",
-        gap: 6
+        gap: 6,
+        flexShrink: 0
       }
-    }, onLogSession && React.createElement("button", {
-      onClick: function onClick() {
-        return onLogSession(t, presences[t.id] || {});
-      },
-      style: {
-        background: "".concat(team.color, "18"),
-        border: "1px solid ".concat(team.color),
-        borderRadius: 8,
-        fontSize: 11,
-        fontWeight: 700,
-        color: team.color,
-        cursor: "pointer",
-        padding: "4px 8px",
-        fontFamily: "inherit"
-      }
-    }, "\uD83D\uDCCB Registar"), React.createElement("button", {
+    }, React.createElement("button", {
       onClick: function onClick() {
         return setEditTarget(t);
       },
@@ -4960,7 +4946,26 @@ var TreinosPage = function TreinosPage(_ref63) {
         cursor: "pointer",
         color: T.sub
       }
-    }, "\uD83D\uDDD1\uFE0F"))), React.createElement(PresBar, {
+    }, "\uD83D\uDDD1\uFE0F"))), isAdmin && onLogSession && React.createElement("button", {
+      onClick: function onClick() {
+        return onLogSession(t, presences[t.id] || {});
+      },
+      style: {
+        display: "block",
+        width: "100%",
+        marginTop: 10,
+        padding: "8px",
+        borderRadius: 10,
+        border: "1.5px solid ".concat(team.color),
+        background: "".concat(team.color, "12"),
+        color: team.color,
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "center"
+      }
+    }, "\uD83D\uDCCB Registar sess\xE3o de hoje"), React.createElement(PresBar, {
       t: t,
       presences: presences,
       myMember: myMember,
