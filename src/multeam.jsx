@@ -1151,7 +1151,7 @@ const EventCard = ({ t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, s
   );
 };
 
-const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onBack, modal, setModal }) => {
+const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onLogSession, onBack, modal, setModal }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
   const [showFilter, setShowFilter] = useState(false);
@@ -1218,6 +1218,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                     {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
                   </div>
                   {isAdmin&&<div style={{ display:"flex", gap:6 }}>
+                    {onLogSession && <button onClick={()=>onLogSession(t, presences[t.id]||{})} style={{ background:`${team.color}18`, border:`1px solid ${team.color}`, borderRadius:8, fontSize:11, fontWeight:700, color:team.color, cursor:"pointer", padding:"4px 8px", fontFamily:"inherit" }}>📋 Registar</button>}
                     <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
                     <button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
                   </div>}
@@ -2260,6 +2261,28 @@ export default function App() {
   const addExpense = async d => {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
   };
+  const logSession = async (recurring, currentPresences) => {
+    const today = new Date().toISOString().split("T")[0];
+    // Check if already logged today
+    const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===today && t.location===recurring.location && t.time===recurring.time);
+    if (alreadyLogged) { alert("Sessão de hoje já foi registada!"); return; }
+    try {
+      const res = await api.post("trainings", { team_id:recurring.teamId, type:"treino", date:today, time:recurring.time, location:recurring.location, notes:recurring.notes||null, recurring:false, created_by:myUserId }, token);
+      const newT = Array.isArray(res) ? res[0] : res;
+      if (!newT) return;
+      setTrainings(p => [...p, aTraining(newT)]);
+      // Copy presences
+      const presArr = Object.entries(currentPresences).filter(([,s])=>s);
+      if (presArr.length > 0) {
+        await Promise.all(presArr.map(([mid, status]) =>
+          api.upsert("presences", { training_id:newT.id, member_id:mid, status }, token).catch(()=>{})
+        ));
+        const presMap = Object.fromEntries(presArr);
+        setPresences(p => ({ ...p, [newT.id]: presMap }));
+      }
+      alert(`✅ Sessão de ${today} registada com ${presArr.length} presenças!`);
+    } catch(e) { console.error(e); }
+  };
   const addTraining = async d => {
     const res = await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token);
     const t = Array.isArray(res) ? res[0] : res;
@@ -2508,7 +2531,7 @@ export default function App() {
 
   if (tab==="treinos") return (
     <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
-      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={isAdmin} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
+      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={isAdmin} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
