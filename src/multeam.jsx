@@ -916,6 +916,32 @@ const FineGroup = ({ group, color }) => {
   );
 };
 
+const FineGroupHome = ({ group, color }) => {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
+      <div onClick={() => setOpen(o=>!o)} style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
+        <Avatar initials={group.initials||"?"} color={color} />
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ margin:0, fontWeight:700, fontSize:15, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
+          <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{group.total.toFixed(1)}€ total{group.unpaid>0?` · ${group.unpaid.toFixed(1)}€ por pagar`:""}</span></p>
+        </div>
+        <span style={{ fontSize:14, color:T.sub, flexShrink:0 }}>{open?"▲":"▼"}</span>
+      </div>
+      {open && group.fines.map((f,i) => (
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px 10px 68px", borderTop:`1px solid ${T.border}`, background:T.bg }}>
+          <span style={{ fontSize:20, flexShrink:0 }}>{f.emoji}</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
+            <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date.slice(5)}</p>
+          </div>
+          <span style={{ fontSize:14, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{f.amount}€</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine }) => {
   const tf = fines.filter(f => f.teamId===team.id);
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
@@ -1057,22 +1083,20 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
       )}
       <Sec label="Multas recentes" />
       {recent.length === 0 && <p style={{ color:T.sub, textAlign:"center", padding:"16px 0" }}>Sem multas ainda 🎉</p>}
-      {recent.map(f => {
-        const m = gm(f.memberId);
-        return (
-          <div key={f.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${f.paid?T.green:T.brand}` }}>
-            <Avatar initials={m?.initials||"?"} color={team.color} />
-            <div style={{ flex:1, minWidth:0 }}>
-              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m?.name}</p>
-              <p style={{ margin:0, fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.emoji} {f.reason}</p>
-            </div>
-            <div style={{ textAlign:"right", flexShrink:0 }}>
-              <p style={{ margin:0, fontWeight:800, fontSize:17, color:f.paid?T.green:T.brand }}>{f.amount}€</p>
-              <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date.slice(5)}</p>
-            </div>
-          </div>
-        );
-      })}
+      {(() => {
+        const grouped = {};
+        recent.forEach(f => {
+          const m = gm(f.memberId);
+          const k = f.memberId;
+          if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", fines:[], total:0, unpaid:0 };
+          grouped[k].fines.push(f);
+          grouped[k].total += f.amount;
+          if (!f.paid) grouped[k].unpaid += f.amount;
+        });
+        return Object.values(grouped).map(g => (
+          <FineGroupHome key={g.name} group={g} color={team.color} />
+        ));
+      })()}
     </div>
   );
 };
