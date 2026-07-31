@@ -9587,7 +9587,7 @@ function App() {
   }();
   var joinTeam = function () {
     var _ref127 = _asyncToGenerator(_regenerator().m(function _callee56(t) {
-      var _yield$api$get, _yield$api$get2, td, _t60;
+      var freshTeams, _t60;
       return _regenerator().w(function (_context56) {
         while (1) switch (_context56.p = _context56.n) {
           case 0:
@@ -9600,16 +9600,10 @@ function App() {
             }, token);
           case 1:
             _context56.n = 2;
-            return api.get("teams?id=eq.".concat(t.id), token);
+            return api.rpc('get_my_teams', {}, token);
           case 2:
-            _yield$api$get = _context56.v;
-            _yield$api$get2 = _slicedToArray(_yield$api$get, 1);
-            td = _yield$api$get2[0];
-            setTeams(function (p) {
-              return p.some(function (x) {
-                return x.id === t.id;
-              }) ? p : [].concat(_toConsumableArray(p), [aTeam(td)]);
-            });
+            freshTeams = _context56.v;
+            if (Array.isArray(freshTeams)) setTeams(freshTeams.map(aTeam));
             _context56.n = 3;
             return switchTeam(t.id);
           case 3:
@@ -9619,6 +9613,7 @@ function App() {
             _context56.p = 4;
             _t60 = _context56.v;
             console.error(_t60);
+            alert("Erro ao entrar na equipa: ".concat(_t60.message || "tenta novamente"));
           case 5:
             return _context56.a(2);
         }
