@@ -2551,15 +2551,15 @@ export default function App() {
       api.get(`trainings?team_id=eq.${tid}&order=date.asc,time.asc`, tok),
       api.get(`presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.${tid}`, tok).catch(()=>[]),
     ]);
-    // Fetch profiles separately for all member user_ids
+    // Fetch profiles via SECURITY DEFINER RPC (bypasses RLS - todos os membros podem ver)
     let profilesMap = {};
-    if (mRaw.length > 0) {
-      const uids = mRaw.map(m=>m.user_id).filter(Boolean);
-      if (uids.length > 0) {
-        const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>[]);
-        profs.forEach(p => { profilesMap[p.id] = p; });
-      }
-    }
+    try {
+      const profs = await fetch(`${SB_URL}/rest/v1/rpc/get_team_profiles`, {
+        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`,'Content-Type':'application/json'},
+        body: JSON.stringify({ p_team_id: tid })
+      }).then(r=>r.ok?r.json():[]).catch(()=>[]);
+      (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
+    } catch(e) { console.warn('profiles fallback:', e); }
     // Merge profiles into members
     const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
     // Build presences map {trainingId: {memberId: status}}
