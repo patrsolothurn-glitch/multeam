@@ -3312,6 +3312,9 @@ var JoinTeamModal = function JoinTeamModal(_ref50) {
       return _ref51.apply(this, arguments);
     };
   }();
+  var alreadyMember = found && found !== "notfound" && teams.some(function (t) {
+    return t.id === found.id;
+  });
   var accept = function () {
     var _ref52 = _asyncToGenerator(_regenerator().m(function _callee22() {
       return _regenerator().w(function (_context22) {
@@ -3448,7 +3451,14 @@ var JoinTeamModal = function JoinTeamModal(_ref50) {
     style: {
       padding: "12px 16px"
     }
-  }, React.createElement("p", {
+  }, alreadyMember ? React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 13,
+      color: T.green,
+      fontWeight: 700
+    }
+  }, "\u2713 J\xE1 \xE9s membro desta equipa.") : React.createElement("p", {
     style: {
       margin: 0,
       fontSize: 13,
@@ -3458,7 +3468,7 @@ var JoinTeamModal = function JoinTeamModal(_ref50) {
     onClick: accept,
     disabled: !found || found === "notfound",
     color: found && found !== "notfound" ? found.color : T.border
-  }, "\u2713 Aceitar convite e entrar")) : React.createElement("div", {
+  }, alreadyMember ? "\u26A1 Ir para ".concat(found === null || found === void 0 ? void 0 : found.name) : "✓ Aceitar convite e entrar")) : React.createElement("div", {
     style: {
       textAlign: "center",
       padding: "20px 0 10px"
