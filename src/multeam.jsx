@@ -42,8 +42,10 @@ const isPast = d => new Date(d + "T23:59:59") < new Date();
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const age = d => d ? Math.floor((new Date() - new Date(d)) / (365.25*24*3600*1000)) : null;
 
-const Avatar = ({ initials, color = T.navy, size = 38 }) => (
-  <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
+const Avatar = ({ initials, color = T.navy, size = 38, photo }) => (
+  photo
+    ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><img src={photo} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
+    : <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
 );
 const Badge = ({ label, color }) => (
   <span style={{ display:"inline-block", padding:"3px 8px", borderRadius:6, background:`${color}22`, color, fontSize:11, fontWeight:700 }}>{label}</span>
@@ -748,14 +750,46 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
 
 const EditProfileModal = ({ user, onSave, onClose }) => {
   const [name, setName] = useState(user.name); const [pos, setPos] = useState(user.position); const [phone, setPhone] = useState(user.phone); const [bday, setBday] = useState(user.birthday);
+  const [photo, setPhoto] = useState(user.avatarUrl||null);
+  const fileRef = React.useRef();
+  const handlePhoto = e => {
+    const file = e.target.files?.[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 200; canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const s = Math.min(img.width, img.height);
+        const ox = (img.width-s)/2, oy = (img.height-s)/2;
+        ctx.drawImage(img, ox, oy, s, s, 0, 0, size, size);
+        setPhoto(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
   return (
     <Sheet title="✏️ Editar perfil" onClose={onClose}>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:16 }}>
+        <div onClick={() => fileRef.current?.click()} style={{ cursor:"pointer", position:"relative" }}>
+          {photo
+            ? <img src={photo} style={{ width:80, height:80, borderRadius:40, objectFit:"cover", border:`3px solid ${T.navy}` }} />
+            : <div style={{ width:80, height:80, borderRadius:40, background:T.navy, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:28, fontWeight:800 }}>{(name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+          }
+          <div style={{ position:"absolute", bottom:0, right:0, width:26, height:26, borderRadius:13, background:T.brand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>📷</div>
+        </div>
+        <p style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Toca para alterar foto</p>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handlePhoto} />
+        {photo && <button onClick={() => setPhoto(null)} style={{ marginTop:4, fontSize:11, color:T.brand, background:"none", border:"none", cursor:"pointer" }}>Remover foto</button>}
+      </div>
       <FL>Nome</FL><FI value={name} onChange={e=>setName(e.target.value)} />
       <FL>Posição</FL>
       <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} />
       <FL>Telefone</FL><FI type="tel" value={phone} onChange={e=>setPhone(e.target.value)} />
       <FL>Aniversário</FL><FI type="date" value={bday} onChange={e=>setBday(e.target.value)} />
-      <PrimaryBtn onClick={() => { onSave({ ...user, name, position:pos, phone, birthday:bday }); onClose(); }} color={T.navy}>Guardar perfil</PrimaryBtn>
+      <PrimaryBtn onClick={() => { onSave({ ...user, name, position:pos, phone, birthday:bday, avatarUrl:photo }); onClose(); }} color={T.navy}>Guardar perfil</PrimaryBtn>
     </Sheet>
   );
 };
@@ -1803,7 +1837,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18, paddingRight:80 }}>
           <div onClick={handleAvatarTap} style={{ cursor: isAppAdmin ? "pointer" : "default" }}>
-            <Avatar initials={user.initials} color={T.navy} size={54} />
+            <Avatar initials={user.initials} color={T.navy} size={54} photo={user.avatarUrl} />
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <h2 style={{ margin:0, fontSize:20, fontWeight:900 }}>{user.name}</h2>
@@ -2401,7 +2435,7 @@ export default function App() {
         } catch(e) { console.warn('Profile creation fallback failed:', e); }
       }
 
-      if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'', isAppAdmin: p.is_admin===true });
+      if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'', isAppAdmin: p.is_admin===true, avatarUrl: p.avatar_url||null });
 
       // Load teams via RPC (bypasses RLS, handles member + creator)
       // Carregar equipas via query direta (evita dependência do RPC get_my_teams)
@@ -2844,7 +2878,12 @@ export default function App() {
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
+      {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
+        // Guardar avatar_url na tabela profiles
+        try { await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null},token); } catch(e){console.error(e);}
+        await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
+        setProfile(p=>({...p,...u}));
+      }} onClose={()=>setModal(null)} />}
       {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
   );
