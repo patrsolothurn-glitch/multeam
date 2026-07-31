@@ -4440,38 +4440,37 @@ var HomeTab = function HomeTab(_ref57) {
     if (!bdays.length) return null;
     return React.createElement("div", {
       style: {
-        marginBottom: 18
+        marginBottom: 14,
+        background: "#FFF8E7",
+        borderRadius: 12,
+        padding: "10px 14px"
       }
     }, React.createElement("div", {
       style: {
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        marginBottom: 10,
-        padding: "8px 14px",
-        background: "#FFF3CD",
-        borderRadius: 12
+        gap: 6,
+        marginBottom: 8
       }
     }, React.createElement("span", {
       style: {
-        fontSize: 16
+        fontSize: 14
       }
     }, "\uD83C\uDF82"), React.createElement("p", {
       style: {
         margin: 0,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 800,
         color: "#B8860B",
         textTransform: "uppercase",
-        letterSpacing: 1.2
+        letterSpacing: 1
       }
     }, "Aniversariantes de ", MONTHS_PT[currentMonth - 1])), React.createElement("div", {
       style: {
         display: "flex",
-        gap: 10,
+        gap: 8,
         overflowX: "auto",
-        paddingBottom: 4
+        paddingBottom: 2
       }
     }, bdays.map(function (m) {
       var isToday = m.bDay === today;
@@ -4479,74 +4478,53 @@ var HomeTab = function HomeTab(_ref57) {
         key: m.id,
         style: {
           flexShrink: 0,
-          background: isToday ? "linear-gradient(135deg,#FF6B35,#FFB347)" : T.card,
-          borderRadius: 14,
-          padding: "12px 14px",
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           gap: 6,
-          minWidth: 90,
-          boxShadow: isToday ? "0 4px 14px #FF6B3544" : "none",
-          border: isToday ? "none" : "1px solid ".concat(T.border)
+          background: isToday ? "linear-gradient(135deg,#FF6B35,#FFB347)" : "#fff",
+          borderRadius: 20,
+          padding: "5px 10px 5px 6px",
+          border: isToday ? "none" : "1px solid #FFE0A0",
+          boxShadow: isToday ? "0 2px 8px #FF6B3533" : "none"
         }
       }, m.avatarUrl ? React.createElement("img", {
         src: m.avatarUrl,
         style: {
-          width: 44,
-          height: 44,
-          borderRadius: 22,
+          width: 26,
+          height: 26,
+          borderRadius: 13,
           objectFit: "cover",
-          border: isToday ? "2px solid rgba(255,255,255,0.5)" : "none"
+          flexShrink: 0
         }
       }) : React.createElement("div", {
         style: {
-          width: 44,
-          height: 44,
-          borderRadius: 22,
+          width: 26,
+          height: 26,
+          borderRadius: 13,
           background: isToday ? "rgba(255,255,255,0.3)" : team.color,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           color: "#fff",
-          fontSize: 15,
-          fontWeight: 800
+          fontSize: 10,
+          fontWeight: 800,
+          flexShrink: 0
         }
-      }, m.initials), React.createElement("p", {
+      }, m.initials), React.createElement("span", {
         style: {
-          margin: 0,
-          fontWeight: 700,
           fontSize: 12,
-          color: isToday ? "#fff" : T.text,
-          textAlign: "center",
-          maxWidth: 80,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
+          fontWeight: 700,
+          color: isToday ? "#fff" : "#8B6914",
           whiteSpace: "nowrap"
         }
-      }, m.name.split(" ")[0]), React.createElement("div", {
+      }, m.name.split(" ")[0]), React.createElement("span", {
         style: {
-          background: isToday ? "rgba(255,255,255,0.25)" : "#FFF3CD",
-          borderRadius: 8,
-          padding: "3px 8px",
-          textAlign: "center"
-        }
-      }, React.createElement("p", {
-        style: {
-          margin: 0,
+          fontSize: 12,
           fontWeight: 900,
-          fontSize: 18,
-          color: isToday ? "#fff" : "#B8860B",
-          lineHeight: 1
+          color: isToday ? "rgba(255,255,255,0.9)" : "#B8860B",
+          whiteSpace: "nowrap"
         }
-      }, m.bDay), React.createElement("p", {
-        style: {
-          margin: 0,
-          fontSize: 10,
-          fontWeight: 700,
-          color: isToday ? "rgba(255,255,255,0.8)" : "#B8860B"
-        }
-      }, isToday ? "🎉" : MONTHS_PT[currentMonth - 1])));
+      }, isToday ? "🎉" : m.bDay));
     })));
   }(), function () {
     var tm = members.filter(function (m) {
