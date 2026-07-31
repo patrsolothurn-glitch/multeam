@@ -7520,16 +7520,19 @@ var MemberDetailScreen = function MemberDetailScreen(_ref91) {
   }, React.createElement("div", {
     style: {
       background: "linear-gradient(135deg, ".concat(team.color, ", ").concat(team.color, "bb)"),
-      padding: "52px 16px 24px",
+      padding: "16px 16px 24px",
       color: "#fff",
       textAlign: "center"
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      marginBottom: 20
     }
   }, React.createElement("button", {
     onClick: onBack,
     style: {
-      position: "absolute",
-      top: 54,
-      left: 16,
       background: "rgba(255,255,255,0.2)",
       border: "none",
       color: "#fff",
@@ -7540,7 +7543,7 @@ var MemberDetailScreen = function MemberDetailScreen(_ref91) {
       fontWeight: 600,
       fontFamily: "inherit"
     }
-  }, "\u2190 Voltar"), React.createElement(Avatar, {
+  }, "\u2190 Voltar")), React.createElement(Avatar, {
     initials: member.initials,
     color: "rgba(255,255,255,0.2)",
     size: 64
