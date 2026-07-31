@@ -2458,10 +2458,14 @@ export default function App() {
   const joinTeam = async t => {
     try {
       await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
-      const [td]=await api.get(`teams?id=eq.${t.id}`,token);
-      setTeams(p=>p.some(x=>x.id===t.id)?p:[...p,aTeam(td)]);
+      // Reload all teams from DB to guarantee state is fresh
+      const freshTeams = await api.rpc('get_my_teams', {}, token);
+      if (Array.isArray(freshTeams)) setTeams(freshTeams.map(aTeam));
       await switchTeam(t.id);
-    } catch(e){console.error(e);}
+    } catch(e){
+      console.error(e);
+      alert(`Erro ao entrar na equipa: ${e.message||"tenta novamente"}`);
+    }
   };
   const findTeamByCode = async code => {
     try {
