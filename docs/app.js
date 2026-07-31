@@ -9705,10 +9705,19 @@ function App() {
     pendingInvite = _useState302[0],
     setPendingInvite = _useState302[1];
   useEffect(function () {
-    if (appReady && pendingInvite) {
+    if (!appReady || !pendingInvite) return;
+    var alreadyIn = teams.find(function (t) {
+      var _t$inviteCode2;
+      return ((_t$inviteCode2 = t.inviteCode) === null || _t$inviteCode2 === void 0 ? void 0 : _t$inviteCode2.toUpperCase()) === pendingInvite.toUpperCase();
+    });
+    if (alreadyIn) {
+      switchTeam(alreadyIn.id);
+      setPendingInvite(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
       setModal("join");
     }
-  }, [appReady, pendingInvite]);
+  }, [appReady, pendingInvite, teams]);
   var subscribeToPush = function () {
     var _ref129 = _asyncToGenerator(_regenerator().m(function _callee58(tok, uid) {
       var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t62, _t63;
