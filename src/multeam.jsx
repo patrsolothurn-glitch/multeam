@@ -2555,7 +2555,17 @@ export default function App() {
         body: JSON.stringify({ p_team_id: tid })
       }).then(r=>r.ok?r.json():[]).catch(()=>[]);
       (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
-    } catch(e) { console.warn('profiles fallback:', e); }
+    } catch(e) { console.warn('get_team_profiles failed:', e); }
+    // Fallback: tentar carregar profiles directamente (pode falhar por RLS)
+    if (Object.keys(profilesMap).length === 0) {
+      try {
+        const uids = mRaw.map(m=>m.user_id).filter(Boolean);
+        if (uids.length > 0) {
+          const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>[]);
+          (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
+        }
+      } catch(e) {}
+    }
     // Merge profiles into members
     const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
     // Build presences map {trainingId: {memberId: status}}
