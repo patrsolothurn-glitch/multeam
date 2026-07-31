@@ -9757,9 +9757,9 @@ function App() {
   }) || (team === null || team === void 0 ? void 0 : team.createdBy) === myUserId;
   var loadTeam = function () {
     var _ref108 = _asyncToGenerator(_regenerator().m(function _callee35(tok, tid) {
-      var _yield$Promise$all3, _yield$Promise$all4, mRaw, ftData, fData, eData, tData, pData, profilesMap, uids, profs, mData, presMap;
+      var _yield$Promise$all3, _yield$Promise$all4, mRaw, ftData, fData, eData, tData, pData, profilesMap, profs, mData, presMap, _t40;
       return _regenerator().w(function (_context35) {
-        while (1) switch (_context35.n) {
+        while (1) switch (_context35.p = _context35.n) {
           case 0:
             _context35.n = 1;
             return Promise.all([api.get("team_members?team_id=eq.".concat(tid, "&select=*"), tok), api.get("fine_types?team_id=eq.".concat(tid, "&order=amount.asc"), tok), api.get("fines?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("expenses?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("trainings?team_id=eq.".concat(tid, "&order=date.asc,time.asc"), tok), api.get("presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.".concat(tid), tok).catch(function () {
@@ -9775,27 +9775,35 @@ function App() {
             tData = _yield$Promise$all4[4];
             pData = _yield$Promise$all4[5];
             profilesMap = {};
-            if (!(mRaw.length > 0)) {
-              _context35.n = 3;
-              break;
-            }
-            uids = mRaw.map(function (m) {
-              return m.user_id;
-            }).filter(Boolean);
-            if (!(uids.length > 0)) {
-              _context35.n = 3;
-              break;
-            }
-            _context35.n = 2;
-            return api.get("profiles?id=in.(".concat(uids.join(','), ")"), tok).catch(function () {
+            _context35.p = 2;
+            _context35.n = 3;
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/get_team_profiles"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(tok),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                p_team_id: tid
+              })
+            }).then(function (r) {
+              return r.ok ? r.json() : [];
+            }).catch(function () {
               return [];
             });
-          case 2:
+          case 3:
             profs = _context35.v;
-            profs.forEach(function (p) {
+            (Array.isArray(profs) ? profs : []).forEach(function (p) {
               profilesMap[p.id] = p;
             });
-          case 3:
+            _context35.n = 5;
+            break;
+          case 4:
+            _context35.p = 4;
+            _t40 = _context35.v;
+            console.warn('profiles fallback:', _t40);
+          case 5:
             mData = mRaw.map(function (m) {
               return _objectSpread(_objectSpread({}, m), {}, {
                 profiles: profilesMap[m.user_id] || null
@@ -9815,7 +9823,7 @@ function App() {
               presences: presMap
             });
         }
-      }, _callee35);
+      }, _callee35, null, [[2, 4]]);
     }));
     return function loadTeam(_x10, _x11) {
       return _ref108.apply(this, arguments);
@@ -9823,7 +9831,7 @@ function App() {
   }();
   var initApp = function () {
     var _ref109 = _asyncToGenerator(_regenerator().m(function _callee36(tok, uid) {
-      var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t40, _t41;
+      var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t41, _t42;
       return _regenerator().w(function (_context36) {
         while (1) switch (_context36.p = _context36.n) {
           case 0:
@@ -9851,8 +9859,8 @@ function App() {
             break;
           case 5:
             _context36.p = 5;
-            _t40 = _context36.v;
-            console.warn('Profile creation fallback failed:', _t40);
+            _t41 = _context36.v;
+            console.warn('Profile creation fallback failed:', _t41);
           case 6:
             if (p) setProfile({
               id: p.id,
@@ -9935,8 +9943,8 @@ function App() {
             break;
           case 14:
             _context36.p = 14;
-            _t41 = _context36.v;
-            setAuthError("Erro: ".concat(_t41.message));
+            _t42 = _context36.v;
+            setAuthError("Erro: ".concat(_t42.message));
           case 15:
             _context36.p = 15;
             setLoading(false);
@@ -9952,7 +9960,7 @@ function App() {
   }();
   var switchTeam = function () {
     var _ref110 = _asyncToGenerator(_regenerator().m(function _callee37(id) {
-      var td, _t42;
+      var td, _t43;
       return _regenerator().w(function (_context37) {
         while (1) switch (_context37.p = _context37.n) {
           case 0:
@@ -9974,8 +9982,8 @@ function App() {
             break;
           case 3:
             _context37.p = 3;
-            _t42 = _context37.v;
-            console.error(_t42);
+            _t43 = _context37.v;
+            console.error(_t43);
           case 4:
             setLoading(false);
           case 5:
@@ -9988,7 +9996,7 @@ function App() {
     };
   }();
   var refresh = useCallback(_asyncToGenerator(_regenerator().m(function _callee38() {
-    var td, _t43;
+    var td, _t44;
     return _regenerator().w(function (_context38) {
       while (1) switch (_context38.p = _context38.n) {
         case 0:
@@ -10014,8 +10022,8 @@ function App() {
           break;
         case 4:
           _context38.p = 4;
-          _t43 = _context38.v;
-          console.error(_t43);
+          _t44 = _context38.v;
+          console.error(_t44);
         case 5:
           setRefreshing(false);
         case 6:
@@ -10028,7 +10036,7 @@ function App() {
   }, [refresh]);
   var handleLogin = function () {
     var _ref112 = _asyncToGenerator(_regenerator().m(function _callee39(email, pass) {
-      var _d$session, _d$user, d, tok, uid, _t44;
+      var _d$session, _d$user, d, tok, uid, _t45;
       return _regenerator().w(function (_context39) {
         while (1) switch (_context39.p = _context39.n) {
           case 0:
@@ -10056,8 +10064,8 @@ function App() {
             break;
           case 5:
             _context39.p = 5;
-            _t44 = _context39.v;
-            setAuthError(_t44.message);
+            _t45 = _context39.v;
+            setAuthError(_t45.message);
             setLoading(false);
           case 6:
             return _context39.a(2);
@@ -10070,7 +10078,7 @@ function App() {
   }();
   var handleRegister = function () {
     var _ref113 = _asyncToGenerator(_regenerator().m(function _callee40(email, pass, name) {
-      var _d$session2, _d$user2, d, tok, uid, _d2$session, d2, tok2, _t45, _t46, _t47;
+      var _d$session2, _d$user2, d, tok, uid, _d2$session, d2, tok2, _t46, _t47, _t48;
       return _regenerator().w(function (_context40) {
         while (1) switch (_context40.p = _context40.n) {
           case 0:
@@ -10098,7 +10106,7 @@ function App() {
             break;
           case 5:
             _context40.p = 5;
-            _t45 = _context40.v;
+            _t46 = _context40.v;
           case 6:
             setToken(tok);
             setMyUserId(uid);
@@ -10136,7 +10144,7 @@ function App() {
             break;
           case 14:
             _context40.p = 14;
-            _t46 = _context40.v;
+            _t47 = _context40.v;
             setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
           case 15:
             _context40.n = 17;
@@ -10148,8 +10156,8 @@ function App() {
             break;
           case 18:
             _context40.p = 18;
-            _t47 = _context40.v;
-            setAuthError(_t47.message);
+            _t48 = _context40.v;
+            setAuthError(_t48.message);
           case 19:
             setLoading(false);
           case 20:
@@ -10210,7 +10218,7 @@ function App() {
   }();
   var togglePaid = function () {
     var _ref115 = _asyncToGenerator(_regenerator().m(function _callee42(id) {
-      var f, _t48;
+      var f, _t49;
       return _regenerator().w(function (_context42) {
         while (1) switch (_context42.p = _context42.n) {
           case 0:
@@ -10241,8 +10249,8 @@ function App() {
             break;
           case 3:
             _context42.p = 3;
-            _t48 = _context42.v;
-            console.error(_t48);
+            _t49 = _context42.v;
+            console.error(_t49);
           case 4:
             return _context42.a(2);
         }
@@ -10254,7 +10262,7 @@ function App() {
   }();
   var delFine = function () {
     var _ref116 = _asyncToGenerator(_regenerator().m(function _callee43(id) {
-      var _t49;
+      var _t50;
       return _regenerator().w(function (_context43) {
         while (1) switch (_context43.p = _context43.n) {
           case 0:
@@ -10271,8 +10279,8 @@ function App() {
             break;
           case 2:
             _context43.p = 2;
-            _t49 = _context43.v;
-            console.error(_t49);
+            _t50 = _context43.v;
+            console.error(_t50);
           case 3:
             return _context43.a(2);
         }
@@ -10284,7 +10292,7 @@ function App() {
   }();
   var editFine = function () {
     var _ref117 = _asyncToGenerator(_regenerator().m(function _callee44(id, data) {
-      var _t50;
+      var _t51;
       return _regenerator().w(function (_context44) {
         while (1) switch (_context44.p = _context44.n) {
           case 0:
@@ -10305,8 +10313,8 @@ function App() {
             break;
           case 2:
             _context44.p = 2;
-            _t50 = _context44.v;
-            console.error(_t50);
+            _t51 = _context44.v;
+            console.error(_t51);
           case 3:
             return _context44.a(2);
         }
@@ -10318,7 +10326,7 @@ function App() {
   }();
   var addExpense = function () {
     var _ref118 = _asyncToGenerator(_regenerator().m(function _callee45(d) {
-      var _yield$api$post3, _yield$api$post4, e, _t51;
+      var _yield$api$post3, _yield$api$post4, e, _t52;
       return _regenerator().w(function (_context45) {
         while (1) switch (_context45.p = _context45.n) {
           case 0:
@@ -10341,8 +10349,8 @@ function App() {
             break;
           case 2:
             _context45.p = 2;
-            _t51 = _context45.v;
-            console.error(_t51);
+            _t52 = _context45.v;
+            console.error(_t52);
           case 3:
             return _context45.a(2);
         }
@@ -10354,7 +10362,7 @@ function App() {
   }();
   var logSession = function () {
     var _ref119 = _asyncToGenerator(_regenerator().m(function _callee46(recurring, date, currentPresences) {
-      var alreadyLogged, res, newT, presArr, _t52;
+      var alreadyLogged, res, newT, presArr, _t53;
       return _regenerator().w(function (_context46) {
         while (1) switch (_context46.p = _context46.n) {
           case 0:
@@ -10421,8 +10429,8 @@ function App() {
             break;
           case 6:
             _context46.p = 6;
-            _t52 = _context46.v;
-            console.error(_t52);
+            _t53 = _context46.v;
+            console.error(_t53);
           case 7:
             return _context46.a(2);
         }
@@ -10483,7 +10491,7 @@ function App() {
   }();
   var delTraining = function () {
     var _ref125 = _asyncToGenerator(_regenerator().m(function _callee48(id) {
-      var _t53;
+      var _t54;
       return _regenerator().w(function (_context48) {
         while (1) switch (_context48.p = _context48.n) {
           case 0:
@@ -10500,8 +10508,8 @@ function App() {
             break;
           case 2:
             _context48.p = 2;
-            _t53 = _context48.v;
-            console.error(_t53);
+            _t54 = _context48.v;
+            console.error(_t54);
           case 3:
             return _context48.a(2);
         }
@@ -10547,7 +10555,7 @@ function App() {
   }();
   var setPresence = function () {
     var _ref127 = _asyncToGenerator(_regenerator().m(function _callee50(tid, mid, status) {
-      var _t54;
+      var _t55;
       return _regenerator().w(function (_context50) {
         while (1) switch (_context50.p = _context50.n) {
           case 0:
@@ -10582,8 +10590,8 @@ function App() {
             break;
           case 5:
             _context50.p = 5;
-            _t54 = _context50.v;
-            console.error(_t54);
+            _t55 = _context50.v;
+            console.error(_t55);
           case 6:
             return _context50.a(2);
         }
@@ -10595,7 +10603,7 @@ function App() {
   }();
   var addMember = function () {
     var _ref128 = _asyncToGenerator(_regenerator().m(function _callee51(d) {
-      var r, m, _t55;
+      var r, m, _t56;
       return _regenerator().w(function (_context51) {
         while (1) switch (_context51.p = _context51.n) {
           case 0:
@@ -10642,8 +10650,8 @@ function App() {
             break;
           case 3:
             _context51.p = 3;
-            _t55 = _context51.v;
-            console.error(_t55);
+            _t56 = _context51.v;
+            console.error(_t56);
           case 4:
             return _context51.a(2);
         }
@@ -10655,7 +10663,7 @@ function App() {
   }();
   var toggleRole = function () {
     var _ref129 = _asyncToGenerator(_regenerator().m(function _callee52(id) {
-      var m, nr, _t56;
+      var m, nr, _t57;
       return _regenerator().w(function (_context52) {
         while (1) switch (_context52.p = _context52.n) {
           case 0:
@@ -10686,8 +10694,8 @@ function App() {
             break;
           case 4:
             _context52.p = 4;
-            _t56 = _context52.v;
-            console.error(_t56);
+            _t57 = _context52.v;
+            console.error(_t57);
           case 5:
             return _context52.a(2);
         }
@@ -10699,7 +10707,7 @@ function App() {
   }();
   var removeMember = function () {
     var _ref130 = _asyncToGenerator(_regenerator().m(function _callee53(id) {
-      var _t57;
+      var _t58;
       return _regenerator().w(function (_context53) {
         while (1) switch (_context53.p = _context53.n) {
           case 0:
@@ -10716,8 +10724,8 @@ function App() {
             break;
           case 2:
             _context53.p = 2;
-            _t57 = _context53.v;
-            console.error(_t57);
+            _t58 = _context53.v;
+            console.error(_t58);
           case 3:
             return _context53.a(2);
         }
@@ -10729,7 +10737,7 @@ function App() {
   }();
   var editMember = function () {
     var _ref131 = _asyncToGenerator(_regenerator().m(function _callee54(id, data) {
-      var m, r, e, _t58;
+      var m, r, e, _t59;
       return _regenerator().w(function (_context54) {
         while (1) switch (_context54.p = _context54.n) {
           case 0:
@@ -10781,9 +10789,9 @@ function App() {
             break;
           case 4:
             _context54.p = 4;
-            _t58 = _context54.v;
-            console.error(_t58);
-            alert('Erro: ' + _t58.message);
+            _t59 = _context54.v;
+            console.error(_t59);
+            alert('Erro: ' + _t59.message);
           case 5:
             return _context54.a(2);
         }
@@ -10799,7 +10807,7 @@ function App() {
     setTeamError = _useState316[1];
   var createTeam = function () {
     var _ref132 = _asyncToGenerator(_regenerator().m(function _callee55(d) {
-      var tid, invCode, sr, se, tr, newTeam, _t59;
+      var tid, invCode, sr, se, tr, newTeam, _t60;
       return _regenerator().w(function (_context55) {
         while (1) switch (_context55.p = _context55.n) {
           case 0:
@@ -10870,8 +10878,8 @@ function App() {
             break;
           case 8:
             _context55.p = 8;
-            _t59 = _context55.v;
-            setTeamError(_t59.message || JSON.stringify(_t59));
+            _t60 = _context55.v;
+            setTeamError(_t60.message || JSON.stringify(_t60));
           case 9:
             return _context55.a(2);
         }
@@ -10883,7 +10891,7 @@ function App() {
   }();
   var deleteTeam = function () {
     var _ref133 = _asyncToGenerator(_regenerator().m(function _callee56(teamId) {
-      var remaining, _t60;
+      var remaining, _t61;
       return _regenerator().w(function (_context56) {
         while (1) switch (_context56.p = _context56.n) {
           case 0:
@@ -10919,8 +10927,8 @@ function App() {
             break;
           case 5:
             _context56.p = 5;
-            _t60 = _context56.v;
-            console.error('deleteTeam error:', _t60);
+            _t61 = _context56.v;
+            console.error('deleteTeam error:', _t61);
           case 6:
             return _context56.a(2);
         }
@@ -10932,7 +10940,7 @@ function App() {
   }();
   var joinTeam = function () {
     var _ref134 = _asyncToGenerator(_regenerator().m(function _callee57(t) {
-      var _e$message, _t61;
+      var _e$message, _t62;
       return _regenerator().w(function (_context57) {
         while (1) switch (_context57.p = _context57.n) {
           case 0:
@@ -10948,12 +10956,12 @@ function App() {
             break;
           case 2:
             _context57.p = 2;
-            _t61 = _context57.v;
-            if ((_e$message = _t61.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
+            _t62 = _context57.v;
+            if ((_e$message = _t62.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
               _context57.n = 3;
               break;
             }
-            alert("Erro ao entrar na equipa: ".concat(_t61.message || "tenta novamente"));
+            alert("Erro ao entrar na equipa: ".concat(_t62.message || "tenta novamente"));
             return _context57.a(2);
           case 3:
             setTeams(function (prev) {
@@ -10974,7 +10982,7 @@ function App() {
   }();
   var findTeamByCode = function () {
     var _ref135 = _asyncToGenerator(_regenerator().m(function _callee58(code) {
-      var r, d, t, _t62;
+      var r, d, t, _t63;
       return _regenerator().w(function (_context58) {
         while (1) switch (_context58.p = _context58.n) {
           case 0:
@@ -11003,7 +11011,7 @@ function App() {
             })) : null);
           case 3:
             _context58.p = 3;
-            _t62 = _context58.v;
+            _t63 = _context58.v;
             return _context58.a(2, null);
         }
       }, _callee58, null, [[0, 3]]);
@@ -11035,7 +11043,7 @@ function App() {
   }, [appReady, pendingInvite, teams]);
   var subscribeToPush = function () {
     var _ref136 = _asyncToGenerator(_regenerator().m(function _callee59(tok, uid) {
-      var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t63, _t64;
+      var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t64, _t65;
       return _regenerator().w(function (_context59) {
         while (1) switch (_context59.p = _context59.n) {
           case 0:
@@ -11054,8 +11062,8 @@ function App() {
             return reg.pushManager.getSubscription();
           case 3:
             existing = _context59.v;
-            _t63 = existing;
-            if (_t63) {
+            _t64 = existing;
+            if (_t64) {
               _context59.n = 5;
               break;
             }
@@ -11065,9 +11073,9 @@ function App() {
               applicationServerKey: VAPID_PUBLIC
             });
           case 4:
-            _t63 = _context59.v;
+            _t64 = _context59.v;
           case 5:
-            _sub = _t63;
+            _sub = _t64;
             subJson = _sub.toJSON();
             _context59.n = 6;
             return fetch("".concat(SB_URL, "/rest/v1/push_subscriptions"), {
@@ -11090,8 +11098,8 @@ function App() {
             break;
           case 7:
             _context59.p = 7;
-            _t64 = _context59.v;
-            console.warn("Push subscribe failed:", _t64.message);
+            _t65 = _context59.v;
+            console.warn("Push subscribe failed:", _t65.message);
           case 8:
             return _context59.a(2);
         }
@@ -11139,7 +11147,7 @@ function App() {
   };
   var sendPushToTeam = function () {
     var _ref138 = _asyncToGenerator(_regenerator().m(function _callee61(teamId, members, title, body) {
-      var userIds, _t65;
+      var userIds, _t66;
       return _regenerator().w(function (_context61) {
         while (1) switch (_context61.p = _context61.n) {
           case 0:
@@ -11173,8 +11181,8 @@ function App() {
             break;
           case 3:
             _context61.p = 3;
-            _t65 = _context61.v;
-            console.warn("Push send failed:", _t65.message);
+            _t66 = _context61.v;
+            console.warn("Push send failed:", _t66.message);
           case 4:
             return _context61.a(2);
         }
@@ -11728,7 +11736,7 @@ function App() {
     onSave: (function () {
       var _ref141 = _asyncToGenerator(_regenerator().m(function _callee64(u) {
         var _members$find2;
-        var _t66;
+        var _t67;
         return _regenerator().w(function (_context64) {
           while (1) switch (_context64.p = _context64.n) {
             case 0:
@@ -11745,8 +11753,8 @@ function App() {
               break;
             case 2:
               _context64.p = 2;
-              _t66 = _context64.v;
-              console.error(_t66);
+              _t67 = _context64.v;
+              console.error(_t67);
             case 3:
               _context64.n = 4;
               return editMember((_members$find2 = members.find(function (m) {
