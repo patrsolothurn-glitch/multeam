@@ -4519,12 +4519,15 @@ var HomeTab = function HomeTab(_ref57) {
         }
       }, m.name.split(" ")[0]), React.createElement("span", {
         style: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 900,
           color: isToday ? "rgba(255,255,255,0.9)" : "#B8860B",
-          whiteSpace: "nowrap"
+          whiteSpace: "nowrap",
+          background: isToday ? "rgba(255,255,255,0.2)" : "#FFE0A0",
+          borderRadius: 8,
+          padding: "1px 6px"
         }
-      }, isToday ? "🎉" : m.bDay));
+      }, isToday ? "🎉 Hoje" : "".concat(m.bDay, " ").concat(MONTHS_PT[currentMonth - 1])));
     })));
   }(), function () {
     var tm = members.filter(function (m) {
