@@ -9587,7 +9587,7 @@ function App() {
   }();
   var joinTeam = function () {
     var _ref127 = _asyncToGenerator(_regenerator().m(function _callee56(t) {
-      var freshTeams, _t60;
+      var r, json, list, _t60;
       return _regenerator().w(function (_context56) {
         while (1) switch (_context56.p = _context56.n) {
           case 0:
@@ -9600,24 +9600,42 @@ function App() {
             }, token);
           case 1:
             _context56.n = 2;
-            return api.rpc('get_my_teams', {}, token);
+            return fetch("".concat(SB_URL, "/rest/v1/rpc/get_my_teams"), {
+              method: 'POST',
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(token),
+                'Content-Type': 'application/json'
+              },
+              body: '{}'
+            });
           case 2:
-            freshTeams = _context56.v;
-            if (Array.isArray(freshTeams)) setTeams(freshTeams.map(aTeam));
+            r = _context56.v;
+            if (!r.ok) {
+              _context56.n = 4;
+              break;
+            }
             _context56.n = 3;
-            return switchTeam(t.id);
+            return r.json();
           case 3:
-            _context56.n = 5;
-            break;
+            json = _context56.v;
+            list = Array.isArray(json) ? json : json ? [json] : [];
+            setTeams(list.map(aTeam));
           case 4:
-            _context56.p = 4;
+            _context56.n = 5;
+            return switchTeam(t.id);
+          case 5:
+            _context56.n = 7;
+            break;
+          case 6:
+            _context56.p = 6;
             _t60 = _context56.v;
             console.error(_t60);
             alert("Erro ao entrar na equipa: ".concat(_t60.message || "tenta novamente"));
-          case 5:
+          case 7:
             return _context56.a(2);
         }
-      }, _callee56, null, [[0, 4]]);
+      }, _callee56, null, [[0, 6]]);
     }));
     return function joinTeam(_x42) {
       return _ref127.apply(this, arguments);
