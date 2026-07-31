@@ -2502,10 +2502,18 @@ export default function App() {
 
   // Auto-open join modal if invite code in URL
   useEffect(() => {
-    if (appReady && pendingInvite) {
+    if (!appReady || !pendingInvite) return;
+    // Verificar se já é membro de alguma equipa com este código
+    const alreadyIn = teams.find(t => t.inviteCode?.toUpperCase() === pendingInvite.toUpperCase());
+    if (alreadyIn) {
+      // Já é membro — mudar direto para a equipa sem mostrar modal
+      switchTeam(alreadyIn.id);
+      setPendingInvite(null);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
       setModal("join");
     }
-  }, [appReady, pendingInvite]);
+  }, [appReady, pendingInvite, teams]);
 
   // Subscribe to push notifications and store subscription in Supabase
   const subscribeToPush = async (tok, uid) => {
