@@ -800,14 +800,44 @@ const EditMemberModal = ({ member, team, onSave, onClose }) => {
   const [pos, setPos] = useState(member.position || "Jogador");
   const [phone, setPhone] = useState(member.phone || "");
   const [bday, setBday] = useState(member.birthday || "");
+  const [photo, setPhoto] = useState(member.avatarUrl || null);
+  const fileRef = React.useRef();
+  const handlePhoto = e => {
+    const file = e.target.files?.[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 200; canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const s = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width-s)/2, (img.height-s)/2, s, s, 0, 0, size, size);
+        setPhoto(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
   return (
     <Sheet title={`✏️ Editar — ${member.name.split(" ")[0]}`} onClose={onClose}>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:16 }}>
+        <div onClick={() => fileRef.current?.click()} style={{ cursor:"pointer", position:"relative" }}>
+          {photo
+            ? <img src={photo} style={{ width:72, height:72, borderRadius:36, objectFit:"cover", border:`3px solid ${team.color}` }} />
+            : <div style={{ width:72, height:72, borderRadius:36, background:team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:24, fontWeight:800 }}>{(name||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+          }
+          <div style={{ position:"absolute", bottom:0, right:0, width:24, height:24, borderRadius:12, background:T.brand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>📷</div>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handlePhoto} />
+        {photo && <button onClick={() => setPhoto(null)} style={{ marginTop:4, fontSize:11, color:T.brand, background:"none", border:"none", cursor:"pointer" }}>Remover foto</button>}
+      </div>
       <FL>Nome</FL><FI value={name} onChange={e=>setName(e.target.value)} />
       <FL>Posição</FL>
       <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} />
       <FL>Telefone</FL><FI type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+351 / +41..." />
       <FL>Aniversário</FL><FI type="date" value={bday} onChange={e=>setBday(e.target.value)} />
-      <PrimaryBtn onClick={() => { onSave(member.id, { name, position:pos, phone, birthday:bday }); onClose(); }} color={team.color}>
+      <PrimaryBtn onClick={() => { onSave(member.id, { name, position:pos, phone, birthday:bday, avatarUrl:photo }); onClose(); }} color={team.color}>
         Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -2651,11 +2681,12 @@ export default function App() {
           p_name: data.name || '',
           p_phone: data.phone || '',
           p_birthday: data.birthday || null,
-          p_position: data.position || ''
+          p_position: data.position || '',
+          p_avatar_url: data.avatarUrl !== undefined ? (data.avatarUrl || null) : undefined
         })
       });
       if (!r.ok) { const e = await r.json(); throw new Error(e.message || 'Erro ao guardar'); }
-      setMembers(p => p.map(m => m.id === id ? { ...m, ...data } : m));
+      setMembers(p => p.map(m => m.id === id ? { ...m, ...data, avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : m.avatarUrl } : m));
       // Update own profile state too
       if (m?.userId === myUserId) setProfile(p => ({ ...p, ...data }));
     } catch(e) { console.error(e); alert('Erro: ' + e.message); }
