@@ -4442,6 +4442,12 @@ var HomeTab = function HomeTab(_ref57) {
       return b.unpaid - a.unpaid;
     });
     if (!devedores.length) return null;
+    var _React$useState7 = React.useState(false),
+      _React$useState8 = _slicedToArray(_React$useState7, 2),
+      showAll = _React$useState8[0],
+      setShowAll = _React$useState8[1];
+    var visible = showAll ? devedores : devedores.slice(0, 3);
+    var hidden = devedores.length - 3;
     return React.createElement("div", {
       style: {
         marginBottom: 18
@@ -4455,7 +4461,7 @@ var HomeTab = function HomeTab(_ref57) {
         textTransform: "uppercase",
         letterSpacing: 1
       }
-    }, "\uD83D\uDEA8 Devedores"), devedores.map(function (m, i) {
+    }, "\uD83D\uDEA8 Devedores"), visible.map(function (m, i) {
       return React.createElement(DevedorCard, {
         key: m.id,
         member: m,
@@ -4465,7 +4471,37 @@ var HomeTab = function HomeTab(_ref57) {
           return onSelectMember && onSelectMember(m);
         }
       });
-    }));
+    }), !showAll && hidden > 0 && React.createElement("button", {
+      onClick: function onClick() {
+        return setShowAll(true);
+      },
+      style: {
+        width: "100%",
+        background: T.card,
+        border: "1px solid ".concat(T.border),
+        borderRadius: 12,
+        padding: "11px",
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: "pointer",
+        color: T.sub,
+        fontFamily: "inherit"
+      }
+    }, "+", hidden, " devedor", hidden !== 1 ? "es" : "", " \u2014 ver todos"), showAll && devedores.length > 3 && React.createElement("button", {
+      onClick: function onClick() {
+        return setShowAll(false);
+      },
+      style: {
+        width: "100%",
+        background: "transparent",
+        border: "none",
+        padding: "8px",
+        fontSize: 12,
+        cursor: "pointer",
+        color: T.sub,
+        fontFamily: "inherit"
+      }
+    }, "\u25B2 Mostrar menos"));
   }(), function () {
     var tm = members.filter(function (m) {
       return m.teamId === team.id;
@@ -5293,10 +5329,10 @@ var PresBar = function PresBar(_ref66) {
     team = _ref66.team,
     members = _ref66.members,
     onSetPresence = _ref66.onSetPresence;
-  var _React$useState7 = React.useState(false),
-    _React$useState8 = _slicedToArray(_React$useState7, 2),
-    expanded = _React$useState8[0],
-    setExpanded = _React$useState8[1];
+  var _React$useState9 = React.useState(false),
+    _React$useState0 = _slicedToArray(_React$useState9, 2),
+    expanded = _React$useState0[0],
+    setExpanded = _React$useState0[1];
   var pres = presences[t.id] || {};
   var tm = members.filter(function (m) {
     return m.teamId === team.id;
