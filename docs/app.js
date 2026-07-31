@@ -6945,7 +6945,7 @@ var AppAdminTab = function AppAdminTab(_ref79) {
         return React.createElement(FineGroup, {
           key: g.name,
           group: g,
-          color: team.color
+          color: selectedTeam.color || T.navy
         });
       }));
     }(), (teamDetail.trainings || []).length > 0 && React.createElement(React.Fragment, null, React.createElement("p", {
