@@ -1217,12 +1217,14 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                     <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
                     {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
                   </div>
-                  {isAdmin&&<div style={{ display:"flex", gap:6 }}>
-                    {onLogSession && <button onClick={()=>onLogSession(t, presences[t.id]||{})} style={{ background:`${team.color}18`, border:`1px solid ${team.color}`, borderRadius:8, fontSize:11, fontWeight:700, color:team.color, cursor:"pointer", padding:"4px 8px", fontFamily:"inherit" }}>📋 Registar</button>}
+                  {isAdmin&&<div style={{ display:"flex", gap:6, flexShrink:0 }}>
                     <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
                     <button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
                   </div>}
                 </div>
+                {isAdmin && onLogSession && (
+                  <button onClick={()=>onLogSession(t, presences[t.id]||{})} style={{ display:"block", width:"100%", marginTop:10, padding:"8px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textAlign:"center" }}>📋 Registar sessão de hoje</button>
+                )}
                 <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} />
               </div>
             ))}
