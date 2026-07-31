@@ -1095,6 +1095,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         const now = new Date();
         const currentMonth = now.getMonth() + 1;
         const today = now.getDate();
+        const MONTHS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
         const tm = members.filter(m => m.teamId===team.id && m.birthday);
         const bdays = tm.map(m => {
           const [,mm,dd] = (m.birthday||"").split("-").map(Number);
@@ -1102,32 +1103,30 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         }).filter(m => m.bMonth === currentMonth)
           .sort((a,b) => a.bDay - b.bDay);
         if (!bdays.length) return null;
-        const MONTHS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
         return (
           <div style={{ marginBottom:18 }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:12, padding:"10px 14px", background:"#FFF3CD", borderRadius:12 }}>
-              <span style={{ fontSize:18 }}>🎂</span>
-              <p style={{ margin:0, fontSize:13, fontWeight:800, color:"#B8860B", textTransform:"uppercase", letterSpacing:1.5 }}>Aniversariantes de {MONTHS_PT[currentMonth-1]}</p>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:10, padding:"8px 14px", background:"#FFF3CD", borderRadius:12 }}>
+              <span style={{ fontSize:16 }}>🎂</span>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:"#B8860B", textTransform:"uppercase", letterSpacing:1.2 }}>Aniversariantes de {MONTHS_PT[currentMonth-1]}</p>
             </div>
-            {bdays.map(m => {
-              const isToday = m.bDay === today;
-              return (
-                <div key={m.id} style={{ background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":T.card, borderRadius:14, marginBottom:8, padding:"13px 14px", display:"flex", alignItems:"center", gap:12, boxShadow:isToday?"0 4px 16px #FF6B3544":"none", border:isToday?"none":`1px solid ${T.border}` }}>
-                  {m.avatarUrl
-                    ? <img src={m.avatarUrl} style={{ width:46, height:46, borderRadius:23, objectFit:"cover", flexShrink:0, border:isToday?"3px solid rgba(255,255,255,0.5)":"none" }} />
-                    : <div style={{ width:46, height:46, borderRadius:23, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:16, fontWeight:800, flexShrink:0 }}>{m.initials}</div>
-                  }
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ margin:0, fontWeight:800, fontSize:15, color:isToday?"#fff":T.text }}>{isToday?"🎉 ":""}{m.name}</p>
-                    <p style={{ margin:0, fontSize:12, color:isToday?"rgba(255,255,255,0.8)":T.sub }}>{isToday?"Hoje é o seu dia!":"Aniversário"}</p>
+            <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:4 }}>
+              {bdays.map(m => {
+                const isToday = m.bDay === today;
+                return (
+                  <div key={m.id} style={{ flexShrink:0, background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":T.card, borderRadius:14, padding:"12px 14px", display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:90, boxShadow:isToday?"0 4px 14px #FF6B3544":"none", border:isToday?"none":`1px solid ${T.border}` }}>
+                    {m.avatarUrl
+                      ? <img src={m.avatarUrl} style={{ width:44, height:44, borderRadius:22, objectFit:"cover", border:isToday?"2px solid rgba(255,255,255,0.5)":"none" }} />
+                      : <div style={{ width:44, height:44, borderRadius:22, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:15, fontWeight:800 }}>{m.initials}</div>
+                    }
+                    <p style={{ margin:0, fontWeight:700, fontSize:12, color:isToday?"#fff":T.text, textAlign:"center", maxWidth:80, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</p>
+                    <div style={{ background:isToday?"rgba(255,255,255,0.25)":"#FFF3CD", borderRadius:8, padding:"3px 8px", textAlign:"center" }}>
+                      <p style={{ margin:0, fontWeight:900, fontSize:18, color:isToday?"#fff":"#B8860B", lineHeight:1 }}>{m.bDay}</p>
+                      <p style={{ margin:0, fontSize:10, fontWeight:700, color:isToday?"rgba(255,255,255,0.8)":"#B8860B" }}>{isToday?"🎉":MONTHS_PT[currentMonth-1]}</p>
+                    </div>
                   </div>
-                  <div style={{ textAlign:"center", flexShrink:0, background:isToday?"rgba(255,255,255,0.25)":"#FFF3CD", borderRadius:12, padding:"6px 12px" }}>
-                    <p style={{ margin:0, fontWeight:900, fontSize:22, color:isToday?"#fff":"#B8860B", lineHeight:1 }}>{m.bDay}</p>
-                    <p style={{ margin:0, fontSize:11, fontWeight:700, color:isToday?"rgba(255,255,255,0.8)":"#B8860B" }}>{MONTHS_PT[currentMonth-1]}</p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         );
       })()}
