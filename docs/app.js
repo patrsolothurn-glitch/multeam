@@ -4470,17 +4470,7 @@ var HomeTab = function HomeTab(_ref57) {
         textTransform: "uppercase",
         letterSpacing: 1.5
       }
-    }, "Devedores"), React.createElement("span", {
-      style: {
-        marginLeft: "auto",
-        background: T.brand,
-        color: "#fff",
-        borderRadius: 20,
-        padding: "2px 10px",
-        fontSize: 12,
-        fontWeight: 800
-      }
-    }, devedores.length)), visible.map(function (m, i) {
+    }, "Devedores")), visible.map(function (m, i) {
       return React.createElement(DevedorCard, {
         key: m.id,
         member: m,
