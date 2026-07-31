@@ -846,7 +846,13 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
         <div style={{ textAlign:"center", padding:"20px 0 10px" }}>
           <p style={{ fontSize:52 }}>🎉</p>
           <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px" }}>Bem-vindo ao {found.name}!</p>
-          <p style={{ color:T.sub, fontSize:14, margin:"0 0 24px" }}>Já podes ver os treinos, multas e eventos da equipa.</p>
+          <p style={{ color:T.sub, fontSize:14, margin:"0 0 16px" }}>Já podes ver os treinos, multas e eventos da equipa.</p>
+          {!window.matchMedia('(display-mode: standalone)').matches && (
+            <div style={{ background:`${T.green}12`, borderRadius:12, padding:"12px 14px", marginBottom:16, textAlign:"left" }}>
+              <p style={{ margin:0, fontSize:13, color:T.green, fontWeight:700 }}>📲 Instala a app!</p>
+              <p style={{ margin:"4px 0 0", fontSize:12, color:T.sub }}>No browser toca em <strong>⋮ Menu → Adicionar ao ecrã inicial</strong> para aceder sem precisar do link.</p>
+            </div>
+          )}
           <PrimaryBtn onClick={onClose} color={found.color}>Começar</PrimaryBtn>
         </div>
       )}
@@ -2604,7 +2610,7 @@ export default function App() {
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);}} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
   );
 
@@ -2657,7 +2663,7 @@ export default function App() {
       {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);setProfile(p=>({...p,...u}));}} onClose={()=>setModal(null)} />}
-      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);}} />}
+      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
   );
 }
