@@ -4416,6 +4416,139 @@ var HomeTab = function HomeTab(_ref57) {
       fontFamily: "inherit"
     }
   }, "\uD83D\uDFE5 Atribuir multa"), function () {
+    var now = new Date();
+    var currentMonth = now.getMonth() + 1;
+    var today = now.getDate();
+    var tm = members.filter(function (m) {
+      return m.teamId === team.id && m.birthday;
+    });
+    var bdays = tm.map(function (m) {
+      var _split$map = (m.birthday || "").split("-").map(Number),
+        _split$map2 = _slicedToArray(_split$map, 3),
+        mm = _split$map2[1],
+        dd = _split$map2[2];
+      return _objectSpread(_objectSpread({}, m), {}, {
+        bMonth: mm,
+        bDay: dd
+      });
+    }).filter(function (m) {
+      return m.bMonth === currentMonth;
+    }).sort(function (a, b) {
+      return a.bDay - b.bDay;
+    });
+    if (!bdays.length) return null;
+    var MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    return React.createElement("div", {
+      style: {
+        marginBottom: 18
+      }
+    }, React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        marginBottom: 12,
+        padding: "10px 14px",
+        background: "#FFF3CD",
+        borderRadius: 12
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 18
+      }
+    }, "\uD83C\uDF82"), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13,
+        fontWeight: 800,
+        color: "#B8860B",
+        textTransform: "uppercase",
+        letterSpacing: 1.5
+      }
+    }, "Aniversariantes de ", MONTHS_PT[currentMonth - 1])), bdays.map(function (m) {
+      var isToday = m.bDay === today;
+      return React.createElement("div", {
+        key: m.id,
+        style: {
+          background: isToday ? "linear-gradient(135deg,#FF6B35,#FFB347)" : T.card,
+          borderRadius: 14,
+          marginBottom: 8,
+          padding: "13px 14px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          boxShadow: isToday ? "0 4px 16px #FF6B3544" : "none",
+          border: isToday ? "none" : "1px solid ".concat(T.border)
+        }
+      }, m.avatarUrl ? React.createElement("img", {
+        src: m.avatarUrl,
+        style: {
+          width: 46,
+          height: 46,
+          borderRadius: 23,
+          objectFit: "cover",
+          flexShrink: 0,
+          border: isToday ? "3px solid rgba(255,255,255,0.5)" : "none"
+        }
+      }) : React.createElement("div", {
+        style: {
+          width: 46,
+          height: 46,
+          borderRadius: 23,
+          background: isToday ? "rgba(255,255,255,0.3)" : team.color,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#fff",
+          fontSize: 16,
+          fontWeight: 800,
+          flexShrink: 0
+        }
+      }, m.initials), React.createElement("div", {
+        style: {
+          flex: 1,
+          minWidth: 0
+        }
+      }, React.createElement("p", {
+        style: {
+          margin: 0,
+          fontWeight: 800,
+          fontSize: 15,
+          color: isToday ? "#fff" : T.text
+        }
+      }, isToday ? "🎉 " : "", m.name), React.createElement("p", {
+        style: {
+          margin: 0,
+          fontSize: 12,
+          color: isToday ? "rgba(255,255,255,0.8)" : T.sub
+        }
+      }, isToday ? "Hoje é o seu dia!" : "Aniversário")), React.createElement("div", {
+        style: {
+          textAlign: "center",
+          flexShrink: 0,
+          background: isToday ? "rgba(255,255,255,0.25)" : "#FFF3CD",
+          borderRadius: 12,
+          padding: "6px 12px"
+        }
+      }, React.createElement("p", {
+        style: {
+          margin: 0,
+          fontWeight: 900,
+          fontSize: 22,
+          color: isToday ? "#fff" : "#B8860B",
+          lineHeight: 1
+        }
+      }, m.bDay), React.createElement("p", {
+        style: {
+          margin: 0,
+          fontSize: 11,
+          fontWeight: 700,
+          color: isToday ? "rgba(255,255,255,0.8)" : "#B8860B"
+        }
+      }, MONTHS_PT[currentMonth - 1])));
+    }));
+  }(), function () {
     var tm = members.filter(function (m) {
       return m.teamId === team.id;
     });
