@@ -361,6 +361,43 @@ const EditFineModal = ({ fine, onSave, onClose }) => {
   );
 };
 
+const LogSessionModal = ({ training, existingDates, onLog, onClose }) => {
+  // Calculate last 6 real occurrences based on training days
+  const getLastOccurrences = () => {
+    const today = new Date();
+    const results = [];
+    for (let i = 1; i <= 42 && results.length < 6; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      if ((training.days||[]).includes(d.getDay())) {
+        const dateStr = d.toISOString().split("T")[0];
+        results.push(dateStr);
+      }
+    }
+    return results;
+  };
+  const occurrences = getLastOccurrences();
+  const fmtOcc = d => {
+    const dt = new Date(d+"T00:00:00");
+    return dt.toLocaleDateString("pt-PT",{weekday:"short",day:"numeric",month:"short"});
+  };
+  return (
+    <Sheet title="📋 Registar sessão" onClose={onClose}>
+      <p style={{ margin:"0 0 14px", fontSize:14, color:T.sub }}>Seleciona a data da sessão a registar:</p>
+      {occurrences.length === 0 && <p style={{ color:T.sub, textAlign:"center" }}>Sem sessões anteriores encontradas.</p>}
+      {occurrences.map(d => {
+        const already = existingDates.includes(d);
+        return (
+          <button key={d} onClick={() => { if(!already) { onLog(d); onClose(); } }} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", padding:"13px 14px", borderRadius:12, border:`1.5px solid ${already?T.border:T.green}`, background:already?"transparent":`${T.green}10`, marginBottom:8, cursor:already?"default":"pointer", fontFamily:"inherit", opacity:already?0.5:1 }}>
+            <span style={{ fontWeight:700, fontSize:15, color:already?T.sub:T.text }}>{fmtOcc(d)}</span>
+            {already ? <span style={{ fontSize:12, color:T.sub }}>✓ já registado</span> : <span style={{ fontSize:12, color:T.green, fontWeight:700 }}>Registar →</span>}
+          </button>
+        );
+      })}
+    </Sheet>
+  );
+};
+
 const AddExpenseModal = ({ team, onAdd, onClose }) => {
   const [desc, setDesc] = useState(""); const [amount, setAmount] = useState("");
   return (
@@ -1156,6 +1193,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
   const [filterType, setFilterType] = useState(null);
   const [collapsedMonths, setCollapsedMonths] = useState({});
   const toggleMonth = m => setCollapsedMonths(p => ({...p, [m]: !p[m]}));
+  const [logTarget, setLogTarget] = useState(null);
   const [showFilter, setShowFilter] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
@@ -1225,7 +1263,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                   </div>}
                 </div>
                 {isAdmin && onLogSession && (
-                  <button onClick={()=>onLogSession(t, presences[t.id]||{})} style={{ display:"block", width:"100%", marginTop:10, padding:"8px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textAlign:"center" }}>📋 Registar sessão de hoje</button>
+                  <button onClick={()=>setLogTarget(t)} style={{ display:"block", width:"100%", marginTop:10, padding:"8px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textAlign:"center" }}>📋 Registar sessão</button>
                 )}
                 <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} />
               </div>
@@ -1283,6 +1321,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
       {editTarget && editTarget.type==="treino"      && <EditSingleTrainingModal team={team} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
       {editTarget && editTarget.type==="jogo"        && <EditMatchModal team={team} members={members} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
       {editTarget && editTarget.type==="recorrente"  && <EditRecurringModal team={team} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
+      {logTarget && onLogSession && <LogSessionModal training={logTarget} existingDates={trainings.filter(t=>t.teamId===team.id&&t.type==="treino"&&t.location===logTarget.location&&t.time===logTarget.time).map(t=>t.date)} onLog={d=>onLogSession(logTarget,d,presences[logTarget.id]||{})} onClose={()=>setLogTarget(null)} />}
     </div>
   );
 };
@@ -2277,26 +2316,21 @@ export default function App() {
   const addExpense = async d => {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
   };
-  const logSession = async (recurring, currentPresences) => {
-    const today = new Date().toISOString().split("T")[0];
-    // Check if already logged today
-    const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===today && t.location===recurring.location && t.time===recurring.time);
-    if (alreadyLogged) { alert("Sessão de hoje já foi registada!"); return; }
+  const logSession = async (recurring, date, currentPresences) => {
+    const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===date && t.location===recurring.location && t.time===recurring.time);
+    if (alreadyLogged) { alert("Sessão já foi registada!"); return; }
     try {
-      const res = await api.post("trainings", { team_id:recurring.teamId, type:"treino", date:today, time:recurring.time, location:recurring.location, notes:recurring.notes||null, recurring:false, created_by:myUserId }, token);
+      const res = await api.post("trainings", { team_id:recurring.teamId, type:"treino", date, time:recurring.time, location:recurring.location, notes:recurring.notes||null, recurring:false, created_by:myUserId }, token);
       const newT = Array.isArray(res) ? res[0] : res;
       if (!newT) return;
       setTrainings(p => [...p, aTraining(newT)]);
-      // Copy presences
-      const presArr = Object.entries(currentPresences).filter(([,s])=>s);
+      const presArr = Object.entries(currentPresences||{}).filter(([,s])=>s);
       if (presArr.length > 0) {
         await Promise.all(presArr.map(([mid, status]) =>
           api.upsert("presences", { training_id:newT.id, member_id:mid, status }, token).catch(()=>{})
         ));
-        const presMap = Object.fromEntries(presArr);
-        setPresences(p => ({ ...p, [newT.id]: presMap }));
+        setPresences(p => ({ ...p, [newT.id]: Object.fromEntries(presArr) }));
       }
-      alert(`✅ Sessão de ${today} registada com ${presArr.length} presenças!`);
     } catch(e) { console.error(e); }
   };
   const addTraining = async d => {
