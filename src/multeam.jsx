@@ -180,7 +180,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   useEffect(() => {
     const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
     Promise.all([
-      fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*,profiles(name,phone,birthday,avatar_url)`, { headers: H }).then(r => r.json()),
+      fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, { headers: H }).then(r => r.json()),
       fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H }).then(r => r.json()),
     ]).then(async ([mRaw, ftRaw]) => {
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
@@ -2404,7 +2404,7 @@ export default function App() {
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
     const [mRaw, ftData, fData, eData, tData, pData] = await Promise.all([
-      api.get(`team_members?team_id=eq.${tid}&select=*,profiles(name,phone,birthday,avatar_url)`, tok),
+      api.get(`team_members?team_id=eq.${tid}&select=*`, tok),
       api.get(`fine_types?team_id=eq.${tid}&order=amount.asc`, tok),
       api.get(`fines?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`expenses?team_id=eq.${tid}&order=created_at.desc`, tok),
