@@ -30,7 +30,10 @@ const api = {
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
 const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null });
-const aFine = f => ({ id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||f.created_at?.split('T')[0]||'' });
+const aFine = f => {
+  const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
+  return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||localDate };
+};
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:e.created_at?.split('T')[0]||'' });
 const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], createdBy:t.created_by });
