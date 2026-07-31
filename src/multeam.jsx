@@ -224,7 +224,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     if (!canSubmit) return;
     setErr("");
     try {
-      await onAdd({ teamId: team.id, memberId: mid, amount: sft.amount, reason: reason || sft.name, emoji: sft.emoji, paid: false, date: new Date().toISOString().split("T")[0] });
+      await onAdd({ teamId: team.id, memberId: mid, amount: sft.amount, reason: reason || sft.name, emoji: sft.emoji, paid: false });
       onClose();
     } catch(e) { setErr(e.message); }
   };
