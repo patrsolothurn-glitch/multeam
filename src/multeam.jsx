@@ -1852,6 +1852,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   );
   const myAge = age(user.birthday);
   const [tapCount, setTapCount] = useState(0);
+  const [showMembers, setShowMembers] = useState(null); // teamId or null
   const tapTimer = React.useRef(null);
 
   const handleAvatarTap = () => {
@@ -1862,6 +1863,36 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
     if (next >= 3) { setTapCount(0); onAdminOpen(); return; }
     tapTimer.current = setTimeout(() => setTapCount(0), 800);
   };
+
+  // Members panel for a team
+  if (showMembers) {
+    const t = teams.find(x=>x.id===showMembers);
+    const tm = members.filter(m=>m.teamId===showMembers);
+    return (
+      <div style={{ padding:"16px 16px 100px" }}>
+        <button onClick={()=>setShowMembers(null)} style={{ background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
+        <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:900 }}>{t?.emoji} {t?.name}</h2>
+        <p style={{ margin:"0 0 16px", fontSize:13, color:T.sub }}>{tm.length} membro{tm.length!==1?"s":""}</p>
+        {tm.map(m => (
+          <div key={m.id} style={{ background:T.card, borderRadius:16, padding:"14px", marginBottom:10, display:"flex", alignItems:"center", gap:14 }}>
+            {m.avatarUrl
+              ? <img src={m.avatarUrl} style={{ width:54, height:54, borderRadius:27, objectFit:"cover", flexShrink:0 }} />
+              : <div style={{ width:54, height:54, borderRadius:27, background:t?.color||T.navy, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:18, flexShrink:0 }}>{m.initials}</div>
+            }
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{m.name}</p>
+                <span style={{ fontSize:11, background:m.role==="admin"?`${t?.color||T.navy}20`:"transparent", color:m.role==="admin"?t?.color||T.navy:T.sub, borderRadius:6, padding:"2px 6px", fontWeight:700, border:`1px solid ${m.role==="admin"?t?.color||T.navy:T.border}` }}>{m.role==="admin"?"Admin":"Jogador"}</span>
+              </div>
+              {m.position && <p style={{ margin:"0 0 3px", fontSize:13, color:T.sub }}>🏃 {m.position}</p>}
+              {m.phone && <p style={{ margin:"0 0 3px", fontSize:13, color:T.text }}>📱 <a href={`tel:${m.phone}`} style={{ color:T.navy, textDecoration:"none", fontWeight:600 }}>{m.phone}</a></p>}
+              {m.birthday && <p style={{ margin:0, fontSize:13, color:T.sub }}>🎂 {fmtDate(m.birthday)}{age(m.birthday)?` · ${age(m.birthday)} anos`:""}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   return (
     <div style={{ padding:"16px 16px 100px" }}>
       {/* Profile card */}
@@ -1910,6 +1941,9 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
                 <button onClick={() => onManageTeam(t.id)} style={{ background:`${t.color}15`, border:"none", borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:t.color, fontFamily:"inherit" }}>Gerir →</button>
               )}
             </div>
+            <button onClick={() => setShowMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+              👥 Ver membros da equipa
+            </button>
           </div>
         );
       })}
