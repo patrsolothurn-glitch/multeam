@@ -982,24 +982,23 @@ const FineGroup = ({ group, color }) => {
 
 const DevedorCard = ({ member, isTop, color, onOpen }) => {
   const [open, setOpen] = React.useState(false);
-  const toggle = () => { setOpen(o=>!o); if(onOpen&&!open) onOpen(); };
   return (
-    <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 4px 16px ${T.brand}44`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
-      <div style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
+    <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 6px 20px ${T.brand}55`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
+      <div style={{ padding:isTop?"15px 16px":"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
         {member.avatarUrl
-          ? <img src={member.avatarUrl} style={{ width:42, height:42, borderRadius:21, objectFit:"cover", flexShrink:0, border:"2px solid rgba(255,255,255,0.3)" }} />
-          : <div style={{ width:42, height:42, borderRadius:21, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:800, flexShrink:0 }}>{member.initials}</div>
+          ? <img src={member.avatarUrl} style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, objectFit:"cover", flexShrink:0, border:isTop?"3px solid rgba(255,255,255,0.4)":"none" }} />
+          : <div style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:isTop?16:14, fontWeight:800, flexShrink:0 }}>{member.initials}</div>
         }
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-            {isTop && <span style={{ fontSize:12 }}>🔴</span>}
-            <p style={{ margin:0, fontWeight:700, fontSize:15, color:isTop?"#fff":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{member.name}</p>
+            {isTop && <span style={{ fontSize:14 }}>🔴</span>}
+            <p style={{ margin:0, fontWeight:800, fontSize:isTop?17:15, color:isTop?"#fff":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{member.name}</p>
           </div>
           <p style={{ margin:0, fontSize:12, color:isTop?"rgba(255,255,255,0.75)":T.sub }}>{member.fines.length} multa{member.fines.length!==1?"s":""} por pagar</p>
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>
-          <p style={{ margin:0, fontWeight:900, fontSize:20, color:isTop?"#fff":T.brand }}>{member.unpaid.toFixed(1)}€</p>
-          <span style={{ fontSize:12, color:isTop?"rgba(255,255,255,0.6)":T.sub }}>{open?"▲":"▼ Ver"}</span>
+          <p style={{ margin:0, fontWeight:900, fontSize:isTop?24:18, color:isTop?"#fff":T.brand }}>{member.unpaid.toFixed(1)}€</p>
+          <span style={{ fontSize:11, color:isTop?"rgba(255,255,255,0.6)":T.sub }}>{open?"▲":"▼ Ver"}</span>
         </div>
       </div>
       {open && (
@@ -1105,7 +1104,11 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         const hidden = devedores.length - 3;
         return (
           <div style={{ marginBottom:18 }}>
-            <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🚨 Devedores</p>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:12, padding:"10px 14px", background:`${T.brand}10`, borderRadius:12 }}>
+              <span style={{ fontSize:18 }}>🚨</span>
+              <p style={{ margin:0, fontSize:13, fontWeight:800, color:T.brand, textTransform:"uppercase", letterSpacing:1.5 }}>Devedores</p>
+              <span style={{ marginLeft:"auto", background:T.brand, color:"#fff", borderRadius:20, padding:"2px 10px", fontSize:12, fontWeight:800 }}>{devedores.length}</span>
+            </div>
             {visible.map((m,i) => (
               <DevedorCard key={m.id} member={m} isTop={i===0} color={team.color} onOpen={()=>onSelectMember&&onSelectMember(m)} />
             ))}
