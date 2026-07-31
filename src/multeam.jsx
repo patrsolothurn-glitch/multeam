@@ -29,7 +29,7 @@ const api = {
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
-const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'' });
+const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null });
 const aFine = f => ({ id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.created_at?.split('T')[0]||'' });
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:e.created_at?.split('T')[0]||'' });
@@ -180,7 +180,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   useEffect(() => {
     const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
     Promise.all([
-      fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, { headers: H }).then(r => r.json()),
+      fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*,profiles(name,phone,birthday,avatar_url)`, { headers: H }).then(r => r.json()),
       fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H }).then(r => r.json()),
     ]).then(async ([mRaw, ftRaw]) => {
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
@@ -956,9 +956,10 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
   return (
     <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 4px 16px ${T.brand}44`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
       <div style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
-        <div style={{ width:42, height:42, borderRadius:21, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:800, flexShrink:0 }}>
-          {member.initials}
-        </div>
+        {member.avatarUrl
+          ? <img src={member.avatarUrl} style={{ width:42, height:42, borderRadius:21, objectFit:"cover", flexShrink:0, border:"2px solid rgba(255,255,255,0.3)" }} />
+          : <div style={{ width:42, height:42, borderRadius:21, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:800, flexShrink:0 }}>{member.initials}</div>
+        }
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             {isTop && <span style={{ fontSize:12 }}>🔴</span>}
@@ -994,7 +995,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
       <div onClick={() => setOpen(o=>!o)} style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
-        <Avatar initials={group.initials||"?"} color={color} />
+        <Avatar initials={group.initials||"?"} color={color} photo={group.avatarUrl} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:15, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
           <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{group.total.toFixed(1)}€{group.unpaid>0?` · ${group.unpaid.toFixed(1)}€ por pagar`:""}</span></p>
@@ -1126,9 +1127,10 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                   return (
                     <div key={m.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                       <span style={{ fontSize:isFirst?36:24 }}>{medal}</span>
-                      <div style={{ width:sz, height:sz, borderRadius:sz/2, background:ag, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:sz*0.3, boxShadow:`0 4px 20px ${pc}66` }}>
-                        {m.initials}
-                      </div>
+                      {m.avatarUrl
+                        ? <img src={m.avatarUrl} style={{ width:sz, height:sz, borderRadius:sz/2, objectFit:"cover", border:`3px solid ${pc}`, boxShadow:`0 4px 20px ${pc}66`, flexShrink:0 }} />
+                        : <div style={{ width:sz, height:sz, borderRadius:sz/2, background:ag, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:sz*0.3, boxShadow:`0 4px 20px ${pc}66` }}>{m.initials}</div>
+                      }
                       <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#fff" }}>{m.name.split(" ")[0]}</p>
                       <div style={{ background: paidAmt>0?`${pc}30`:"rgba(255,255,255,0.08)", border:`1px solid ${paidAmt>0?pc:"rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"5px 12px" }}>
                         <p style={{ margin:0, fontWeight:900, fontSize:isFirst?18:14, color: paidAmt>0?pc:"rgba(255,255,255,0.4)" }}>
@@ -1187,7 +1189,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         recent.forEach(f => {
           const m = gm(f.memberId);
           const k = f.memberId;
-          if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", fines:[], total:0, unpaid:0 };
+          if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", avatarUrl:m?.avatarUrl||null, fines:[], total:0, unpaid:0 };
           grouped[k].fines.push(f);
           grouped[k].total += f.amount;
           if (!f.paid) grouped[k].unpaid += f.amount;
@@ -1264,7 +1266,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
                 mfines.forEach(f => {
                   const m = gm(f.memberId);
                   const k = f.memberId;
-                  if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", fines:[], total:0, unpaid:0 };
+                  if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", avatarUrl:m?.avatarUrl||null, fines:[], total:0, unpaid:0 };
                   grouped[k].fines.push(f);
                   grouped[k].total += f.amount;
                   if (!f.paid) grouped[k].unpaid += f.amount;
@@ -1287,7 +1289,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
   filtered.forEach(f => {
     const m = gm(f.memberId);
     const k = f.memberId;
-    if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", fines:[], total:0, unpaid:0 };
+    if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", avatarUrl:m?.avatarUrl||null, fines:[], total:0, unpaid:0 };
     grouped[k].fines.push(f);
     grouped[k].total += f.amount;
     if (!f.paid) grouped[k].unpaid += f.amount;
@@ -2039,7 +2041,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         {/* Collapsed header - always visible */}
         <div onClick={() => setExpandedMember(expanded ? null : m.id)}
           style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
-          <Avatar initials={m.initials} color={team.color} size={44} />
+          <Avatar initials={m.initials} color={team.color} size={44} photo={m.avatarUrl} />
           <div style={{ flex:1 }}>
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
               <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}</p>
@@ -2204,7 +2206,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
           <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"6px 12px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>← Voltar</button>
         </div>
-        <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} />
+        <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} photo={member.avatarUrl} />
         <h2 style={{ margin:"12px 0 2px", fontSize:24, fontWeight:800 }}>{member.name}</h2>
         <p style={{ margin:0, opacity:0.7, fontSize:14 }}>{member.position} · {member.role==="admin"?"Admin":"Jogador"}</p>
         {member.phone && <p style={{ margin:"4px 0 0", opacity:0.6, fontSize:13 }}>📱 {member.phone}</p>}
@@ -2402,7 +2404,7 @@ export default function App() {
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
     const [mRaw, ftData, fData, eData, tData, pData] = await Promise.all([
-      api.get(`team_members?team_id=eq.${tid}&select=*`, tok),
+      api.get(`team_members?team_id=eq.${tid}&select=*,profiles(name,phone,birthday,avatar_url)`, tok),
       api.get(`fine_types?team_id=eq.${tid}&order=amount.asc`, tok),
       api.get(`fines?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`expenses?team_id=eq.${tid}&order=created_at.desc`, tok),
