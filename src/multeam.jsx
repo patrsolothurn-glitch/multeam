@@ -889,6 +889,33 @@ const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, on
 
 // ── TABS ──────────────────────────────────────────────────────
 
+const FineGroup = ({ group, color }) => {
+  const [open, setOpen] = React.useState(false);
+  const mk2 = s => (s||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  return (
+    <div style={{ background:T.card, borderRadius:12, marginBottom:6, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
+      <div onClick={() => setOpen(o=>!o)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+        <div style={{ width:36, height:36, borderRadius:18, background:color||T.brand, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800, flexShrink:0 }}>{mk2(group.name)}</div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
+          <p style={{ margin:0, fontSize:12, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · {group.unpaid>0?<span style={{color:T.brand}}>{group.unpaid.toFixed(1)}€ por pagar</span>:<span style={{color:T.green}}>tudo pago ✓</span>}</p>
+        </div>
+        <span style={{ fontSize:15, color:T.sub, flexShrink:0 }}>{open?"▲":"▼"}</span>
+      </div>
+      {open && group.fines.map((f,i) => (
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px 8px 60px", borderTop:`1px solid ${T.border}`, background:T.bg }}>
+          <span style={{ fontSize:18, flexShrink:0 }}>{f.emoji||"🟥"}</span>
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason||"—"}</p>
+            <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date}</p>
+          </div>
+          <span style={{ fontSize:13, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{Number(f.amount).toFixed(1)}€</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine }) => {
   const tf = fines.filter(f => f.teamId===team.id);
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
@@ -1459,22 +1486,25 @@ const AppAdminTab = ({ token, onBack }) => {
                 </div>
               ))}
 
-              {/* Recent fines */}
-              {(teamDetail.recent_fines||[]).length > 0 && (
-                <>
-                  <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🟥 Multas recentes</p>
-                  {(teamDetail.recent_fines||[]).map((f,i) => (
-                    <div key={i} style={{ background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6, display:"flex", alignItems:"center", gap:10 }}>
-                      <span style={{ fontSize:20 }}>{f.emoji||"🟥"}</span>
-                      <div style={{ flex:1 }}>
-                        <p style={{ margin:0, fontWeight:700, fontSize:13 }}>{f.member_name} — {f.amount}€</p>
-                        <p style={{ margin:0, fontSize:12, color:T.sub }}>{f.reason||"—"} · {f.date}</p>
-                      </div>
-                      <span style={{ fontSize:11, fontWeight:700, color:f.paid?T.green:T.brand }}>{f.paid?"✓ Pago":"Por pagar"}</span>
-                    </div>
-                  ))}
-                </>
-              )}
+              {/* Recent fines - grouped by member */}
+              {(teamDetail.recent_fines||[]).length > 0 && (() => {
+                const grouped = {};
+                (teamDetail.recent_fines||[]).forEach(f => {
+                  const k = f.member_name||"?";
+                  if (!grouped[k]) grouped[k] = { name:k, fines:[], total:0, unpaid:0 };
+                  grouped[k].fines.push(f);
+                  grouped[k].total += Number(f.amount||0);
+                  if (!f.paid) grouped[k].unpaid += Number(f.amount||0);
+                });
+                return (
+                  <>
+                    <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🟥 Multas recentes</p>
+                    {Object.values(grouped).map(g => (
+                      <FineGroup key={g.name} group={g} color={team.color} />
+                    ))}
+                  </>
+                );
+              })()}
 
               {/* Trainings */}
               {(teamDetail.trainings||[]).length > 0 && (
