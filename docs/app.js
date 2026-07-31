@@ -4016,12 +4016,6 @@ var DevedorCard = function DevedorCard(_ref55) {
     _React$useState4 = _slicedToArray(_React$useState3, 2),
     open = _React$useState4[0],
     setOpen = _React$useState4[1];
-  var toggle = function toggle() {
-    setOpen(function (o) {
-      return !o;
-    });
-    if (onOpen && !open) onOpen();
-  };
   return React.createElement("div", {
     onClick: function onClick() {
       return setOpen(function (o) {
@@ -4034,12 +4028,12 @@ var DevedorCard = function DevedorCard(_ref55) {
       marginBottom: 8,
       overflow: "hidden",
       cursor: "pointer",
-      boxShadow: isTop ? "0 4px 16px ".concat(T.brand, "44") : "none",
+      boxShadow: isTop ? "0 6px 20px ".concat(T.brand, "55") : "none",
       border: isTop ? "none" : "1px solid ".concat(T.border)
     }
   }, React.createElement("div", {
     style: {
-      padding: "13px 14px",
+      padding: isTop ? "15px 16px" : "13px 14px",
       display: "flex",
       alignItems: "center",
       gap: 12
@@ -4047,24 +4041,24 @@ var DevedorCard = function DevedorCard(_ref55) {
   }, member.avatarUrl ? React.createElement("img", {
     src: member.avatarUrl,
     style: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+      width: isTop ? 50 : 44,
+      height: isTop ? 50 : 44,
+      borderRadius: isTop ? 25 : 22,
       objectFit: "cover",
       flexShrink: 0,
-      border: "2px solid rgba(255,255,255,0.3)"
+      border: isTop ? "3px solid rgba(255,255,255,0.4)" : "none"
     }
   }) : React.createElement("div", {
     style: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+      width: isTop ? 50 : 44,
+      height: isTop ? 50 : 44,
+      borderRadius: isTop ? 25 : 22,
       background: isTop ? "rgba(255,255,255,0.25)" : color,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       color: "#fff",
-      fontSize: 14,
+      fontSize: isTop ? 16 : 14,
       fontWeight: 800,
       flexShrink: 0
     }
@@ -4081,13 +4075,13 @@ var DevedorCard = function DevedorCard(_ref55) {
     }
   }, isTop && React.createElement("span", {
     style: {
-      fontSize: 12
+      fontSize: 14
     }
   }, "\uD83D\uDD34"), React.createElement("p", {
     style: {
       margin: 0,
-      fontWeight: 700,
-      fontSize: 15,
+      fontWeight: 800,
+      fontSize: isTop ? 17 : 15,
       color: isTop ? "#fff" : T.text,
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -4108,12 +4102,12 @@ var DevedorCard = function DevedorCard(_ref55) {
     style: {
       margin: 0,
       fontWeight: 900,
-      fontSize: 20,
+      fontSize: isTop ? 24 : 18,
       color: isTop ? "#fff" : T.brand
     }
   }, member.unpaid.toFixed(1), "\u20AC"), React.createElement("span", {
     style: {
-      fontSize: 12,
+      fontSize: 11,
       color: isTop ? "rgba(255,255,255,0.6)" : T.sub
     }
   }, open ? "▲" : "▼ Ver"))), open && React.createElement("div", {
@@ -4452,16 +4446,41 @@ var HomeTab = function HomeTab(_ref57) {
       style: {
         marginBottom: 18
       }
-    }, React.createElement("p", {
+    }, React.createElement("div", {
       style: {
-        margin: "0 0 10px",
-        fontSize: 12,
-        fontWeight: 700,
-        color: T.sub,
-        textTransform: "uppercase",
-        letterSpacing: 1
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        marginBottom: 12,
+        padding: "10px 14px",
+        background: "".concat(T.brand, "10"),
+        borderRadius: 12
       }
-    }, "\uD83D\uDEA8 Devedores"), visible.map(function (m, i) {
+    }, React.createElement("span", {
+      style: {
+        fontSize: 18
+      }
+    }, "\uD83D\uDEA8"), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13,
+        fontWeight: 800,
+        color: T.brand,
+        textTransform: "uppercase",
+        letterSpacing: 1.5
+      }
+    }, "Devedores"), React.createElement("span", {
+      style: {
+        marginLeft: "auto",
+        background: T.brand,
+        color: "#fff",
+        borderRadius: 20,
+        padding: "2px 10px",
+        fontSize: 12,
+        fontWeight: 800
+      }
+    }, devedores.length)), visible.map(function (m, i) {
       return React.createElement(DevedorCard, {
         key: m.id,
         member: m,
