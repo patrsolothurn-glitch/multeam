@@ -3487,9 +3487,30 @@ var JoinTeamModal = function JoinTeamModal(_ref50) {
     style: {
       color: T.sub,
       fontSize: 14,
-      margin: "0 0 24px"
+      margin: "0 0 16px"
     }
-  }, "J\xE1 podes ver os treinos, multas e eventos da equipa."), React.createElement(PrimaryBtn, {
+  }, "J\xE1 podes ver os treinos, multas e eventos da equipa."), !window.matchMedia('(display-mode: standalone)').matches && React.createElement("div", {
+    style: {
+      background: "".concat(T.green, "12"),
+      borderRadius: 12,
+      padding: "12px 14px",
+      marginBottom: 16,
+      textAlign: "left"
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 13,
+      color: T.green,
+      fontWeight: 700
+    }
+  }, "\uD83D\uDCF2 Instala a app!"), React.createElement("p", {
+    style: {
+      margin: "4px 0 0",
+      fontSize: 12,
+      color: T.sub
+    }
+  }, "No browser toca em ", React.createElement("strong", null, "\u22EE Menu \u2192 Adicionar ao ecr\xE3 inicial"), " para aceder sem precisar do link.")), React.createElement(PrimaryBtn, {
     onClick: onClose,
     color: found.color
   }, "Come\xE7ar")));
@@ -10044,6 +10065,7 @@ function App() {
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
+              window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
               return _context62.a(2);
           }
@@ -10057,6 +10079,7 @@ function App() {
     onClose: function onClose() {
       setModal(null);
       setPendingInvite(null);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }));
   if (tab === "treinos") return React.createElement("div", {
@@ -10440,6 +10463,7 @@ function App() {
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
+              window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
               return _context64.a(2);
           }
@@ -10453,6 +10477,7 @@ function App() {
     onClose: function onClose() {
       setModal(null);
       setPendingInvite(null);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }));
 }
