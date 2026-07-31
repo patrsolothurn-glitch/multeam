@@ -4419,6 +4419,7 @@ var HomeTab = function HomeTab(_ref57) {
     var now = new Date();
     var currentMonth = now.getMonth() + 1;
     var today = now.getDate();
+    var MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     var tm = members.filter(function (m) {
       return m.teamId === team.id && m.birthday;
     });
@@ -4437,7 +4438,6 @@ var HomeTab = function HomeTab(_ref57) {
       return a.bDay - b.bDay;
     });
     if (!bdays.length) return null;
-    var MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     return React.createElement("div", {
       style: {
         marginBottom: 18
@@ -4448,106 +4448,106 @@ var HomeTab = function HomeTab(_ref57) {
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        marginBottom: 12,
-        padding: "10px 14px",
+        marginBottom: 10,
+        padding: "8px 14px",
         background: "#FFF3CD",
         borderRadius: 12
       }
     }, React.createElement("span", {
       style: {
-        fontSize: 18
+        fontSize: 16
       }
     }, "\uD83C\uDF82"), React.createElement("p", {
       style: {
         margin: 0,
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 800,
         color: "#B8860B",
         textTransform: "uppercase",
-        letterSpacing: 1.5
+        letterSpacing: 1.2
       }
-    }, "Aniversariantes de ", MONTHS_PT[currentMonth - 1])), bdays.map(function (m) {
+    }, "Aniversariantes de ", MONTHS_PT[currentMonth - 1])), React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 10,
+        overflowX: "auto",
+        paddingBottom: 4
+      }
+    }, bdays.map(function (m) {
       var isToday = m.bDay === today;
       return React.createElement("div", {
         key: m.id,
         style: {
+          flexShrink: 0,
           background: isToday ? "linear-gradient(135deg,#FF6B35,#FFB347)" : T.card,
           borderRadius: 14,
-          marginBottom: 8,
-          padding: "13px 14px",
+          padding: "12px 14px",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          gap: 12,
-          boxShadow: isToday ? "0 4px 16px #FF6B3544" : "none",
+          gap: 6,
+          minWidth: 90,
+          boxShadow: isToday ? "0 4px 14px #FF6B3544" : "none",
           border: isToday ? "none" : "1px solid ".concat(T.border)
         }
       }, m.avatarUrl ? React.createElement("img", {
         src: m.avatarUrl,
         style: {
-          width: 46,
-          height: 46,
-          borderRadius: 23,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
           objectFit: "cover",
-          flexShrink: 0,
-          border: isToday ? "3px solid rgba(255,255,255,0.5)" : "none"
+          border: isToday ? "2px solid rgba(255,255,255,0.5)" : "none"
         }
       }) : React.createElement("div", {
         style: {
-          width: 46,
-          height: 46,
-          borderRadius: 23,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
           background: isToday ? "rgba(255,255,255,0.3)" : team.color,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           color: "#fff",
-          fontSize: 16,
-          fontWeight: 800,
-          flexShrink: 0
-        }
-      }, m.initials), React.createElement("div", {
-        style: {
-          flex: 1,
-          minWidth: 0
-        }
-      }, React.createElement("p", {
-        style: {
-          margin: 0,
-          fontWeight: 800,
           fontSize: 15,
-          color: isToday ? "#fff" : T.text
+          fontWeight: 800
         }
-      }, isToday ? "🎉 " : "", m.name), React.createElement("p", {
+      }, m.initials), React.createElement("p", {
         style: {
           margin: 0,
+          fontWeight: 700,
           fontSize: 12,
-          color: isToday ? "rgba(255,255,255,0.8)" : T.sub
-        }
-      }, isToday ? "Hoje é o seu dia!" : "Aniversário")), React.createElement("div", {
-        style: {
+          color: isToday ? "#fff" : T.text,
           textAlign: "center",
-          flexShrink: 0,
+          maxWidth: 80,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap"
+        }
+      }, m.name.split(" ")[0]), React.createElement("div", {
+        style: {
           background: isToday ? "rgba(255,255,255,0.25)" : "#FFF3CD",
-          borderRadius: 12,
-          padding: "6px 12px"
+          borderRadius: 8,
+          padding: "3px 8px",
+          textAlign: "center"
         }
       }, React.createElement("p", {
         style: {
           margin: 0,
           fontWeight: 900,
-          fontSize: 22,
+          fontSize: 18,
           color: isToday ? "#fff" : "#B8860B",
           lineHeight: 1
         }
       }, m.bDay), React.createElement("p", {
         style: {
           margin: 0,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 700,
           color: isToday ? "rgba(255,255,255,0.8)" : "#B8860B"
         }
-      }, MONTHS_PT[currentMonth - 1])));
-    }));
+      }, isToday ? "🎉" : MONTHS_PT[currentMonth - 1])));
+    })));
   }(), function () {
     var tm = members.filter(function (m) {
       return m.teamId === team.id;
