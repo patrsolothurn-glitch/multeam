@@ -1100,29 +1100,25 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         const bdays = tm.map(m => {
           const [,mm,dd] = (m.birthday||"").split("-").map(Number);
           return { ...m, bMonth:mm, bDay:dd };
-        }).filter(m => m.bMonth === currentMonth)
-          .sort((a,b) => a.bDay - b.bDay);
+        }).filter(m => m.bMonth === currentMonth).sort((a,b) => a.bDay - b.bDay);
         if (!bdays.length) return null;
         return (
-          <div style={{ marginBottom:18 }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:10, padding:"8px 14px", background:"#FFF3CD", borderRadius:12 }}>
-              <span style={{ fontSize:16 }}>🎂</span>
-              <p style={{ margin:0, fontSize:12, fontWeight:800, color:"#B8860B", textTransform:"uppercase", letterSpacing:1.2 }}>Aniversariantes de {MONTHS_PT[currentMonth-1]}</p>
+          <div style={{ marginBottom:14, background:"#FFF8E7", borderRadius:12, padding:"10px 14px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+              <span style={{ fontSize:14 }}>🎂</span>
+              <p style={{ margin:0, fontSize:11, fontWeight:800, color:"#B8860B", textTransform:"uppercase", letterSpacing:1 }}>Aniversariantes de {MONTHS_PT[currentMonth-1]}</p>
             </div>
-            <div style={{ display:"flex", gap:10, overflowX:"auto", paddingBottom:4 }}>
+            <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:2 }}>
               {bdays.map(m => {
                 const isToday = m.bDay === today;
                 return (
-                  <div key={m.id} style={{ flexShrink:0, background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":T.card, borderRadius:14, padding:"12px 14px", display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:90, boxShadow:isToday?"0 4px 14px #FF6B3544":"none", border:isToday?"none":`1px solid ${T.border}` }}>
+                  <div key={m.id} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:6, background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":"#fff", borderRadius:20, padding:"5px 10px 5px 6px", border:isToday?"none":"1px solid #FFE0A0", boxShadow:isToday?"0 2px 8px #FF6B3533":"none" }}>
                     {m.avatarUrl
-                      ? <img src={m.avatarUrl} style={{ width:44, height:44, borderRadius:22, objectFit:"cover", border:isToday?"2px solid rgba(255,255,255,0.5)":"none" }} />
-                      : <div style={{ width:44, height:44, borderRadius:22, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:15, fontWeight:800 }}>{m.initials}</div>
+                      ? <img src={m.avatarUrl} style={{ width:26, height:26, borderRadius:13, objectFit:"cover", flexShrink:0 }} />
+                      : <div style={{ width:26, height:26, borderRadius:13, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>{m.initials}</div>
                     }
-                    <p style={{ margin:0, fontWeight:700, fontSize:12, color:isToday?"#fff":T.text, textAlign:"center", maxWidth:80, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</p>
-                    <div style={{ background:isToday?"rgba(255,255,255,0.25)":"#FFF3CD", borderRadius:8, padding:"3px 8px", textAlign:"center" }}>
-                      <p style={{ margin:0, fontWeight:900, fontSize:18, color:isToday?"#fff":"#B8860B", lineHeight:1 }}>{m.bDay}</p>
-                      <p style={{ margin:0, fontSize:10, fontWeight:700, color:isToday?"rgba(255,255,255,0.8)":"#B8860B" }}>{isToday?"🎉":MONTHS_PT[currentMonth-1]}</p>
-                    </div>
+                    <span style={{ fontSize:12, fontWeight:700, color:isToday?"#fff":"#8B6914", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</span>
+                    <span style={{ fontSize:12, fontWeight:900, color:isToday?"rgba(255,255,255,0.9)":"#B8860B", whiteSpace:"nowrap" }}>{isToday?"🎉":m.bDay}</span>
                   </div>
                 );
               })}
