@@ -796,6 +796,7 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
     setFound(t || "notfound");
     setSearching(false);
   };
+  const alreadyMember = found && found !== "notfound" && teams.some(t => t.id === found.id);
   const accept = async () => { await onJoin(found); setJoined(true); };
   return (
     <Sheet title="🔗 Entrar numa equipa" onClose={onClose}>
@@ -829,13 +830,16 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
                 </div>
               </div>
               <div style={{ padding:"12px 16px" }}>
-                <p style={{ margin:0, fontSize:13, color:T.sub }}>Vais entrar como <strong>👤 Jogador</strong>. O admin pode depois alterar a tua função.</p>
+                {alreadyMember
+                  ? <p style={{ margin:0, fontSize:13, color:T.green, fontWeight:700 }}>✓ Já és membro desta equipa.</p>
+                  : <p style={{ margin:0, fontSize:13, color:T.sub }}>Vais entrar como <strong>👤 Jogador</strong>. O admin pode depois alterar a tua função.</p>
+                }
               </div>
             </div>
           )}
 
           <PrimaryBtn onClick={accept} disabled={!found || found==="notfound"} color={found && found!=="notfound" ? found.color : T.border}>
-            ✓ Aceitar convite e entrar
+            {alreadyMember ? `⚡ Ir para ${found?.name}` : "✓ Aceitar convite e entrar"}
           </PrimaryBtn>
         </>
       ) : (
