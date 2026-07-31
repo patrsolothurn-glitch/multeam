@@ -1964,8 +1964,10 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
   const paid = pf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   return (
     <div style={{ background:T.bg, minHeight:"100vh" }}>
-      <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}bb)`, padding:"52px 16px 24px", color:"#fff", textAlign:"center" }}>
-        <button onClick={onBack} style={{ position:"absolute", top:54, left:16, background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"6px 12px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>← Voltar</button>
+      <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}bb)`, padding:"16px 16px 24px", color:"#fff", textAlign:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
+          <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"6px 12px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>← Voltar</button>
+        </div>
         <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} />
         <h2 style={{ margin:"12px 0 2px", fontSize:24, fontWeight:800 }}>{member.name}</h2>
         <p style={{ margin:0, opacity:0.7, fontSize:14 }}>{member.position} · {member.role==="admin"?"Admin":"Jogador"}</p>
