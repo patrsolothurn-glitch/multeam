@@ -1787,7 +1787,7 @@ const AppAdminTab = ({ token, onBack }) => {
                   <>
                     <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🟥 Multas recentes</p>
                     {Object.values(grouped).map(g => (
-                      <FineGroup key={g.name} group={g} color={team.color} />
+                      <FineGroup key={g.name} group={g} color={selectedTeam.color||T.navy} />
                     ))}
                   </>
                 );
