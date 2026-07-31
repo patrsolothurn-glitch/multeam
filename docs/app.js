@@ -9587,7 +9587,7 @@ function App() {
   }();
   var joinTeam = function () {
     var _ref127 = _asyncToGenerator(_regenerator().m(function _callee56(t) {
-      var r, json, list, _t60;
+      var _e$message, r, json, list, _t60, _t61;
       return _regenerator().w(function (_context56) {
         while (1) switch (_context56.p = _context56.n) {
           case 0:
@@ -9599,7 +9599,20 @@ function App() {
               role: 'player'
             }, token);
           case 1:
-            _context56.n = 2;
+            _context56.n = 3;
+            break;
+          case 2:
+            _context56.p = 2;
+            _t60 = _context56.v;
+            if ((_e$message = _t60.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
+              _context56.n = 3;
+              break;
+            }
+            alert("Erro ao entrar na equipa: ".concat(_t60.message || "tenta novamente"));
+            return _context56.a(2);
+          case 3:
+            _context56.p = 3;
+            _context56.n = 4;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/get_my_teams"), {
               method: 'POST',
               headers: {
@@ -9609,33 +9622,32 @@ function App() {
               },
               body: '{}'
             });
-          case 2:
+          case 4:
             r = _context56.v;
             if (!r.ok) {
-              _context56.n = 4;
+              _context56.n = 6;
               break;
             }
-            _context56.n = 3;
+            _context56.n = 5;
             return r.json();
-          case 3:
+          case 5:
             json = _context56.v;
             list = Array.isArray(json) ? json : json ? [json] : [];
             setTeams(list.map(aTeam));
-          case 4:
-            _context56.n = 5;
-            return switchTeam(t.id);
-          case 5:
-            _context56.n = 7;
-            break;
           case 6:
-            _context56.p = 6;
-            _t60 = _context56.v;
-            console.error(_t60);
-            alert("Erro ao entrar na equipa: ".concat(_t60.message || "tenta novamente"));
+            _context56.n = 7;
+            return switchTeam(t.id);
           case 7:
+            _context56.n = 9;
+            break;
+          case 8:
+            _context56.p = 8;
+            _t61 = _context56.v;
+            console.error(_t61);
+          case 9:
             return _context56.a(2);
         }
-      }, _callee56, null, [[0, 6]]);
+      }, _callee56, null, [[3, 8], [0, 2]]);
     }));
     return function joinTeam(_x42) {
       return _ref127.apply(this, arguments);
@@ -9643,7 +9655,7 @@ function App() {
   }();
   var findTeamByCode = function () {
     var _ref128 = _asyncToGenerator(_regenerator().m(function _callee57(code) {
-      var r, d, t, _t61;
+      var r, d, t, _t62;
       return _regenerator().w(function (_context57) {
         while (1) switch (_context57.p = _context57.n) {
           case 0:
@@ -9672,7 +9684,7 @@ function App() {
             })) : null);
           case 3:
             _context57.p = 3;
-            _t61 = _context57.v;
+            _t62 = _context57.v;
             return _context57.a(2, null);
         }
       }, _callee57, null, [[0, 3]]);
@@ -9695,7 +9707,7 @@ function App() {
   }, [appReady, pendingInvite]);
   var subscribeToPush = function () {
     var _ref129 = _asyncToGenerator(_regenerator().m(function _callee58(tok, uid) {
-      var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t62, _t63;
+      var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t63, _t64;
       return _regenerator().w(function (_context58) {
         while (1) switch (_context58.p = _context58.n) {
           case 0:
@@ -9714,8 +9726,8 @@ function App() {
             return reg.pushManager.getSubscription();
           case 3:
             existing = _context58.v;
-            _t62 = existing;
-            if (_t62) {
+            _t63 = existing;
+            if (_t63) {
               _context58.n = 5;
               break;
             }
@@ -9725,9 +9737,9 @@ function App() {
               applicationServerKey: VAPID_PUBLIC
             });
           case 4:
-            _t62 = _context58.v;
+            _t63 = _context58.v;
           case 5:
-            _sub = _t62;
+            _sub = _t63;
             subJson = _sub.toJSON();
             _context58.n = 6;
             return fetch("".concat(SB_URL, "/rest/v1/push_subscriptions"), {
@@ -9750,8 +9762,8 @@ function App() {
             break;
           case 7:
             _context58.p = 7;
-            _t63 = _context58.v;
-            console.warn("Push subscribe failed:", _t63.message);
+            _t64 = _context58.v;
+            console.warn("Push subscribe failed:", _t64.message);
           case 8:
             return _context58.a(2);
         }
@@ -9799,7 +9811,7 @@ function App() {
   };
   var sendPushToTeam = function () {
     var _ref131 = _asyncToGenerator(_regenerator().m(function _callee60(teamId, members, title, body) {
-      var userIds, _t64;
+      var userIds, _t65;
       return _regenerator().w(function (_context60) {
         while (1) switch (_context60.p = _context60.n) {
           case 0:
@@ -9833,8 +9845,8 @@ function App() {
             break;
           case 3:
             _context60.p = 3;
-            _t64 = _context60.v;
-            console.warn("Push send failed:", _t64.message);
+            _t65 = _context60.v;
+            console.warn("Push send failed:", _t65.message);
           case 4:
             return _context60.a(2);
         }
