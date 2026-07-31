@@ -1107,7 +1107,6 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:12, padding:"10px 14px", background:`${T.brand}10`, borderRadius:12 }}>
               <span style={{ fontSize:18 }}>🚨</span>
               <p style={{ margin:0, fontSize:13, fontWeight:800, color:T.brand, textTransform:"uppercase", letterSpacing:1.5 }}>Devedores</p>
-              <span style={{ marginLeft:"auto", background:T.brand, color:"#fff", borderRadius:20, padding:"2px 10px", fontSize:12, fontWeight:800 }}>{devedores.length}</span>
             </div>
             {visible.map((m,i) => (
               <DevedorCard key={m.id} member={m} isTop={i===0} color={team.color} onOpen={()=>onSelectMember&&onSelectMember(m)} />
