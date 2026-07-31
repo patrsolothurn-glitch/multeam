@@ -2458,7 +2458,15 @@ export default function App() {
   const joinTeam = async t => {
     try {
       await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
-      // Reload all teams via RPC (mesmo método que o carregamento inicial)
+    } catch(e) {
+      // "duplicate key" = já és membro, continua normalmente
+      if (!e.message?.includes('duplicate key')) {
+        alert(`Erro ao entrar na equipa: ${e.message||"tenta novamente"}`);
+        return;
+      }
+    }
+    try {
+      // Reload teams via RPC
       const r = await fetch(`${SB_URL}/rest/v1/rpc/get_my_teams`, {
         method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}'
       });
@@ -2468,10 +2476,7 @@ export default function App() {
         setTeams(list.map(aTeam));
       }
       await switchTeam(t.id);
-    } catch(e){
-      console.error(e);
-      alert(`Erro ao entrar na equipa: ${e.message||"tenta novamente"}`);
-    }
+    } catch(e) { console.error(e); }
   };
   const findTeamByCode = async code => {
     try {
