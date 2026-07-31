@@ -916,6 +916,45 @@ const FineGroup = ({ group, color }) => {
   );
 };
 
+const DevedorCard = ({ member, isTop, color, onOpen }) => {
+  const [open, setOpen] = React.useState(false);
+  const toggle = () => { setOpen(o=>!o); if(onOpen&&!open) onOpen(); };
+  return (
+    <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 4px 16px ${T.brand}44`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
+      <div style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ width:42, height:42, borderRadius:21, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:800, flexShrink:0 }}>
+          {member.initials}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {isTop && <span style={{ fontSize:12 }}>🔴</span>}
+            <p style={{ margin:0, fontWeight:700, fontSize:15, color:isTop?"#fff":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{member.name}</p>
+          </div>
+          <p style={{ margin:0, fontSize:12, color:isTop?"rgba(255,255,255,0.75)":T.sub }}>{member.fines.length} multa{member.fines.length!==1?"s":""} por pagar</p>
+        </div>
+        <div style={{ textAlign:"right", flexShrink:0 }}>
+          <p style={{ margin:0, fontWeight:900, fontSize:20, color:isTop?"#fff":T.brand }}>{member.unpaid.toFixed(1)}€</p>
+          <span style={{ fontSize:12, color:isTop?"rgba(255,255,255,0.6)":T.sub }}>{open?"▲":"▼ Ver"}</span>
+        </div>
+      </div>
+      {open && (
+        <div style={{ borderTop:`1px solid ${isTop?"rgba(255,255,255,0.2)":T.border}`, background:isTop?"rgba(0,0,0,0.15)":T.bg, padding:"8px 10px" }}>
+          {member.fines.map((f,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 4px" }}>
+              <span style={{ fontSize:18 }}>{f.emoji}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:0, fontSize:13, fontWeight:600, color:isTop?"rgba(255,255,255,0.9)":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
+                <p style={{ margin:0, fontSize:11, color:isTop?"rgba(255,255,255,0.55)":T.sub }}>{f.date}</p>
+              </div>
+              <span style={{ fontSize:14, fontWeight:800, color:isTop?"#fff":T.brand, flexShrink:0 }}>{f.amount}€</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FineGroupHome = ({ group, color, renderFine }) => {
   const [open, setOpen] = React.useState(false);
   return (
@@ -949,7 +988,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
   );
 };
 
-const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine }) => {
+const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember }) => {
   const tf = fines.filter(f => f.teamId===team.id);
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
@@ -986,6 +1025,25 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
       {isAdmin && (
         <button onClick={onAddFine} style={{ width:"100%", background:T.brand, color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:18, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
       )}
+
+      {/* Devedores */}
+      {(() => {
+        const tm = members.filter(m=>m.teamId===team.id);
+        const devedores = tm.map(m => ({
+          ...m,
+          unpaid: tf.filter(f=>f.memberId===m.id&&!f.paid).reduce((s,f)=>s+f.amount,0),
+          fines: tf.filter(f=>f.memberId===m.id&&!f.paid)
+        })).filter(m=>m.unpaid>0).sort((a,b)=>b.unpaid-a.unpaid);
+        if (!devedores.length) return null;
+        return (
+          <div style={{ marginBottom:18 }}>
+            <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🚨 Devedores</p>
+            {devedores.map((m,i) => (
+              <DevedorCard key={m.id} member={m} isTop={i===0} color={team.color} onOpen={()=>onSelectMember&&onSelectMember(m)} />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Full Ranking */}
       {(() => {
@@ -2766,7 +2824,7 @@ export default function App() {
         </div>
       </div>
 
-      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} />}
+      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
