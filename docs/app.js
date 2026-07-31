@@ -1209,8 +1209,7 @@ var AddFineModal = function AddFineModal(_ref12) {
               amount: sft.amount,
               reason: reason || sft.name,
               emoji: sft.emoji,
-              paid: false,
-              date: new Date().toISOString().split("T")[0]
+              paid: false
             });
           case 3:
             onClose();
