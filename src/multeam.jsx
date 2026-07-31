@@ -916,7 +916,7 @@ const FineGroup = ({ group, color }) => {
   );
 };
 
-const FineGroupHome = ({ group, color }) => {
+const FineGroupHome = ({ group, color, renderFine }) => {
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
@@ -924,20 +924,27 @@ const FineGroupHome = ({ group, color }) => {
         <Avatar initials={group.initials||"?"} color={color} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:15, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
-          <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{group.total.toFixed(1)}€ total{group.unpaid>0?` · ${group.unpaid.toFixed(1)}€ por pagar`:""}</span></p>
+          <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{group.total.toFixed(1)}€{group.unpaid>0?` · ${group.unpaid.toFixed(1)}€ por pagar`:""}</span></p>
         </div>
         <span style={{ fontSize:14, color:T.sub, flexShrink:0 }}>{open?"▲":"▼"}</span>
       </div>
-      {open && group.fines.map((f,i) => (
-        <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px 10px 68px", borderTop:`1px solid ${T.border}`, background:T.bg }}>
-          <span style={{ fontSize:20, flexShrink:0 }}>{f.emoji}</span>
-          <div style={{ flex:1, minWidth:0 }}>
-            <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
-            <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date.slice(5)}</p>
-          </div>
-          <span style={{ fontSize:14, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{f.amount}€</span>
+      {open && (
+        <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 10px", background:T.bg }}>
+          {renderFine
+            ? group.fines.map(f => renderFine(f))
+            : group.fines.map((f,i) => (
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 4px" }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{f.emoji}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
+                  <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date?.slice?.(5)}</p>
+                </div>
+                <span style={{ fontSize:14, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{f.amount}€</span>
+              </div>
+            ))
+          }
         </div>
-      ))}
+      )}
     </div>
   );
 };
@@ -1103,47 +1110,110 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
 
 const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDeleteFine, onEditFine, onSelectMember }) => {
   const [filter, setFilter] = useState("all");
+  const [collapsedMonths, setCollapsedMonths] = useState({});
   const tf = fines.filter(f=>f.teamId===team.id);
-  const filtered = tf.filter(f=>filter==="all"||( filter==="unpaid"?!f.paid:f.paid)).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const gm = id => members.find(m=>m.id===id);
+  const toggleMonth = m => setCollapsedMonths(p=>({...p,[m]:!p[m]}));
+
+  // Fine card with admin actions
+  const FineCard = ({ f }) => {
+    const m = gm(f.memberId);
+    return (
+      <div style={{ background:T.card, borderRadius:12, padding:"11px 13px", marginBottom:6, display:"flex", alignItems:"center", gap:10, borderLeft:`3px solid ${f.paid?T.green:T.brand}` }}>
+        <span onClick={() => m && onSelectMember(m)} style={{ fontSize:24, flexShrink:0, cursor:"pointer" }}>{f.emoji}</span>
+        <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => m && onSelectMember(m)}>
+          <p style={{ margin:0, fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
+          <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date}</p>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
+          <p style={{ margin:0, fontWeight:900, fontSize:16, color:f.paid?T.green:T.brand }}>{f.amount}€</p>
+          {isAdmin && <button onClick={() => onTogglePaid(f.id)} style={{ padding:"3px 8px", borderRadius:7, border:`1.5px solid ${f.paid?T.green:T.brand}`, background:"transparent", color:f.paid?T.green:T.brand, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{f.paid?"✓":"Pagar"}</button>}
+          {isAdmin && onEditFine && <button onClick={() => onEditFine(f)} style={{ padding:"2px 6px", borderRadius:7, border:`1.5px solid ${T.sub}`, background:"transparent", color:T.sub, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>}
+          {isAdmin && onDeleteFine && <button onClick={() => { if(window.confirm("Apagar?")) onDeleteFine(f.id); }} style={{ padding:"2px 6px", borderRadius:7, border:"1.5px solid #888", background:"transparent", color:"#888", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>🗑️</button>}
+        </div>
+      </div>
+    );
+  };
+
+  if (filter === "month") {
+    // Vista por mês
+    const byMonth = {};
+    [...tf].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(f => {
+      const d = new Date(f.date+"T00:00:00");
+      const key = d.toLocaleDateString("pt-PT",{month:"long",year:"numeric"}).replace(/^\w/,c=>c.toUpperCase());
+      if (!byMonth[key]) byMonth[key] = [];
+      byMonth[key].push(f);
+    });
+    return (
+      <div style={{ padding:"14px 16px 100px" }}>
+        <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto", paddingBottom:4 }}>
+          <Chip active={false} color={team.color} onClick={() => setFilter("all")}>Todas ({tf.length})</Chip>
+          <Chip active={false} color={T.brand}    onClick={() => setFilter("unpaid")}>Por pagar ({tf.filter(f=>!f.paid).length})</Chip>
+          <Chip active={false} color={T.green}    onClick={() => setFilter("paid")}>Pagas ({tf.filter(f=>f.paid).length})</Chip>
+          <Chip active={true}  color={T.navy}     onClick={() => setFilter("month")}>📅 Por mês</Chip>
+        </div>
+        {Object.entries(byMonth).map(([month, mfines]) => {
+          const isCol = collapsedMonths[month];
+          const total = mfines.reduce((s,f)=>s+f.amount,0);
+          const unpaid = mfines.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
+          return (
+            <div key={month}>
+              <button onClick={()=>toggleMonth(month)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"12px 0 8px", fontFamily:"inherit" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:14, fontWeight:900, color:team.color, textTransform:"uppercase", letterSpacing:0.5 }}>{month}</span>
+                  <span style={{ fontSize:12, color:T.sub }}>{mfines.length} multa{mfines.length!==1?"s":""}</span>
+                  {unpaid>0 ? <span style={{ fontSize:12, color:T.brand, fontWeight:700 }}>· {unpaid.toFixed(1)}€ por pagar</span> : <span style={{ fontSize:12, color:T.green, fontWeight:700 }}>· tudo pago ✓</span>}
+                </div>
+                <span style={{ fontSize:14, color:T.sub }}>{isCol?"▶":"▼"}</span>
+              </button>
+              {!isCol && (() => {
+                // Group by member within month
+                const grouped = {};
+                mfines.forEach(f => {
+                  const m = gm(f.memberId);
+                  const k = f.memberId;
+                  if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", fines:[], total:0, unpaid:0 };
+                  grouped[k].fines.push(f);
+                  grouped[k].total += f.amount;
+                  if (!f.paid) grouped[k].unpaid += f.amount;
+                });
+                return Object.values(grouped).map(g => (
+                  <FineGroupHome key={g.name} group={g} color={team.color} renderFine={f => <FineCard key={f.id} f={f} />} />
+                ));
+              })()}
+            </div>
+          );
+        })}
+        {isAdmin && <button onClick={onAddFine} style={{ position:"fixed", bottom:76, right:20, width:56, height:56, borderRadius:28, background:T.brand, border:"none", color:"#fff", fontSize:30, cursor:"pointer", boxShadow:`0 4px 20px ${T.brand}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>}
+      </div>
+    );
+  }
+
+  // Vista por membro (default)
+  const filtered = tf.filter(f=>filter==="all"||(filter==="unpaid"?!f.paid:f.paid)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const grouped = {};
+  filtered.forEach(f => {
+    const m = gm(f.memberId);
+    const k = f.memberId;
+    if (!grouped[k]) grouped[k] = { name:m?.name||"?", initials:m?.initials||"?", fines:[], total:0, unpaid:0 };
+    grouped[k].fines.push(f);
+    grouped[k].total += f.amount;
+    if (!f.paid) grouped[k].unpaid += f.amount;
+  });
+
   return (
     <div style={{ padding:"14px 16px 100px" }}>
-      <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+      <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto", paddingBottom:4 }}>
         <Chip active={filter==="all"}    color={team.color} onClick={() => setFilter("all")}>Todas ({tf.length})</Chip>
         <Chip active={filter==="unpaid"} color={T.brand}    onClick={() => setFilter("unpaid")}>Por pagar ({tf.filter(f=>!f.paid).length})</Chip>
         <Chip active={filter==="paid"}   color={T.green}    onClick={() => setFilter("paid")}>Pagas ({tf.filter(f=>f.paid).length})</Chip>
+        <Chip active={filter==="month"}  color={T.navy}     onClick={() => setFilter("month")}>📅 Por mês</Chip>
       </div>
       {filtered.length===0 && <p style={{ textAlign:"center", color:T.sub, padding:40 }}>Sem multas 🙌</p>}
-      {filtered.map(f => {
-        const m = gm(f.memberId);
-        return (
-          <div key={f.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${f.paid?T.green:T.brand}` }}>
-            <span onClick={() => m && onSelectMember(m)} style={{ fontSize:26, flexShrink:0, cursor:"pointer" }}>{f.emoji}</span>
-            <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => m && onSelectMember(m)}>
-              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m?.name}</p>
-              <p style={{ margin:0, fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
-              <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date}</p>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:5, flexShrink:0 }}>
-              <p style={{ margin:0, fontWeight:900, fontSize:18, color:f.paid?T.green:T.brand }}>{f.amount}€</p>
-              {isAdmin && (
-                <button onClick={() => onTogglePaid(f.id)} style={{ padding:"4px 10px", borderRadius:8, border:`1.5px solid ${f.paid?T.green:T.brand}`, background:"transparent", color:f.paid?T.green:T.brand, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                  {f.paid ? "✓ Pago" : "Pagar"}
-                </button>
-              )}
-              {isAdmin && onEditFine && (
-                <button onClick={() => onEditFine(f)} style={{ padding:"3px 8px", borderRadius:8, border:`1.5px solid ${T.sub}`, background:"transparent", color:T.sub, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>
-              )}
-              {isAdmin && onDeleteFine && (
-                <button onClick={() => { if(window.confirm("Apagar esta multa?")) onDeleteFine(f.id); }} style={{ padding:"3px 8px", borderRadius:8, border:"1.5px solid #666", background:"transparent", color:"#888", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🗑️</button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-      {isAdmin && (
-        <button onClick={onAddFine} style={{ position:"fixed", bottom:76, right:20, width:56, height:56, borderRadius:28, background:T.brand, border:"none", color:"#fff", fontSize:30, cursor:"pointer", boxShadow:`0 4px 20px ${T.brand}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
-      )}
+      {Object.values(grouped).map(g => (
+        <FineGroupHome key={g.name} group={g} color={team.color} renderFine={f => <FineCard key={f.id} f={f} />} />
+      ))}
+      {isAdmin && <button onClick={onAddFine} style={{ position:"fixed", bottom:76, right:20, width:56, height:56, borderRadius:28, background:T.brand, border:"none", color:"#fff", fontSize:30, cursor:"pointer", boxShadow:`0 4px 20px ${T.brand}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>}
     </div>
   );
 };
