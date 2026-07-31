@@ -30,7 +30,7 @@ const api = {
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
 const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null });
-const aFine = f => ({ id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.created_at?.split('T')[0]||'' });
+const aFine = f => ({ id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||f.created_at?.split('T')[0]||'' });
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:e.created_at?.split('T')[0]||'' });
 const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], createdBy:t.created_by });
@@ -1103,22 +1103,22 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         }).filter(m => m.bMonth === currentMonth).sort((a,b) => a.bDay - b.bDay);
         if (!bdays.length) return null;
         return (
-          <div style={{ marginBottom:14, background:"#FFF8E7", borderRadius:12, padding:"10px 14px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-              <span style={{ fontSize:14 }}>🎂</span>
-              <p style={{ margin:0, fontSize:11, fontWeight:800, color:"#B8860B", textTransform:"uppercase", letterSpacing:1 }}>Aniversariantes de {MONTHS_PT[currentMonth-1]}</p>
+          <div style={{ marginBottom:12, background:"#FFF8E7", borderRadius:10, padding:"8px 12px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6 }}>
+              <span style={{ fontSize:12 }}>🎂</span>
+              <p style={{ margin:0, fontSize:10, fontWeight:800, color:"#B8860B", textTransform:"uppercase", letterSpacing:0.8 }}>Aniversariantes de {MONTHS_PT[currentMonth-1]}</p>
             </div>
-            <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:2 }}>
+            <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:2 }}>
               {bdays.map(m => {
                 const isToday = m.bDay === today;
                 return (
-                  <div key={m.id} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:6, background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":"#fff", borderRadius:20, padding:"5px 10px 5px 6px", border:isToday?"none":"1px solid #FFE0A0", boxShadow:isToday?"0 2px 8px #FF6B3533":"none" }}>
+                  <div key={m.id} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":"#fff", borderRadius:16, padding:"4px 8px 4px 4px", border:isToday?"none":"1px solid #FFE0A0" }}>
                     {m.avatarUrl
-                      ? <img src={m.avatarUrl} style={{ width:26, height:26, borderRadius:13, objectFit:"cover", flexShrink:0 }} />
-                      : <div style={{ width:26, height:26, borderRadius:13, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>{m.initials}</div>
+                      ? <img src={m.avatarUrl} style={{ width:22, height:22, borderRadius:11, objectFit:"cover" }} />
+                      : <div style={{ width:22, height:22, borderRadius:11, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:8, fontWeight:800 }}>{m.initials}</div>
                     }
-                    <span style={{ fontSize:12, fontWeight:700, color:isToday?"#fff":"#8B6914", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</span>
-                    <span style={{ fontSize:11, fontWeight:900, color:isToday?"rgba(255,255,255,0.9)":"#B8860B", whiteSpace:"nowrap", background:isToday?"rgba(255,255,255,0.2)":"#FFE0A0", borderRadius:8, padding:"1px 6px" }}>{isToday?"🎉 Hoje":`${m.bDay} ${MONTHS_PT[currentMonth-1]}`}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:isToday?"#fff":"#8B6914", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</span>
+                    <span style={{ fontSize:10, fontWeight:800, color:isToday?"rgba(255,255,255,0.9)":"#B8860B", whiteSpace:"nowrap", background:isToday?"rgba(255,255,255,0.2)":"#FFE0A0", borderRadius:6, padding:"1px 5px" }}>{isToday?"🎉":`${m.bDay} ${MONTHS_PT[currentMonth-1]}`}</span>
                   </div>
                 );
               })}
@@ -2695,7 +2695,8 @@ export default function App() {
 
   // Data actions
   const addFine = async d => {
-    const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token);
+    const today = new Date().toISOString().split('T')[0];
+    const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId,date:today},token);
     setFines(p=>[aFine(f),...p]);
   };
   const togglePaid = async id => {
