@@ -1933,7 +1933,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [emoji, setEmoji] = useState("🟥");
-  const [editEmoji, setEditEmoji] = useState("🟥");
+  const [editEmoji, setEditEmoji] = useState("🟥"); const [editName, setEditName] = useState(""); const [editAmount, setEditAmount] = useState("");
   const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const tf = fineTypes.filter(f => f.teamId === team.id);
 
@@ -1949,11 +1949,16 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
     setSaving(false);
   };
 
-  const saveEmoji = async (id) => {
+  const startEdit = ft => {
+    setEditingId(ft.id); setEditEmoji(ft.emoji); setEditName(ft.name); setEditAmount(String(ft.amount));
+  };
+
+  const saveEdit = async (id) => {
+    if (!editName.trim() || !editAmount) return;
     setSaving(true);
     try {
-      await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji }, token);
-      onUpdated(id, editEmoji);
+      await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) }, token);
+      onUpdated(id, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) });
       setEditingId(null);
     } catch(e) { setErr(e.message); }
     setSaving(false);
@@ -1969,19 +1974,24 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
       {tf.map(ft => (
         <div key={ft.id}>
           <div style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-            <button onClick={() => { setEditingId(editingId===ft.id?null:ft.id); setEditEmoji(ft.emoji); }} style={{ fontSize:26, background:editingId===ft.id?`${team.color}15`:"transparent", border:`2px solid ${editingId===ft.id?team.color:"transparent"}`, borderRadius:10, padding:"2px 6px", cursor:"pointer" }}>{ft.emoji}</button>
+            <span style={{ fontSize:26 }}>{ft.emoji}</span>
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{ft.name}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€ {editingId===ft.id ? "· toca no emoji para editar ↑" : "· toca no emoji para mudar"}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€</p>
             </div>
+            <button onClick={() => editingId===ft.id ? setEditingId(null) : startEdit(ft)} style={{ background:"none", border:`1.5px solid ${editingId===ft.id?team.color:T.border}`, borderRadius:8, fontSize:13, fontWeight:700, color:editingId===ft.id?team.color:T.sub, cursor:"pointer", padding:"4px 10px", fontFamily:"inherit" }}>✏️</button>
             <button onClick={() => del(ft.id)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub, padding:"4px 8px" }}>🗑️</button>
           </div>
           {editingId===ft.id && (
             <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8, marginTop:-4 }}>
               <EmojiPicker value={editEmoji} onChange={setEditEmoji} color={team.color} />
+              <FL>Nome</FL>
+              <FI value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do tipo..." />
+              <FL>Valor (€)</FL>
+              <FI type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)} placeholder="0" />
               <div style={{ display:"flex", gap:8 }}>
-                <PrimaryBtn onClick={() => saveEmoji(ft.id)} disabled={saving} color={team.color}>
-                  {saving ? "A guardar..." : "✓ Guardar emoji"}
+                <PrimaryBtn onClick={() => saveEdit(ft.id)} disabled={!editName.trim()||!editAmount||saving} color={team.color}>
+                  {saving ? "A guardar..." : "✓ Guardar"}
                 </PrimaryBtn>
                 <button onClick={()=>setEditingId(null)} style={{ flex:1, padding:"15px", borderRadius:14, border:`1.5px solid ${T.border}`, background:"transparent", cursor:"pointer", fontFamily:"inherit", fontWeight:700, fontSize:14 }}>Cancelar</button>
               </div>
@@ -2145,7 +2155,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 
         {/* Fine Types Management */}
         <Sec label="Tipos de multa" />
-        <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} onUpdated={(id, emoji) => setFineTypes(p=>p.map(x=>x.id===id?{...x,emoji}:x))} token={token} />
+        <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} onUpdated={(id, data) => setFineTypes(p=>p.map(x=>x.id===id?{...x,...(typeof data==="object"?data:{emoji:data})}:x))} token={token} />
 
         {/* Danger zone */}
         <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
