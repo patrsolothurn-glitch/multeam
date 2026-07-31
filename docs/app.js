@@ -431,7 +431,7 @@ var aTeam = function aTeam(t) {
   };
 };
 var aMember = function aMember(m) {
-  var _m$profiles, _m$profiles2, _m$profiles3, _m$profiles4, _m$profiles5;
+  var _m$profiles, _m$profiles2, _m$profiles3, _m$profiles4, _m$profiles5, _m$profiles6;
   return {
     id: m.id,
     teamId: m.team_id,
@@ -441,7 +441,8 @@ var aMember = function aMember(m) {
     initials: mk(((_m$profiles2 = m.profiles) === null || _m$profiles2 === void 0 ? void 0 : _m$profiles2.name) || 'U'),
     position: m.position || ((_m$profiles3 = m.profiles) === null || _m$profiles3 === void 0 ? void 0 : _m$profiles3.position) || 'Jogador',
     phone: ((_m$profiles4 = m.profiles) === null || _m$profiles4 === void 0 ? void 0 : _m$profiles4.phone) || '',
-    birthday: ((_m$profiles5 = m.profiles) === null || _m$profiles5 === void 0 ? void 0 : _m$profiles5.birthday) || ''
+    birthday: ((_m$profiles5 = m.profiles) === null || _m$profiles5 === void 0 ? void 0 : _m$profiles5.birthday) || '',
+    avatarUrl: ((_m$profiles6 = m.profiles) === null || _m$profiles6 === void 0 ? void 0 : _m$profiles6.avatar_url) || null
   };
 };
 var aFine = function aFine(f) {
@@ -1046,7 +1047,7 @@ var AddFineModal = function AddFineModal(_ref12) {
       'apikey': SB_KEY,
       'Authorization': "Bearer ".concat(token)
     };
-    Promise.all([fetch("".concat(SB_URL, "/rest/v1/team_members?team_id=eq.").concat(team.id, "&select=*"), {
+    Promise.all([fetch("".concat(SB_URL, "/rest/v1/team_members?team_id=eq.").concat(team.id, "&select=*,profiles(name,phone,birthday,avatar_url)"), {
       headers: H
     }).then(function (r) {
       return r.json();
@@ -3942,7 +3943,17 @@ var DevedorCard = function DevedorCard(_ref55) {
       alignItems: "center",
       gap: 12
     }
-  }, React.createElement("div", {
+  }, member.avatarUrl ? React.createElement("img", {
+    src: member.avatarUrl,
+    style: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      objectFit: "cover",
+      flexShrink: 0,
+      border: "2px solid rgba(255,255,255,0.3)"
+    }
+  }) : React.createElement("div", {
     style: {
       width: 42,
       height: 42,
@@ -4085,7 +4096,8 @@ var FineGroupHome = function FineGroupHome(_ref56) {
     }
   }, React.createElement(Avatar, {
     initials: group.initials || "?",
-    color: color
+    color: color,
+    photo: group.avatarUrl
   }), React.createElement("div", {
     style: {
       flex: 1,
@@ -4485,7 +4497,18 @@ var HomeTab = function HomeTab(_ref57) {
         style: {
           fontSize: isFirst ? 36 : 24
         }
-      }, medal), React.createElement("div", {
+      }, medal), m.avatarUrl ? React.createElement("img", {
+        src: m.avatarUrl,
+        style: {
+          width: sz,
+          height: sz,
+          borderRadius: sz / 2,
+          objectFit: "cover",
+          border: "3px solid ".concat(pc),
+          boxShadow: "0 4px 20px ".concat(pc, "66"),
+          flexShrink: 0
+        }
+      }) : React.createElement("div", {
         style: {
           width: sz,
           height: sz,
@@ -4715,6 +4738,7 @@ var HomeTab = function HomeTab(_ref57) {
       if (!grouped[k]) grouped[k] = {
         name: (m === null || m === void 0 ? void 0 : m.name) || "?",
         initials: (m === null || m === void 0 ? void 0 : m.initials) || "?",
+        avatarUrl: (m === null || m === void 0 ? void 0 : m.avatarUrl) || null,
         fines: [],
         total: 0,
         unpaid: 0
@@ -4999,6 +5023,7 @@ var FinesTab = function FinesTab(_ref61) {
           if (!grouped[k]) grouped[k] = {
             name: (m === null || m === void 0 ? void 0 : m.name) || "?",
             initials: (m === null || m === void 0 ? void 0 : m.initials) || "?",
+            avatarUrl: (m === null || m === void 0 ? void 0 : m.avatarUrl) || null,
             fines: [],
             total: 0,
             unpaid: 0
@@ -5054,6 +5079,7 @@ var FinesTab = function FinesTab(_ref61) {
     if (!grouped[k]) grouped[k] = {
       name: (m === null || m === void 0 ? void 0 : m.name) || "?",
       initials: (m === null || m === void 0 ? void 0 : m.initials) || "?",
+      avatarUrl: (m === null || m === void 0 ? void 0 : m.avatarUrl) || null,
       fines: [],
       total: 0,
       unpaid: 0
@@ -7750,7 +7776,8 @@ var ManageTeamScreen = function ManageTeamScreen(_ref95) {
     }, React.createElement(Avatar, {
       initials: m.initials,
       color: team.color,
-      size: 44
+      size: 44,
+      photo: m.avatarUrl
     }), React.createElement("div", {
       style: {
         flex: 1
@@ -8344,7 +8371,8 @@ var MemberDetailScreen = function MemberDetailScreen(_ref97) {
   }, "\u2190 Voltar")), React.createElement(Avatar, {
     initials: member.initials,
     color: "rgba(255,255,255,0.2)",
-    size: 64
+    size: 64,
+    photo: member.avatarUrl
   }), React.createElement("h2", {
     style: {
       margin: "12px 0 2px",
@@ -9239,7 +9267,7 @@ function App() {
         while (1) switch (_context34.n) {
           case 0:
             _context34.n = 1;
-            return Promise.all([api.get("team_members?team_id=eq.".concat(tid, "&select=*"), tok), api.get("fine_types?team_id=eq.".concat(tid, "&order=amount.asc"), tok), api.get("fines?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("expenses?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("trainings?team_id=eq.".concat(tid, "&order=date.asc,time.asc"), tok), api.get("presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.".concat(tid), tok).catch(function () {
+            return Promise.all([api.get("team_members?team_id=eq.".concat(tid, "&select=*,profiles(name,phone,birthday,avatar_url)"), tok), api.get("fine_types?team_id=eq.".concat(tid, "&order=amount.asc"), tok), api.get("fines?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("expenses?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("trainings?team_id=eq.".concat(tid, "&order=date.asc,time.asc"), tok), api.get("presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.".concat(tid), tok).catch(function () {
               return [];
             })]);
           case 1:
