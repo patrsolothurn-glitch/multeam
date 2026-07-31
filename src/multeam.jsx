@@ -1846,13 +1846,15 @@ const AppAdminTab = ({ token, onBack }) => {
 
 
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout, onAdminOpen, isAppAdmin }) => {
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout, onAdminOpen, isAppAdmin, token }) => {
   const myTeams = teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
   );
   const myAge = age(user.birthday);
   const [tapCount, setTapCount] = useState(0);
-  const [showMembers, setShowMembers] = useState(null); // teamId or null
+  const [showMembers, setShowMembers] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
   const tapTimer = React.useRef(null);
 
   const handleAvatarTap = () => {
@@ -1864,15 +1866,33 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
     tapTimer.current = setTimeout(() => setTapCount(0), 800);
   };
 
-  // Members panel for a team
+  const openTeamMembers = async (teamId) => {
+    setShowMembers(teamId);
+    setLoadingMembers(true);
+    try {
+      const mRaw = await api.get(`team_members?team_id=eq.${teamId}&select=*`, token);
+      const uids = mRaw.map(m=>m.user_id).filter(Boolean);
+      let profilesMap = {};
+      if (uids.length > 0) {
+        const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, token).catch(()=>[]);
+        profs.forEach(p => { profilesMap[p.id] = p; });
+      }
+      const merged = mRaw.map(m => ({
+        ...aMember({ ...m, profiles: profilesMap[m.user_id] || null })
+      }));
+      setTeamMembers(merged);
+    } catch(e) { console.error(e); }
+    setLoadingMembers(false);
+  };
+
   if (showMembers) {
     const t = teams.find(x=>x.id===showMembers);
-    const tm = members.filter(m=>m.teamId===showMembers);
+    const tm = teamMembers;
     return (
       <div style={{ padding:"16px 16px 100px" }}>
         <button onClick={()=>setShowMembers(null)} style={{ background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
         <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:900 }}>{t?.emoji} {t?.name}</h2>
-        <p style={{ margin:"0 0 16px", fontSize:13, color:T.sub }}>{tm.length} membro{tm.length!==1?"s":""}</p>
+        <p style={{ margin:"0 0 16px", fontSize:13, color:T.sub }}>{loadingMembers ? "A carregar..." : `${tm.length} membro${tm.length!==1?"s":""}`}</p>
         {tm.map(m => (
           <div key={m.id} style={{ background:T.card, borderRadius:16, padding:"14px", marginBottom:10, display:"flex", alignItems:"center", gap:14 }}>
             {m.avatarUrl
@@ -1941,7 +1961,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
                 <button onClick={() => onManageTeam(t.id)} style={{ background:`${t.color}15`, border:"none", borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:t.color, fontFamily:"inherit" }}>Gerir →</button>
               )}
             </div>
-            <button onClick={() => setShowMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            <button onClick={() => openTeamMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               👥 Ver membros da equipa
             </button>
           </div>
@@ -2938,7 +2958,7 @@ export default function App() {
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
