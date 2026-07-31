@@ -8502,7 +8502,7 @@ function App() {
   }();
   var initApp = function () {
     var _ref102 = _asyncToGenerator(_regenerator().m(function _callee35(tok, uid) {
-      var profData, p, created, myTeamsR, adapted, teamsJson, teamsList, first, td, _t39, _t40;
+      var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t39, _t40;
       return _regenerator().w(function (_context35) {
         while (1) switch (_context35.p = _context35.n) {
           case 0:
@@ -8544,43 +8544,63 @@ function App() {
               isAppAdmin: p.is_admin === true
             });
             _context35.n = 7;
-            return fetch("".concat(SB_URL, "/rest/v1/rpc/get_my_teams"), {
-              method: 'POST',
+            return fetch("".concat(SB_URL, "/rest/v1/team_members?user_id=eq.").concat(uid, "&select=team_id"), {
               headers: {
                 'apikey': SB_KEY,
-                'Authorization': "Bearer ".concat(tok),
-                'Content-Type': 'application/json'
-              },
-              body: '{}'
+                'Authorization': "Bearer ".concat(tok)
+              }
             });
           case 7:
-            myTeamsR = _context35.v;
+            membershipsR = _context35.v;
             adapted = [];
-            if (!myTeamsR.ok) {
-              _context35.n = 9;
+            if (!membershipsR.ok) {
+              _context35.n = 11;
               break;
             }
             _context35.n = 8;
-            return myTeamsR.json();
+            return membershipsR.json();
           case 8:
-            teamsJson = _context35.v;
-            teamsList = Array.isArray(teamsJson) ? teamsJson : teamsJson ? [teamsJson] : [];
-            adapted = teamsList.map(aTeam);
+            memberships = _context35.v;
+            teamIds = (Array.isArray(memberships) ? memberships : []).map(function (m) {
+              return m.team_id;
+            }).filter(Boolean);
+            if (!(teamIds.length > 0)) {
+              _context35.n = 11;
+              break;
+            }
+            _context35.n = 9;
+            return fetch("".concat(SB_URL, "/rest/v1/teams?id=in.(").concat(teamIds.join(','), ")&order=created_at.asc"), {
+              headers: {
+                'apikey': SB_KEY,
+                'Authorization': "Bearer ".concat(tok)
+              }
+            });
           case 9:
+            teamsR = _context35.v;
+            if (!teamsR.ok) {
+              _context35.n = 11;
+              break;
+            }
+            _context35.n = 10;
+            return teamsR.json();
+          case 10:
+            teamsJson = _context35.v;
+            adapted = (Array.isArray(teamsJson) ? teamsJson : []).map(aTeam);
+          case 11:
             setTeams(adapted);
             if (adapted.length) {
-              _context35.n = 10;
+              _context35.n = 12;
               break;
             }
             setAppReady(true);
             setLoading(false);
             return _context35.a(2);
-          case 10:
+          case 12:
             first = adapted[0].id;
             setTeamId(first);
-            _context35.n = 11;
+            _context35.n = 13;
             return loadTeam(tok, first);
-          case 11:
+          case 13:
             td = _context35.v;
             setMembers(td.members);
             setFineTypes(td.fineTypes);
@@ -8589,20 +8609,20 @@ function App() {
             setTrainings(td.trainings);
             setPresences(td.presences);
             setAppReady(true);
-            _context35.n = 13;
+            _context35.n = 15;
             break;
-          case 12:
-            _context35.p = 12;
+          case 14:
+            _context35.p = 14;
             _t40 = _context35.v;
             setAuthError("Erro: ".concat(_t40.message));
-          case 13:
-            _context35.p = 13;
+          case 15:
+            _context35.p = 15;
             setLoading(false);
-            return _context35.f(13);
-          case 14:
+            return _context35.f(15);
+          case 16:
             return _context35.a(2);
         }
-      }, _callee35, null, [[3, 5], [1, 12, 13, 14]]);
+      }, _callee35, null, [[3, 5], [1, 14, 15, 16]]);
     }));
     return function initApp(_x11, _x12) {
       return _ref102.apply(this, arguments);
