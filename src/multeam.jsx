@@ -1154,6 +1154,8 @@ const EventCard = ({ t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, s
 const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onLogSession, onBack, modal, setModal }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
+  const [collapsedMonths, setCollapsedMonths] = useState({});
+  const toggleMonth = m => setCollapsedMonths(p => ({...p, [m]: !p[m]}));
   const [showFilter, setShowFilter] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
@@ -1232,12 +1234,24 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
         )}
 
         {/* Month groups */}
-        {Object.entries(byMonth).map(([month, evts]) => (
-          <div key={month}>
-            <p style={{ margin:"16px 0 10px", fontSize:15, fontWeight:900, color:team.color, textTransform:"uppercase", letterSpacing:0.8 }}>{month}</p>
-            {evts.map(t => <EventCard key={t.id} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} />)}
-          </div>
-        ))}
+        {Object.entries(byMonth).map(([month, evts]) => {
+          const isCollapsed = collapsedMonths[month];
+          const totalSessions = evts.length;
+          const totalPresent = evts.reduce((s, t) => s + Object.values(presences[t.id]||{}).filter(x=>x==="present").length, 0);
+          return (
+            <div key={month}>
+              <button onClick={() => toggleMonth(month)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"14px 0 8px", fontFamily:"inherit" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:15, fontWeight:900, color:team.color, textTransform:"uppercase", letterSpacing:0.8 }}>{month}</span>
+                  <span style={{ fontSize:12, color:T.sub, fontWeight:600 }}>{totalSessions} sessão{totalSessions!==1?"ões":""}</span>
+                  {totalPresent>0 && <span style={{ fontSize:12, color:T.green, fontWeight:700 }}>· {totalPresent} ✓</span>}
+                </div>
+                <span style={{ fontSize:16, color:T.sub }}>{isCollapsed ? "▶" : "▼"}</span>
+              </button>
+              {!isCollapsed && evts.map(t => <EventCard key={t.id} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} />)}
+            </div>
+          );
+        })}
 
         {Object.keys(byMonth).length===0 && recurring.length===0 && (
           <div style={{ textAlign:"center", padding:"52px 0", color:T.sub }}>
