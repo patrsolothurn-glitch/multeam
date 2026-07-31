@@ -1118,7 +1118,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                       : <div style={{ width:26, height:26, borderRadius:13, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>{m.initials}</div>
                     }
                     <span style={{ fontSize:12, fontWeight:700, color:isToday?"#fff":"#8B6914", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</span>
-                    <span style={{ fontSize:12, fontWeight:900, color:isToday?"rgba(255,255,255,0.9)":"#B8860B", whiteSpace:"nowrap" }}>{isToday?"🎉":m.bDay}</span>
+                    <span style={{ fontSize:11, fontWeight:900, color:isToday?"rgba(255,255,255,0.9)":"#B8860B", whiteSpace:"nowrap", background:isToday?"rgba(255,255,255,0.2)":"#FFE0A0", borderRadius:8, padding:"1px 6px" }}>{isToday?"🎉 Hoje":`${m.bDay} ${MONTHS_PT[currentMonth-1]}`}</span>
                   </div>
                 );
               })}
