@@ -10192,11 +10192,10 @@ function App() {
   };
   var addFine = function () {
     var _ref114 = _asyncToGenerator(_regenerator().m(function _callee41(d) {
-      var today, _yield$api$post, _yield$api$post2, f;
+      var _yield$api$post, _yield$api$post2, f;
       return _regenerator().w(function (_context41) {
         while (1) switch (_context41.n) {
           case 0:
-            today = new Date().toISOString().split('T')[0];
             _context41.n = 1;
             return api.post('fines', {
               team_id: d.teamId,
@@ -10205,8 +10204,7 @@ function App() {
               reason: d.reason,
               emoji: d.emoji,
               paid: false,
-              assigned_by: myUserId,
-              date: today
+              assigned_by: myUserId
             }, token);
           case 1:
             _yield$api$post = _context41.v;
