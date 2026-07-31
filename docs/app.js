@@ -446,7 +446,10 @@ var aMember = function aMember(m) {
   };
 };
 var aFine = function aFine(f) {
-  var _f$created_at;
+  var localDate = f.created_at ? function () {
+    var d = new Date(f.created_at);
+    return "".concat(d.getFullYear(), "-").concat(String(d.getMonth() + 1).padStart(2, '0'), "-").concat(String(d.getDate()).padStart(2, '0'));
+  }() : '';
   return {
     id: f.id,
     teamId: f.team_id,
@@ -455,7 +458,7 @@ var aFine = function aFine(f) {
     reason: f.reason || '',
     emoji: f.emoji || '🟥',
     paid: f.paid,
-    date: f.date || ((_f$created_at = f.created_at) === null || _f$created_at === void 0 ? void 0 : _f$created_at.split('T')[0]) || ''
+    date: f.date || localDate
   };
 };
 var aFineType = function aFineType(ft) {
