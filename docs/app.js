@@ -455,7 +455,7 @@ var aFine = function aFine(f) {
     reason: f.reason || '',
     emoji: f.emoji || '🟥',
     paid: f.paid,
-    date: ((_f$created_at = f.created_at) === null || _f$created_at === void 0 ? void 0 : _f$created_at.split('T')[0]) || ''
+    date: f.date || ((_f$created_at = f.created_at) === null || _f$created_at === void 0 ? void 0 : _f$created_at.split('T')[0]) || ''
   };
 };
 var aFineType = function aFineType(ft) {
@@ -4440,35 +4440,35 @@ var HomeTab = function HomeTab(_ref57) {
     if (!bdays.length) return null;
     return React.createElement("div", {
       style: {
-        marginBottom: 14,
+        marginBottom: 12,
         background: "#FFF8E7",
-        borderRadius: 12,
-        padding: "10px 14px"
+        borderRadius: 10,
+        padding: "8px 12px"
       }
     }, React.createElement("div", {
       style: {
         display: "flex",
         alignItems: "center",
-        gap: 6,
-        marginBottom: 8
+        gap: 5,
+        marginBottom: 6
       }
     }, React.createElement("span", {
       style: {
-        fontSize: 14
+        fontSize: 12
       }
     }, "\uD83C\uDF82"), React.createElement("p", {
       style: {
         margin: 0,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: 800,
         color: "#B8860B",
         textTransform: "uppercase",
-        letterSpacing: 1
+        letterSpacing: 0.8
       }
     }, "Aniversariantes de ", MONTHS_PT[currentMonth - 1])), React.createElement("div", {
       style: {
         display: "flex",
-        gap: 8,
+        gap: 6,
         overflowX: "auto",
         paddingBottom: 2
       }
@@ -4480,54 +4480,51 @@ var HomeTab = function HomeTab(_ref57) {
           flexShrink: 0,
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 5,
           background: isToday ? "linear-gradient(135deg,#FF6B35,#FFB347)" : "#fff",
-          borderRadius: 20,
-          padding: "5px 10px 5px 6px",
-          border: isToday ? "none" : "1px solid #FFE0A0",
-          boxShadow: isToday ? "0 2px 8px #FF6B3533" : "none"
+          borderRadius: 16,
+          padding: "4px 8px 4px 4px",
+          border: isToday ? "none" : "1px solid #FFE0A0"
         }
       }, m.avatarUrl ? React.createElement("img", {
         src: m.avatarUrl,
         style: {
-          width: 26,
-          height: 26,
-          borderRadius: 13,
-          objectFit: "cover",
-          flexShrink: 0
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          objectFit: "cover"
         }
       }) : React.createElement("div", {
         style: {
-          width: 26,
-          height: 26,
-          borderRadius: 13,
+          width: 22,
+          height: 22,
+          borderRadius: 11,
           background: isToday ? "rgba(255,255,255,0.3)" : team.color,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           color: "#fff",
-          fontSize: 10,
-          fontWeight: 800,
-          flexShrink: 0
+          fontSize: 8,
+          fontWeight: 800
         }
       }, m.initials), React.createElement("span", {
         style: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 700,
           color: isToday ? "#fff" : "#8B6914",
           whiteSpace: "nowrap"
         }
       }, m.name.split(" ")[0]), React.createElement("span", {
         style: {
-          fontSize: 11,
-          fontWeight: 900,
+          fontSize: 10,
+          fontWeight: 800,
           color: isToday ? "rgba(255,255,255,0.9)" : "#B8860B",
           whiteSpace: "nowrap",
           background: isToday ? "rgba(255,255,255,0.2)" : "#FFE0A0",
-          borderRadius: 8,
-          padding: "1px 6px"
+          borderRadius: 6,
+          padding: "1px 5px"
         }
-      }, isToday ? "🎉 Hoje" : "".concat(m.bDay, " ").concat(MONTHS_PT[currentMonth - 1])));
+      }, isToday ? "🎉" : "".concat(m.bDay, " ").concat(MONTHS_PT[currentMonth - 1])));
     })));
   }(), function () {
     var tm = members.filter(function (m) {
@@ -10195,10 +10192,11 @@ function App() {
   };
   var addFine = function () {
     var _ref114 = _asyncToGenerator(_regenerator().m(function _callee41(d) {
-      var _yield$api$post, _yield$api$post2, f;
+      var today, _yield$api$post, _yield$api$post2, f;
       return _regenerator().w(function (_context41) {
         while (1) switch (_context41.n) {
           case 0:
+            today = new Date().toISOString().split('T')[0];
             _context41.n = 1;
             return api.post('fines', {
               team_id: d.teamId,
@@ -10207,7 +10205,8 @@ function App() {
               reason: d.reason,
               emoji: d.emoji,
               paid: false,
-              assigned_by: myUserId
+              assigned_by: myUserId,
+              date: today
             }, token);
           case 1:
             _yield$api$post = _context41.v;
