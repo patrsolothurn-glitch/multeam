@@ -2695,8 +2695,7 @@ export default function App() {
 
   // Data actions
   const addFine = async d => {
-    const today = new Date().toISOString().split('T')[0];
-    const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId,date:today},token);
+    const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token);
     setFines(p=>[aFine(f),...p]);
   };
   const togglePaid = async id => {
