@@ -1100,12 +1100,25 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
           fines: tf.filter(f=>f.memberId===m.id&&!f.paid)
         })).filter(m=>m.unpaid>0).sort((a,b)=>b.unpaid-a.unpaid);
         if (!devedores.length) return null;
+        const [showAll, setShowAll] = React.useState(false);
+        const visible = showAll ? devedores : devedores.slice(0, 3);
+        const hidden = devedores.length - 3;
         return (
           <div style={{ marginBottom:18 }}>
             <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🚨 Devedores</p>
-            {devedores.map((m,i) => (
+            {visible.map((m,i) => (
               <DevedorCard key={m.id} member={m} isTop={i===0} color={team.color} onOpen={()=>onSelectMember&&onSelectMember(m)} />
             ))}
+            {!showAll && hidden > 0 && (
+              <button onClick={() => setShowAll(true)} style={{ width:"100%", background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"11px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit" }}>
+                +{hidden} devedor{hidden!==1?"es":""} — ver todos
+              </button>
+            )}
+            {showAll && devedores.length > 3 && (
+              <button onClick={() => setShowAll(false)} style={{ width:"100%", background:"transparent", border:"none", padding:"8px", fontSize:12, cursor:"pointer", color:T.sub, fontFamily:"inherit" }}>
+                ▲ Mostrar menos
+              </button>
+            )}
           </div>
         );
       })()}
