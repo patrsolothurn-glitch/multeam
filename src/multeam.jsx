@@ -2212,14 +2212,23 @@ export default function App() {
       if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'', isAppAdmin: p.is_admin===true });
 
       // Load teams via RPC (bypasses RLS, handles member + creator)
-      const myTeamsR = await fetch(`${SB_URL}/rest/v1/rpc/get_my_teams`, {
-        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`,'Content-Type':'application/json'}, body:'{}'
+      // Carregar equipas via query direta (evita dependência do RPC get_my_teams)
+      const membershipsR = await fetch(`${SB_URL}/rest/v1/team_members?user_id=eq.${uid}&select=team_id`, {
+        headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`}
       });
       let adapted = [];
-      if (myTeamsR.ok) {
-        const teamsJson = await myTeamsR.json();
-        const teamsList = Array.isArray(teamsJson) ? teamsJson : (teamsJson ? [teamsJson] : []);
-        adapted = teamsList.map(aTeam);
+      if (membershipsR.ok) {
+        const memberships = await membershipsR.json();
+        const teamIds = (Array.isArray(memberships) ? memberships : []).map(m => m.team_id).filter(Boolean);
+        if (teamIds.length > 0) {
+          const teamsR = await fetch(`${SB_URL}/rest/v1/teams?id=in.(${teamIds.join(',')})&order=created_at.asc`, {
+            headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`}
+          });
+          if (teamsR.ok) {
+            const teamsJson = await teamsR.json();
+            adapted = (Array.isArray(teamsJson) ? teamsJson : []).map(aTeam);
+          }
+        }
       }
       setTeams(adapted);
 
