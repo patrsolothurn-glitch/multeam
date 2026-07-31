@@ -2458,9 +2458,15 @@ export default function App() {
   const joinTeam = async t => {
     try {
       await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
-      // Reload all teams from DB to guarantee state is fresh
-      const freshTeams = await api.rpc('get_my_teams', {}, token);
-      if (Array.isArray(freshTeams)) setTeams(freshTeams.map(aTeam));
+      // Reload all teams via RPC (mesmo método que o carregamento inicial)
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/get_my_teams`, {
+        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body:'{}'
+      });
+      if (r.ok) {
+        const json = await r.json();
+        const list = Array.isArray(json) ? json : (json ? [json] : []);
+        setTeams(list.map(aTeam));
+      }
       await switchTeam(t.id);
     } catch(e){
       console.error(e);
