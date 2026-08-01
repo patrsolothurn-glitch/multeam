@@ -1069,8 +1069,58 @@ const FineGroupHome = ({ group, color, renderFine }) => {
   );
 };
 
-const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember }) => {
+const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
+  const tf = fineTypes.filter(f => f.teamId === team.id);
+  const tm = members.filter(m => m.teamId === team.id);
+  const [tab, setTab] = React.useState("tipos");
+  const devedores = tm.map(m => ({
+    ...m,
+    unpaid: fines.filter(f=>f.teamId===team.id&&f.memberId===m.id&&!f.paid).reduce((s,f)=>s+f.amount,0),
+    count: fines.filter(f=>f.teamId===team.id&&f.memberId===m.id&&!f.paid).length
+  })).filter(m=>m.unpaid>0).sort((a,b)=>b.unpaid-a.unpaid);
+  return (
+    <Sheet title={`📋 Tabela de Multas — ${team.name}`} onClose={onClose}>
+      <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+        <Chip active={tab==="tipos"} color={team.color} onClick={()=>setTab("tipos")}>Tipos</Chip>
+        <Chip active={tab==="devedores"} color={T.brand} onClick={()=>setTab("devedores")}>Por pagar ({devedores.length})</Chip>
+      </div>
+      {tab==="tipos" && (
+        <>
+          {tf.length===0 && <p style={{ color:T.sub, textAlign:"center", padding:20 }}>Sem tipos de multa definidos</p>}
+          {tf.sort((a,b)=>a.amount-b.amount).map(ft => (
+            <div key={ft.id} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:26, flexShrink:0 }}>{ft.emoji}</span>
+              <p style={{ margin:0, fontWeight:700, fontSize:15, flex:1 }}>{ft.name}</p>
+              <p style={{ margin:0, fontWeight:900, fontSize:18, color:T.brand }}>{ft.amount}€</p>
+            </div>
+          ))}
+        </>
+      )}
+      {tab==="devedores" && (
+        <>
+          {devedores.length===0 && <p style={{ color:T.green, textAlign:"center", padding:20, fontWeight:700 }}>✓ Toda a equipa está em dia!</p>}
+          {devedores.map((m,i) => (
+            <div key={m.id} style={{ background:i===0?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12, border:i===0?"none":`1px solid ${T.border}` }}>
+              {m.avatarUrl
+                ? <img src={m.avatarUrl} style={{ width:40, height:40, borderRadius:20, objectFit:"cover" }} />
+                : <div style={{ width:40, height:40, borderRadius:20, background:i===0?"rgba(255,255,255,0.25)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:14 }}>{m.initials}</div>
+              }
+              <div style={{ flex:1 }}>
+                <p style={{ margin:0, fontWeight:700, fontSize:14, color:i===0?"#fff":T.text }}>{m.name}</p>
+                <p style={{ margin:0, fontSize:12, color:i===0?"rgba(255,255,255,0.7)":T.sub }}>{m.count} multa{m.count!==1?"s":""} por pagar</p>
+              </div>
+              <p style={{ margin:0, fontWeight:900, fontSize:20, color:i===0?"#fff":T.brand }}>{m.unpaid.toFixed(1)}€</p>
+            </div>
+          ))}
+        </>
+      )}
+    </Sheet>
+  );
+};
+
+const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes }) => {
   const tf = fines.filter(f => f.teamId===team.id);
+  const [showTabela, setShowTabela] = React.useState(false);
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const spent = expenses.filter(e=>e.teamId===team.id).reduce((s,e)=>s+e.amount,0);
@@ -1104,8 +1154,12 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         </div>
       </div>
       {isAdmin && (
-        <button onClick={onAddFine} style={{ width:"100%", background:T.brand, color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:18, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
+        <button onClick={onAddFine} style={{ width:"100%", background:T.brand, color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
       )}
+      <button onClick={() => setShowTabela(true)} style={{ width:"100%", background:T.card, border:`1.5px solid ${T.border}`, borderRadius:14, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:18, fontFamily:"inherit", color:T.text, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+        📋 Tabela de multas & devedores
+      </button>
+      {showTabela && <TabelaMultasModal team={team} fineTypes={fineTypes||[]} fines={fines} members={members} onClose={()=>setShowTabela(false)} />}
 
       {/* Aniversariantes do mês */}
       {(() => {
@@ -3034,7 +3088,7 @@ export default function App() {
         </div>
       </div>
 
-      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} />}
+      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
