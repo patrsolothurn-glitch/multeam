@@ -92,11 +92,16 @@ const AdminHeaderBadge = ({ teamColor }) => (
 
 // Role badge on light background (for lists/cards)
 const RoleBadgeLight = ({ role }) => {
-  const isAdmin = role === "admin";
+  const cfg = {
+    admin:     { label:"Admin",     color:"#1D3557" },
+    treinador: { label:"Treinador", color:"#2E7D32" },
+    diretor:   { label:"Diretor",   color:"#7B1FA2" },
+    player:    { label:"Jogador",   color:"#86868B" },
+  };
+  const c = cfg[role]||cfg.player;
   return (
-    <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:isAdmin?"#1D355712":"#86868B12", border:`1px solid ${isAdmin?"#1D355730":"#86868B30"}`, borderRadius:6, padding:"3px 8px" }}>
-      {isAdmin ? <ShieldIcon size={11} color="#1D3557" /> : <PersonIcon size={11} color="#86868B" />}
-      <span style={{ color:isAdmin?"#1D3557":"#86868B", fontSize:11, fontWeight:700 }}>{isAdmin?"Admin":"Jogador"}</span>
+    <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:`${c.color}12`, border:`1px solid ${c.color}30`, borderRadius:6, padding:"3px 8px" }}>
+      <span style={{ color:c.color, fontSize:11, fontWeight:700 }}>{c.label}</span>
     </div>
   );
 };
@@ -2292,11 +2297,15 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               </button>
               {m.userId !== myUserId && (
                 <>
-                  <button onClick={() => onToggleRole(m.id)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${m.role==="admin"?T.sub:T.yellow}`, background:"transparent", color:m.role==="admin"?T.sub:T.yellow, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                    {m.role==="admin"?"↓ Jogador":"↑ Admin"}
-                  </button>
-                  <button onClick={() => setConfirmRemove(m)} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                    🗑 Remover
+                  <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                    {[["admin","🛡 Admin","#1D3557"],["treinador","🎽 Treinador","#2E7D32"],["diretor","📋 Diretor","#7B1FA2"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
+                      <button key={r} onClick={() => m.role!==r && onToggleRole(m.id, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?c:T.border}`, background:m.role===r?`${c}15`:"transparent", color:m.role===r?c:T.sub, fontSize:12, fontWeight:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => setConfirmRemove(m)} style={{ width:"100%", padding:"9px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>
+                    🗑 Remover membro
                   </button>
                 </>
               )}
@@ -2607,6 +2616,8 @@ export default function App() {
 
   const team = teams.find(t=>t.id===teamId);
   const isAdmin = members.some(m=>m.teamId===teamId&&m.userId===myUserId&&m.role==="admin") || team?.createdBy===myUserId;
+  const myRole = members.find(m=>m.teamId===teamId&&m.userId===myUserId)?.role||"player";
+  const canManageTrainings = isAdmin || myRole==="treinador" || myRole==="diretor";
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
@@ -2848,8 +2859,9 @@ export default function App() {
       }
     } catch(e){console.error(e);}
   };
-  const toggleRole = async id => {
-    const m=members.find(m=>m.id===id); if(!m)return; const nr=m.role==='admin'?'player':'admin';
+  const toggleRole = async (id, newRole) => {
+    const m=members.find(m=>m.id===id); if(!m)return;
+    const nr = newRole || (m.role==='admin'?'player':'admin');
     try { await api.patch(`team_members?id=eq.${id}`,{role:nr},token); setMembers(p=>p.map(m=>m.id===id?{...m,role:nr}:m)); } catch(e){console.error(e);}
   };
   const removeMember = async id => {
@@ -3062,7 +3074,7 @@ export default function App() {
 
   if (tab==="treinos") return (
     <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
-      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={isAdmin} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
+      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
