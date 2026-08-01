@@ -1974,7 +1974,7 @@ const AppAdminTab = ({ token, onBack }) => {
 
 
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLogout, onAdminOpen, isAppAdmin, token }) => {
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token }) => {
   const myTeams = teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
   );
@@ -2092,6 +2092,11 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
             <button onClick={() => openTeamMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               👥 Ver membros da equipa
             </button>
+            {!admin && (
+              <button onClick={() => { if(window.confirm(`Sair de "${t.name}"? Perdes o acesso à equipa.`)) onLeaveTeam(t.id); }} style={{ width:"100%", marginTop:6, background:"transparent", border:`1px solid ${T.brand}`, borderRadius:10, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer", color:T.brand, fontFamily:"inherit" }}>
+                🚪 Sair desta equipa
+              </button>
+            )}
           </div>
         );
       })}
@@ -2859,6 +2864,18 @@ export default function App() {
       }
     } catch(e){console.error(e);}
   };
+  const leaveTeam = async (tid) => {
+    const m = members.find(m=>m.teamId===tid&&m.userId===myUserId);
+    if (!m) return;
+    try {
+      await api.del(`team_members?id=eq.${m.id}`, token);
+      setTeams(p=>p.filter(t=>t.id!==tid));
+      setMembers(p=>p.filter(m=>m.teamId!==tid));
+      // Mudar para outra equipa se disponível
+      const remaining = teams.filter(t=>t.id!==tid);
+      if (remaining.length > 0) await switchTeam(remaining[0].id);
+    } catch(e) { console.error(e); alert("Erro ao sair da equipa"); }
+  };
   const toggleRole = async (id, newRole) => {
     const m=members.find(m=>m.id===id); if(!m)return;
     const nr = newRole || (m.role==='admin'?'player':'admin');
@@ -3103,7 +3120,7 @@ export default function App() {
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
