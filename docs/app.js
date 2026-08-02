@@ -11096,7 +11096,7 @@ function App() {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                p_member_id: id,
+                p_member_id: m === null || m === void 0 ? void 0 : m.userId,
                 p_team_id: m === null || m === void 0 ? void 0 : m.teamId,
                 p_name: data.name || '',
                 p_phone: data.phone || '',
