@@ -654,7 +654,7 @@ const EditRecurringModal = ({ team, training, onEdit, onClose }) => {
   );
 };
 
-const POSITIONS = ["Guarda-redes","Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Libero","Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante","Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro","Fixo","Ala","Pivot","Universal","Treinador","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Diretor Desportivo","Presidente","Massagista / Fisioterapeuta","Delegado","Team Manager","Médico","Outro"];
+const POSITIONS = ["Guarda-redes","Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Libero","Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante","Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro","Fixo","Ala","Pivot","Universal","Treinador","Treinador Desportivo","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Diretor Desportivo","Presidente","Massagista / Fisioterapeuta","Delegado","Team Manager","Médico","Outro"];
 
 const POSITIONS_GROUPED = {
   "🥅 Guarda-redes":       ["Guarda-redes"],
@@ -662,7 +662,7 @@ const POSITIONS_GROUPED = {
   "⚙️ Médio":               ["Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante"],
   "⚡ Atacante":            ["Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro"],
   "🏟 Futsal / Praia":      ["Fixo","Ala","Pivot","Universal"],
-  "🎽 Equipa Técnica":      ["Treinador","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Massagista / Fisioterapeuta","Médico"],
+  "🎽 Equipa Técnica":      ["Treinador","Treinador Desportivo","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Massagista / Fisioterapeuta","Médico"],
   "🏛 Direção / Gestão":    ["Diretor Desportivo","Presidente","Delegado","Team Manager"],
   "· Outro":                ["Outro"],
 };
