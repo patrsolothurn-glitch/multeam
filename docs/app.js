@@ -12090,7 +12090,8 @@ function App() {
                 name: u.name,
                 phone: u.phone || null,
                 birthday: u.birthday || null,
-                avatar_url: u.avatarUrl || null
+                avatar_url: u.avatarUrl || null,
+                position: u.position || null
               }, token);
             case 1:
               _context65.n = 3;
