@@ -3138,8 +3138,7 @@ export default function App() {
       {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
-        // Guardar avatar_url na tabela profiles
-        try { await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null},token); } catch(e){console.error(e);}
+        try { await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token); } catch(e){console.error(e);}
         await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
         setProfile(p=>({...p,...u}));
       }} onClose={()=>setModal(null)} />}
