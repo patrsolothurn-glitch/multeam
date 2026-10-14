@@ -1873,6 +1873,8 @@ var AddExpenseModal = function AddExpenseModal(_ref23) {
     _useState44 = _slicedToArray(_useState43, 2),
     amount = _useState44[0],
     setAmount = _useState44[1];
+  var val = Number(amount);
+  var valid = amount !== "" && Number.isFinite(val) && val > 0;
   return React.createElement(Sheet, {
     title: "\uD83D\uDCB8 Nova despesa",
     onClose: onClose
@@ -1885,23 +1887,32 @@ var AddExpenseModal = function AddExpenseModal(_ref23) {
     placeholder: "Ex: Jantar de equipa..."
   }), React.createElement(FL, null, "Valor (\u20AC)"), React.createElement(FI, {
     type: "number",
+    min: "0",
+    step: "0.01",
     value: amount,
     onChange: function onChange(e) {
       return setAmount(e.target.value);
     },
     placeholder: "0.00"
-  }), React.createElement(PrimaryBtn, {
+  }), amount !== "" && !valid && React.createElement("p", {
+    style: {
+      color: T.brand,
+      fontSize: 13,
+      fontWeight: 700,
+      margin: "-6px 0 10px"
+    }
+  }, "O valor tem de ser maior que zero."), React.createElement(PrimaryBtn, {
     onClick: function onClick() {
-      if (!desc || !amount) return;
+      if (!desc || !valid) return;
       onAdd({
         teamId: team.id,
         description: desc,
-        amount: Number(amount),
+        amount: Math.abs(val),
         date: new Date().toISOString().split("T")[0]
       });
       onClose();
     },
-    disabled: !desc || !amount,
+    disabled: !desc || !valid,
     color: T.navy
   }, "Registar despesa"));
 };
@@ -4564,7 +4575,7 @@ var HomeTab = function HomeTab(_ref58) {
   var spent = expenses.filter(function (e) {
     return e.teamId === team.id;
   }).reduce(function (s, e) {
-    return s + e.amount;
+    return s + Math.abs(e.amount);
   }, 0);
   var balance = collected - spent;
   var memberRank = members.filter(function (m) {
@@ -6689,7 +6700,7 @@ var TreasuryTab = function TreasuryTab(_ref79) {
     return s + f.amount;
   }, 0);
   var spent = te.reduce(function (s, e) {
-    return s + e.amount;
+    return s + Math.abs(e.amount);
   }, 0);
   var balance = income - spent;
   var gm = function gm(id) {
@@ -6849,7 +6860,7 @@ var TreasuryTab = function TreasuryTab(_ref79) {
         fontSize: 17,
         color: tx.type === "in" ? T.green : T.brand
       }
-    }, tx.type === "in" ? "+" : "-", tx.amount, "\u20AC"));
+    }, tx.type === "in" ? "+" : "-", Math.abs(tx.amount), "\u20AC"));
   }));
 };
 var AppAdminTab = function AppAdminTab(_ref80) {
