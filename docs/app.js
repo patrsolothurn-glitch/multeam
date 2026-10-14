@@ -9945,6 +9945,9 @@ var Spinner = function Spinner(_ref110) {
     }
   }, msg), React.createElement("style", null, "@keyframes spin{to{transform:rotate(360deg)}} .spin{animation:spin 1s linear infinite}"));
 };
+var plur = function plur(n, one, many) {
+  return "".concat(n, " ").concat(n === 1 ? one : many);
+};
 var KindPicker = function KindPicker(_ref111) {
   var value = _ref111.value,
     onChange = _ref111.onChange;
@@ -10017,8 +10020,28 @@ var AddCardModal = function AddCardModal(_ref114) {
     _useState284 = _slicedToArray(_useState283, 2),
     err = _useState284[0],
     setErr = _useState284[1];
+  var sel = tm.find(function (m) {
+    return String(m.id) === String(mid);
+  });
   var y = mid ? cardCount(cards, team.id, mid).yellows : 0;
-  var after = kind === "amarelo" ? y + 1 : y;
+  var after = y + 1;
+  var consequence = !sel ? null : kind === "vermelho" ? {
+    t: "Cartão vermelho. O castigo é dado pela associação.",
+    color: T.brand,
+    strong: false
+  } : after >= 5 ? {
+    t: "Fica SUSPENSO por 1 jogo.",
+    color: "#B00020",
+    strong: true
+  } : after === 4 ? {
+    t: "Fica com 4 amarelos — a 1 da suspensão.",
+    color: T.brand,
+    strong: true
+  } : {
+    t: "Fica com ".concat(plur(after, "amarelo", "amarelos"), "."),
+    color: T.sub,
+    strong: false
+  };
   var save = function () {
     var _ref115 = _asyncToGenerator(_regenerator().m(function _callee35() {
       var _t41;
@@ -10064,7 +10087,38 @@ var AddCardModal = function AddCardModal(_ref114) {
   return React.createElement(Sheet, {
     onClose: onClose,
     title: "Lan\xE7ar cart\xE3o"
-  }, React.createElement(FL, null, "Jogador"), React.createElement("div", {
+  }, sel && React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      background: "".concat(T.navy, "12"),
+      border: "2px solid ".concat(T.navy),
+      borderRadius: 14,
+      padding: "10px 12px",
+      marginBottom: 14
+    }
+  }, React.createElement(Avatar, {
+    initials: sel.initials,
+    photo: sel.avatarUrl,
+    color: team.color,
+    size: 44
+  }), React.createElement("div", null, React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 11,
+      fontWeight: 700,
+      color: T.sub,
+      textTransform: "uppercase",
+      letterSpacing: 0.5
+    }
+  }, "Cart\xE3o para"), React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 17,
+      fontWeight: 900
+    }
+  }, sel.name))), React.createElement(FL, null, sel ? "Mudar jogador" : "Jogador"), React.createElement("div", {
     style: {
       maxHeight: 200,
       overflowY: "auto",
@@ -10107,17 +10161,17 @@ var AddCardModal = function AddCardModal(_ref114) {
   })), React.createElement(FL, null, "Tipo"), React.createElement(KindPicker, {
     value: kind,
     onChange: setKind
-  }), kind === "amarelo" && mid && y >= 3 && React.createElement("div", {
+  }), consequence && React.createElement("p", {
     style: {
-      background: after >= 5 ? "#B00020" : T.brand,
-      color: "#fff",
-      borderRadius: 12,
-      padding: "12px 14px",
-      marginBottom: 14,
-      fontWeight: 800,
+      margin: "0 0 14px",
+      padding: consequence.strong ? "10px 12px" : 0,
+      borderRadius: 10,
+      background: consequence.strong ? consequence.color : "transparent",
+      color: consequence.strong ? "#fff" : consequence.color,
+      fontWeight: consequence.strong ? 800 : 600,
       fontSize: 14
     }
-  }, after >= 5 ? "⛔ Com este cartão fica SUSPENSO" : "\u26A0\uFE0F Este jogador fica com ".concat(after, " amarelos")), React.createElement(FL, null, "Data do jogo"), React.createElement(FI, {
+  }, consequence.t), React.createElement(FL, null, "Data do jogo"), React.createElement(FI, {
     type: "date",
     value: date,
     onChange: function onChange(e) {
@@ -10144,7 +10198,7 @@ var AddCardModal = function AddCardModal(_ref114) {
   }, err), React.createElement(PrimaryBtn, {
     onClick: save,
     disabled: !mid || !date || saving
-  }, saving ? "A guardar..." : "Lançar cartão"));
+  }, saving ? "A guardar..." : "Lan\xE7ar ".concat(kind)));
 };
 var EditCardModal = function EditCardModal(_ref116) {
   var card = _ref116.card,
@@ -10227,6 +10281,48 @@ var EditCardModal = function EditCardModal(_ref116) {
     disabled: !date || saving
   }, saving ? "A guardar..." : "Guardar"));
 };
+var cardSegments = function cardSegments(r) {
+  var hasConsumed = r.yellowsTotal > r.yellows;
+  var segs = [];
+  if (r.yellows >= 5) {
+    segs.push({
+      t: "SUSPENDE 1 JOGO",
+      color: "#B00020",
+      bold: true
+    });
+  } else if (r.yellows === 4) {
+    segs.push({
+      t: "4 amarelos".concat(hasConsumed ? " em vigor" : "", " \xB7 falta 1 para suspens\xE3o"),
+      color: T.brand,
+      bold: true
+    });
+  } else if (r.yellows > 0) {
+    segs.push({
+      t: "".concat(plur(r.yellows, "amarelo", "amarelos")).concat(hasConsumed ? " em vigor" : ""),
+      color: T.text
+    });
+  } else if (hasConsumed) {
+    segs.push({
+      t: "Sem amarelos em vigor",
+      color: T.sub
+    });
+  } else if (r.reds === 0) {
+    segs.push({
+      t: "Sem cartões",
+      color: "#B0B0B8"
+    });
+  }
+  if (hasConsumed) segs.push({
+    t: "".concat(r.yellowsTotal, " esta \xE9poca"),
+    color: T.sub
+  });
+  if (r.reds > 0) segs.push({
+    t: plur(r.reds, "vermelho", "vermelhos"),
+    color: T.brand,
+    bold: true
+  });
+  return segs;
+};
 var CardsTab = function CardsTab(_ref118) {
   var team = _ref118.team,
     cards = _ref118.cards,
@@ -10240,6 +10336,10 @@ var CardsTab = function CardsTab(_ref118) {
     _useState296 = _slicedToArray(_useState295, 2),
     open = _useState296[0],
     setOpen = _useState296[1];
+  var _useState297 = useState(false),
+    _useState298 = _slicedToArray(_useState297, 2),
+    showNone = _useState298[0],
+    setShowNone = _useState298[1];
   var rows = members.filter(function (m) {
     return m.teamId === team.id;
   }).map(function (m) {
@@ -10252,23 +10352,213 @@ var CardsTab = function CardsTab(_ref118) {
   var risk = rows.filter(function (r) {
     return r.yellows >= 4;
   });
-  var pill = function pill(txt, bg, fg) {
-    return React.createElement("span", {
+  var withCards = rows.filter(function (r) {
+    return r.all.length > 0;
+  });
+  var noCards = rows.filter(function (r) {
+    return r.all.length === 0;
+  });
+  var confirmDelete = function confirmDelete(r, c) {
+    var nome = r.m.name;
+    var efeito;
+    if (c.kind === "vermelho") efeito = "Os vermelhos descem para ".concat(r.reds - 1, ".");else if (c.consumed) efeito = "J\xE1 estava cumprido: o contador em vigor n\xE3o muda, mas desce para ".concat(r.yellowsTotal - 1, " esta \xE9poca.");else efeito = "O contador desce para ".concat(r.yellows - 1, ".");
+    if (window.confirm("Apagar este ".concat(c.kind, " de ").concat(nome, "? ").concat(efeito))) onDeleteCard(c.id);
+  };
+  var renderRow = function renderRow(r) {
+    var st = cardStatus(r.yellows);
+    var isOpen = open === r.m.id;
+    var segs = cardSegments(r);
+    var active = r.all.filter(function (c) {
+      return !c.consumed;
+    }).sort(function (a, b) {
+      return (b.date || '').localeCompare(a.date || '') || b.id - a.id;
+    });
+    var done = r.all.filter(function (c) {
+      return c.consumed;
+    }).sort(function (a, b) {
+      return (b.date || '').localeCompare(a.date || '') || b.id - a.id;
+    });
+    var histRow = function histRow(c) {
+      return React.createElement("div", {
+        key: c.id,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "7px 0",
+          opacity: c.consumed ? 0.5 : 1,
+          color: c.consumed ? "#888" : T.text
+        }
+      }, React.createElement("span", {
+        style: {
+          fontSize: 20,
+          filter: c.consumed ? "grayscale(1)" : "none"
+        }
+      }, c.kind === "amarelo" ? "🟨" : "🟥"), React.createElement("div", {
+        style: {
+          flex: 1,
+          minWidth: 0
+        }
+      }, React.createElement("p", {
+        style: {
+          margin: 0,
+          fontSize: 13,
+          fontWeight: 700
+        }
+      }, fmtDate(c.date), c.opponent ? " \xB7 vs ".concat(c.opponent) : ""), c.note && React.createElement("p", {
+        style: {
+          margin: 0,
+          fontSize: 12,
+          color: T.sub
+        }
+      }, c.note)), canManage && React.createElement("button", {
+        onClick: function onClick() {
+          return onEditCard(c);
+        },
+        style: {
+          padding: "3px 7px",
+          borderRadius: 7,
+          border: "1.5px solid ".concat(T.sub),
+          background: "transparent",
+          fontSize: 12,
+          cursor: "pointer"
+        }
+      }, "\u270F\uFE0F"), canManage && React.createElement("button", {
+        onClick: function onClick() {
+          return confirmDelete(r, c);
+        },
+        style: {
+          padding: "3px 7px",
+          borderRadius: 7,
+          border: "1.5px solid #888",
+          background: "transparent",
+          fontSize: 12,
+          cursor: "pointer"
+        }
+      }, "\uD83D\uDDD1\uFE0F"));
+    };
+    return React.createElement("div", {
+      key: r.m.id,
       style: {
-        padding: "3px 9px",
-        borderRadius: 10,
-        background: bg,
-        color: fg,
-        fontSize: 12,
-        fontWeight: 800
+        background: T.card,
+        borderRadius: 14,
+        marginBottom: 8,
+        overflow: "hidden",
+        borderLeft: "4px solid ".concat(st ? st.color : T.border)
       }
-    }, txt);
+    }, React.createElement("div", {
+      onClick: function onClick() {
+        return setOpen(isOpen ? null : r.m.id);
+      },
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "11px 12px",
+        cursor: "pointer"
+      }
+    }, React.createElement(Avatar, {
+      initials: r.m.initials,
+      photo: r.m.avatarUrl,
+      color: team.color,
+      size: 38
+    }), React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, React.createElement("p", {
+      style: {
+        margin: "0 0 3px",
+        fontWeight: 800,
+        fontSize: 14,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, r.m.name), React.createElement("p", {
+      style: {
+        margin: 0,
+        fontSize: 13,
+        lineHeight: 1.4
+      }
+    }, segs.map(function (s, i) {
+      return React.createElement("span", {
+        key: i,
+        style: {
+          color: s.color,
+          fontWeight: s.bold ? 800 : 500
+        }
+      }, i > 0 && React.createElement("span", {
+        style: {
+          color: T.sub,
+          fontWeight: 500
+        }
+      }, " \xB7 "), s.t);
+    }))), React.createElement("span", {
+      style: {
+        color: T.sub,
+        fontSize: 12
+      }
+    }, isOpen ? "▼" : "▶")), r.yellows >= 5 && canManage && React.createElement("div", {
+      style: {
+        padding: "0 12px 10px"
+      }
+    }, React.createElement("button", {
+      onClick: function onClick() {
+        if (window.confirm("".concat(r.m.name, " j\xE1 cumpriu o jogo de castigo? O contador volta a 0. Os 5 amarelos continuam no hist\xF3rico, marcados como cumpridos."))) onServeSuspension(r.m.id);
+      },
+      style: {
+        width: "100%",
+        padding: "10px",
+        borderRadius: 10,
+        border: "none",
+        background: "#B00020",
+        color: "#fff",
+        fontWeight: 800,
+        fontSize: 13,
+        cursor: "pointer",
+        fontFamily: "inherit"
+      }
+    }, "J\xE1 cumpriu o castigo")), isOpen && React.createElement("div", {
+      style: {
+        borderTop: "1px solid ".concat(T.border),
+        padding: "8px 12px 10px"
+      }
+    }, r.all.length === 0 && React.createElement("p", {
+      style: {
+        margin: "6px 0",
+        fontSize: 13,
+        color: T.sub
+      }
+    }, "Sem cart\xF5es."), active.map(histRow), done.length > 0 && React.createElement(React.Fragment, null, React.createElement("p", {
+      style: {
+        margin: "10px 0 4px",
+        fontSize: 11,
+        fontWeight: 700,
+        color: T.sub,
+        borderTop: "1px dashed ".concat(T.border),
+        paddingTop: 8
+      }
+    }, "J\xE1 cumpridos \u2014 contam para a \xE9poca, n\xE3o para a suspens\xE3o"), done.map(histRow))));
   };
   return React.createElement("div", {
     style: {
       padding: "14px 16px 100px"
     }
-  }, risk.length > 0 && React.createElement("div", {
+  }, React.createElement("h3", {
+    style: {
+      margin: "0 0 2px",
+      fontSize: 20,
+      fontWeight: 900
+    }
+  }, "Cart\xF5es"), React.createElement("p", {
+    style: {
+      margin: "0 0 14px",
+      fontSize: 12,
+      color: T.sub
+    }
+  }, "5 amarelos = 1 jogo de castigo. Os castigos s\xE3o dados pela associa\xE7\xE3o."), risk.length > 0 && React.createElement("div", {
     style: {
       background: "#B00020",
       borderRadius: 16,
@@ -10317,7 +10607,7 @@ var CardsTab = function CardsTab(_ref118) {
         fontSize: 12,
         opacity: 0.95
       }
-    }, r.yellows >= 5 ? "".concat(r.yellows, " amarelos \u2014 SUSPENSO") : "4 amarelos — ao 5.º falha um jogo")));
+    }, r.yellows >= 5 ? "Suspende 1 jogo" : "A 1 amarelo da suspensão")));
   })), canManage && React.createElement("button", {
     onClick: onAddCard,
     style: {
@@ -10338,169 +10628,54 @@ var CardsTab = function CardsTab(_ref118) {
       textAlign: "center",
       color: T.sub
     }
-  }, "Sem jogadores na equipa."), rows.map(function (r) {
-    var st = cardStatus(r.yellows);
-    var isOpen = open === r.m.id;
-    var hist = _toConsumableArray(r.all).sort(function (a, b) {
-      return (b.date || '').localeCompare(a.date || '') || b.id - a.id;
-    });
-    return React.createElement("div", {
-      key: r.m.id,
-      style: {
-        background: T.card,
-        borderRadius: 14,
-        marginBottom: 8,
-        overflow: "hidden",
-        borderLeft: "4px solid ".concat(st ? st.color : T.border)
-      }
-    }, React.createElement("div", {
-      onClick: function onClick() {
-        return setOpen(isOpen ? null : r.m.id);
-      },
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "11px 12px",
-        cursor: "pointer"
-      }
-    }, React.createElement(Avatar, {
-      initials: r.m.initials,
-      photo: r.m.avatarUrl,
-      color: team.color,
-      size: 38
-    }), React.createElement("div", {
-      style: {
-        flex: 1,
-        minWidth: 0
-      }
-    }, React.createElement("p", {
-      style: {
-        margin: "0 0 4px",
-        fontWeight: 800,
-        fontSize: 14,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap"
-      }
-    }, r.m.name), React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        flexWrap: "wrap"
-      }
-    }, pill("\uD83D\uDFE8 ".concat(r.yellows), T.yellow, "#1D1D1F"), r.reds > 0 && pill("\uD83D\uDFE5 ".concat(r.reds), T.brand, "#fff"), st && React.createElement(Badge, {
-      label: st.label,
-      color: st.color === "#FFCC00" ? "#8A6D00" : st.color
-    }))), React.createElement("span", {
-      style: {
-        color: T.sub,
-        fontSize: 12
-      }
-    }, isOpen ? "▼" : "▶")), r.yellows >= 5 && canManage && React.createElement("div", {
-      style: {
-        padding: "0 12px 10px"
-      }
-    }, React.createElement("button", {
-      onClick: function onClick() {
-        if (window.confirm("Confirmar castigo cumprido por ".concat(r.m.name, "? Os 5 amarelos mais antigos passam a ciclo anterior."))) onServeSuspension(r.m.id);
-      },
-      style: {
-        width: "100%",
-        padding: "10px",
-        borderRadius: 10,
-        border: "none",
-        background: "#B00020",
-        color: "#fff",
-        fontWeight: 800,
-        fontSize: 13,
-        cursor: "pointer",
-        fontFamily: "inherit"
-      }
-    }, "Castigo cumprido")), isOpen && React.createElement("div", {
-      style: {
-        borderTop: "1px solid ".concat(T.border),
-        padding: "8px 12px 10px"
-      }
-    }, hist.length === 0 && React.createElement("p", {
-      style: {
-        margin: "6px 0",
-        fontSize: 13,
-        color: T.sub
-      }
-    }, "Sem cart\xF5es."), hist.map(function (c) {
-      return React.createElement("div", {
-        key: c.id,
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "7px 0",
-          opacity: c.consumed ? 0.5 : 1,
-          color: c.consumed ? "#888" : T.text
-        }
-      }, React.createElement("span", {
-        style: {
-          fontSize: 20,
-          filter: c.consumed ? "grayscale(1)" : "none"
-        }
-      }, c.kind === "amarelo" ? "🟨" : "🟥"), React.createElement("div", {
-        style: {
-          flex: 1,
-          minWidth: 0
-        }
-      }, React.createElement("p", {
-        style: {
-          margin: 0,
-          fontSize: 13,
-          fontWeight: 700
-        }
-      }, fmtDate(c.date), c.opponent ? " \xB7 vs ".concat(c.opponent) : ""), (c.note || c.consumed) && React.createElement("p", {
-        style: {
-          margin: 0,
-          fontSize: 12,
-          color: T.sub
-        }
-      }, c.note, c.note && c.consumed ? " · " : "", c.consumed ? "ciclo anterior" : "")), canManage && React.createElement("button", {
-        onClick: function onClick() {
-          return onEditCard(c);
-        },
-        style: {
-          padding: "3px 7px",
-          borderRadius: 7,
-          border: "1.5px solid ".concat(T.sub),
-          background: "transparent",
-          fontSize: 12,
-          cursor: "pointer"
-        }
-      }, "\u270F\uFE0F"), canManage && React.createElement("button", {
-        onClick: function onClick() {
-          if (window.confirm("Apagar este cartão?")) onDeleteCard(c.id);
-        },
-        style: {
-          padding: "3px 7px",
-          borderRadius: 7,
-          border: "1.5px solid #888",
-          background: "transparent",
-          fontSize: 12,
-          cursor: "pointer"
-        }
-      }, "\uD83D\uDDD1\uFE0F"));
-    })));
-  }));
+  }, "Sem jogadores na equipa."), withCards.map(renderRow), noCards.length > 0 && React.createElement(React.Fragment, null, React.createElement("button", {
+    onClick: function onClick() {
+      return setShowNone(function (v) {
+        return !v;
+      });
+    },
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+      background: "transparent",
+      border: "none",
+      cursor: "pointer",
+      padding: "12px 0 8px",
+      fontFamily: "inherit"
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 13,
+      fontWeight: 800,
+      color: T.sub
+    }
+  }, "Sem cart\xF5es (", noCards.length, ")"), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: T.sub
+    }
+  }, showNone ? "▼" : "▶")), showNone && noCards.map(renderRow)), !canManage && React.createElement("p", {
+    style: {
+      margin: "14px 0 0",
+      fontSize: 12,
+      color: T.sub,
+      textAlign: "center"
+    }
+  }, "S\xF3 o admin, o treinador ou o diretor podem lan\xE7ar cart\xF5es."));
 };
 function App() {
-  var _members$find, _members$find2;
-  var _useState297 = useState(function () {
+  var _members$find, _members$find3;
+  var _useState299 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("type=recovery")) return null;
       var m = h.match(/access_token=([^&#&]+)/);
       return m ? decodeURIComponent(m[1]) : null;
     }),
-    _useState298 = _slicedToArray(_useState297, 1),
-    recoveryToken = _useState298[0];
-  var _useState299 = useState(function () {
+    _useState300 = _slicedToArray(_useState299, 1),
+    recoveryToken = _useState300[0];
+  var _useState301 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("access_token=")) return null;
       if (h.includes("type=recovery")) return null;
@@ -10512,96 +10687,96 @@ function App() {
         refresh: rt ? decodeURIComponent(rt[1]) : ""
       };
     }),
-    _useState300 = _slicedToArray(_useState299, 1),
-    magicToken = _useState300[0];
-  var _useState301 = useState(null),
-    _useState302 = _slicedToArray(_useState301, 2),
-    token = _useState302[0],
-    setToken = _useState302[1];
+    _useState302 = _slicedToArray(_useState301, 1),
+    magicToken = _useState302[0];
   var _useState303 = useState(null),
     _useState304 = _slicedToArray(_useState303, 2),
-    myUserId = _useState304[0],
-    setMyUserId = _useState304[1];
+    token = _useState304[0],
+    setToken = _useState304[1];
   var _useState305 = useState(null),
     _useState306 = _slicedToArray(_useState305, 2),
-    profile = _useState306[0],
-    setProfile = _useState306[1];
-  var _useState307 = useState([]),
+    myUserId = _useState306[0],
+    setMyUserId = _useState306[1];
+  var _useState307 = useState(null),
     _useState308 = _slicedToArray(_useState307, 2),
-    teams = _useState308[0],
-    setTeams = _useState308[1];
+    profile = _useState308[0],
+    setProfile = _useState308[1];
   var _useState309 = useState([]),
     _useState310 = _slicedToArray(_useState309, 2),
-    members = _useState310[0],
-    setMembers = _useState310[1];
+    teams = _useState310[0],
+    setTeams = _useState310[1];
   var _useState311 = useState([]),
     _useState312 = _slicedToArray(_useState311, 2),
-    fineTypes = _useState312[0],
-    setFineTypes = _useState312[1];
+    members = _useState312[0],
+    setMembers = _useState312[1];
   var _useState313 = useState([]),
     _useState314 = _slicedToArray(_useState313, 2),
-    fines = _useState314[0],
-    setFines = _useState314[1];
+    fineTypes = _useState314[0],
+    setFineTypes = _useState314[1];
   var _useState315 = useState([]),
     _useState316 = _slicedToArray(_useState315, 2),
-    cards = _useState316[0],
-    setCards = _useState316[1];
-  var _useState317 = useState(null),
+    fines = _useState316[0],
+    setFines = _useState316[1];
+  var _useState317 = useState([]),
     _useState318 = _slicedToArray(_useState317, 2),
-    editingCard = _useState318[0],
-    setEditingCard = _useState318[1];
-  var _useState319 = useState([]),
+    cards = _useState318[0],
+    setCards = _useState318[1];
+  var _useState319 = useState(null),
     _useState320 = _slicedToArray(_useState319, 2),
-    expenses = _useState320[0],
-    setExpenses = _useState320[1];
+    editingCard = _useState320[0],
+    setEditingCard = _useState320[1];
   var _useState321 = useState([]),
     _useState322 = _slicedToArray(_useState321, 2),
-    trainings = _useState322[0],
-    setTrainings = _useState322[1];
-  var _useState323 = useState({}),
+    expenses = _useState322[0],
+    setExpenses = _useState322[1];
+  var _useState323 = useState([]),
     _useState324 = _slicedToArray(_useState323, 2),
-    presences = _useState324[0],
-    setPresences = _useState324[1];
-  var _useState325 = useState(null),
+    trainings = _useState324[0],
+    setTrainings = _useState324[1];
+  var _useState325 = useState({}),
     _useState326 = _slicedToArray(_useState325, 2),
-    teamId = _useState326[0],
-    setTeamId = _useState326[1];
-  var _useState327 = useState("home"),
+    presences = _useState326[0],
+    setPresences = _useState326[1];
+  var _useState327 = useState(null),
     _useState328 = _slicedToArray(_useState327, 2),
-    tab = _useState328[0],
-    setTab = _useState328[1];
-  var _useState329 = useState(null),
+    teamId = _useState328[0],
+    setTeamId = _useState328[1];
+  var _useState329 = useState("home"),
     _useState330 = _slicedToArray(_useState329, 2),
-    sub = _useState330[0],
-    setSub = _useState330[1];
+    tab = _useState330[0],
+    setTab = _useState330[1];
   var _useState331 = useState(null),
     _useState332 = _slicedToArray(_useState331, 2),
-    modal = _useState332[0],
-    setModal = _useState332[1];
+    sub = _useState332[0],
+    setSub = _useState332[1];
   var _useState333 = useState(null),
     _useState334 = _slicedToArray(_useState333, 2),
-    editingFine = _useState334[0],
-    setEditingFine = _useState334[1];
+    modal = _useState334[0],
+    setModal = _useState334[1];
   var _useState335 = useState(null),
     _useState336 = _slicedToArray(_useState335, 2),
-    treinosModal = _useState336[0],
-    setTreinosModal = _useState336[1];
-  var _useState337 = useState(false),
+    editingFine = _useState336[0],
+    setEditingFine = _useState336[1];
+  var _useState337 = useState(null),
     _useState338 = _slicedToArray(_useState337, 2),
-    loading = _useState338[0],
-    setLoading = _useState338[1];
+    treinosModal = _useState338[0],
+    setTreinosModal = _useState338[1];
   var _useState339 = useState(false),
     _useState340 = _slicedToArray(_useState339, 2),
-    appReady = _useState340[0],
-    setAppReady = _useState340[1];
+    loading = _useState340[0],
+    setLoading = _useState340[1];
   var _useState341 = useState(false),
     _useState342 = _slicedToArray(_useState341, 2),
-    refreshing = _useState342[0],
-    setRefreshing = _useState342[1];
-  var _useState343 = useState(null),
+    appReady = _useState342[0],
+    setAppReady = _useState342[1];
+  var _useState343 = useState(false),
     _useState344 = _slicedToArray(_useState343, 2),
-    authError = _useState344[0],
-    setAuthError = _useState344[1];
+    refreshing = _useState344[0],
+    setRefreshing = _useState344[1];
+  var _useState345 = useState(null),
+    _useState346 = _slicedToArray(_useState345, 2),
+    authError = _useState346[0],
+    setAuthError = _useState346[1];
   var team = teams.find(function (t) {
     return t.id === teamId;
   });
@@ -11316,7 +11491,7 @@ function App() {
   }();
   var serveSuspension = function () {
     var _ref132 = _asyncToGenerator(_regenerator().m(function _callee50(memberId) {
-      var ids, _t57;
+      var ids, _members$find2, _t57;
       return _regenerator().w(function (_context50) {
         while (1) switch (_context50.p = _context50.n) {
           case 0:
@@ -11346,6 +11521,9 @@ function App() {
                 }) : c;
               });
             });
+            showToast("Contador de ".concat(((_members$find2 = members.find(function (m) {
+              return String(m.id) === String(memberId);
+            })) === null || _members$find2 === void 0 ? void 0 : _members$find2.name) || "jogador", " reposto a 0"), T.navy);
             _context50.n = 4;
             break;
           case 3:
@@ -11893,10 +12071,10 @@ function App() {
       return _ref147.apply(this, arguments);
     };
   }();
-  var _useState345 = useState(null),
-    _useState346 = _slicedToArray(_useState345, 2),
-    teamError = _useState346[0],
-    setTeamError = _useState346[1];
+  var _useState347 = useState(null),
+    _useState348 = _slicedToArray(_useState347, 2),
+    teamError = _useState348[0],
+    setTeamError = _useState348[1];
   var createTeam = function () {
     var _ref148 = _asyncToGenerator(_regenerator().m(function _callee62(d) {
       var tid, invCode, sr, se, tr, newTeam, _t67;
@@ -12112,13 +12290,13 @@ function App() {
       return _ref151.apply(this, arguments);
     };
   }();
-  var _useState347 = useState(function () {
+  var _useState349 = useState(function () {
       var p = new URLSearchParams(window.location.search);
       return p.get('invite') || null;
     }),
-    _useState348 = _slicedToArray(_useState347, 2),
-    pendingInvite = _useState348[0],
-    setPendingInvite = _useState348[1];
+    _useState350 = _slicedToArray(_useState349, 2),
+    pendingInvite = _useState350[0],
+    setPendingInvite = _useState350[1];
   useEffect(function () {
     if (!appReady || !pendingInvite) return;
     var alreadyIn = teams.find(function (t) {
@@ -12223,10 +12401,10 @@ function App() {
       subscribeToPush(token, myUserId);
     }
   }, [appReady, token, myUserId]);
-  var _useState349 = useState(null),
-    _useState350 = _slicedToArray(_useState349, 2),
-    toast = _useState350[0],
-    setToast = _useState350[1];
+  var _useState351 = useState(null),
+    _useState352 = _slicedToArray(_useState351, 2),
+    toast = _useState352[0],
+    setToast = _useState352[1];
   var showToast = function showToast(msg) {
     var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : T.navy;
     setToast({
@@ -12395,7 +12573,7 @@ function App() {
     label: "Início"
   }, {
     id: "fines",
-    emoji: "🟥",
+    emoji: "🧾",
     label: "Multas"
   }, {
     id: "cards",
@@ -12780,9 +12958,9 @@ function App() {
     }
   }), tab === "geral" && React.createElement(GeneralTab, {
     user: _objectSpread(_objectSpread({}, profile || {}), {}, {
-      position: ((_members$find2 = members.find(function (m) {
+      position: ((_members$find3 = members.find(function (m) {
         return m.userId === myUserId && m.teamId === teamId;
-      })) === null || _members$find2 === void 0 ? void 0 : _members$find2.position) || (profile === null || profile === void 0 ? void 0 : profile.position) || ''
+      })) === null || _members$find3 === void 0 ? void 0 : _members$find3.position) || (profile === null || profile === void 0 ? void 0 : profile.position) || ''
     }),
     myUserId: myUserId,
     teams: teams,
@@ -12931,7 +13109,7 @@ function App() {
     user: profile || {},
     onSave: (function () {
       var _ref158 = _asyncToGenerator(_regenerator().m(function _callee72(u) {
-        var _members$find3;
+        var _members$find4;
         var _t74;
         return _regenerator().w(function (_context72) {
           while (1) switch (_context72.p = _context72.n) {
@@ -12954,9 +13132,9 @@ function App() {
               console.error(_t74);
             case 3:
               _context72.n = 4;
-              return editMember((_members$find3 = members.find(function (m) {
+              return editMember((_members$find4 = members.find(function (m) {
                 return m.userId === myUserId && m.teamId === teamId;
-              })) === null || _members$find3 === void 0 ? void 0 : _members$find3.id, u);
+              })) === null || _members$find4 === void 0 ? void 0 : _members$find4.id, u);
             case 4:
               setProfile(function (p) {
                 return _objectSpread(_objectSpread({}, p), u);

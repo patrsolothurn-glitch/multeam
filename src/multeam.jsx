@@ -2597,6 +2597,8 @@ const Spinner = ({ msg="A carregar..." }) => (
 
 // ── MAIN APP ──────────────────────────────────────────────────
 // ── CARTÕES ───────────────────────────────────────────────────
+const plur = (n, one, many) => `${n} ${n===1 ? one : many}`;
+
 const KindPicker = ({ value, onChange }) => (
   <div style={{ display:"flex", gap:10, marginBottom:14 }}>
     {[["amarelo","🟨 Amarelo",T.yellow,"#1D1D1F"],["vermelho","🟥 Vermelho",T.brand,"#fff"]].map(([k,l,bg,fg])=>(
@@ -2614,8 +2616,14 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const sel = tm.find(m => String(m.id)===String(mid));
   const y = mid ? cardCount(cards, team.id, mid).yellows : 0;
-  const after = kind==="amarelo" ? y+1 : y;
+  const after = y + 1;
+  const consequence = !sel ? null
+    : kind==="vermelho" ? { t:"Cartão vermelho. O castigo é dado pela associação.", color:T.brand, strong:false }
+    : after>=5 ? { t:"Fica SUSPENSO por 1 jogo.", color:"#B00020", strong:true }
+    : after===4 ? { t:"Fica com 4 amarelos — a 1 da suspensão.", color:T.brand, strong:true }
+    : { t:`Fica com ${plur(after,"amarelo","amarelos")}.`, color:T.sub, strong:false };
   const save = async () => {
     if (!mid || !date || saving) return;
     setSaving(true); setErr("");
@@ -2624,7 +2632,16 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
   };
   return (
     <Sheet onClose={onClose} title="Lançar cartão">
-      <FL>Jogador</FL>
+      {sel && (
+        <div style={{ display:"flex", alignItems:"center", gap:12, background:`${T.navy}12`, border:`2px solid ${T.navy}`, borderRadius:14, padding:"10px 12px", marginBottom:14 }}>
+          <Avatar initials={sel.initials} photo={sel.avatarUrl} color={team.color} size={44} />
+          <div>
+            <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Cartão para</p>
+            <p style={{ margin:0, fontSize:17, fontWeight:900 }}>{sel.name}</p>
+          </div>
+        </div>
+      )}
+      <FL>{sel ? "Mudar jogador" : "Jogador"}</FL>
       <div style={{ maxHeight:200, overflowY:"auto", marginBottom:14, border:`1.5px solid ${T.border}`, borderRadius:12 }}>
         {tm.map(m => (
           <div key={m.id} onClick={()=>setMid(m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", background:String(mid)===String(m.id)?`${T.navy}18`:"transparent", borderBottom:`1px solid ${T.border}` }}>
@@ -2636,10 +2653,8 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
       </div>
       <FL>Tipo</FL>
       <KindPicker value={kind} onChange={setKind} />
-      {kind==="amarelo" && mid && y>=3 && (
-        <div style={{ background:after>=5?"#B00020":T.brand, color:"#fff", borderRadius:12, padding:"12px 14px", marginBottom:14, fontWeight:800, fontSize:14 }}>
-          {after>=5 ? "⛔ Com este cartão fica SUSPENSO" : `⚠️ Este jogador fica com ${after} amarelos`}
-        </div>
+      {consequence && (
+        <p style={{ margin:"0 0 14px", padding:consequence.strong?"10px 12px":0, borderRadius:10, background:consequence.strong?consequence.color:"transparent", color:consequence.strong?"#fff":consequence.color, fontWeight:consequence.strong?800:600, fontSize:14 }}>{consequence.t}</p>
       )}
       <FL>Data do jogo</FL>
       <FI type="date" value={date} onChange={e=>setDate(e.target.value)} />
@@ -2648,7 +2663,7 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
       <FL>Nota (opcional)</FL>
       <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="Ex: protestos" />
       {err && <p style={{ color:T.brand, fontSize:13, margin:"0 0 8px" }}>{err}</p>}
-      <PrimaryBtn onClick={save} disabled={!mid || !date || saving}>{saving ? "A guardar..." : "Lançar cartão"}</PrimaryBtn>
+      <PrimaryBtn onClick={save} disabled={!mid || !date || saving}>{saving ? "A guardar..." : `Lançar ${kind}`}</PrimaryBtn>
     </Sheet>
   );
 };
@@ -2680,14 +2695,98 @@ const EditCardModal = ({ card, onSave, onClose }) => {
   );
 };
 
+// Frase do estado de um jogador (nunca um número sozinho)
+const cardSegments = r => {
+  const hasConsumed = r.yellowsTotal > r.yellows;
+  const segs = [];
+  if (r.yellows >= 5) {
+    segs.push({ t:"SUSPENDE 1 JOGO", color:"#B00020", bold:true });
+  } else if (r.yellows === 4) {
+    segs.push({ t:`4 amarelos${hasConsumed?" em vigor":""} · falta 1 para suspensão`, color:T.brand, bold:true });
+  } else if (r.yellows > 0) {
+    segs.push({ t:`${plur(r.yellows,"amarelo","amarelos")}${hasConsumed?" em vigor":""}`, color:T.text });
+  } else if (hasConsumed) {
+    segs.push({ t:"Sem amarelos em vigor", color:T.sub });
+  } else if (r.reds === 0) {
+    segs.push({ t:"Sem cartões", color:"#B0B0B8" });
+  }
+  if (hasConsumed) segs.push({ t:`${r.yellowsTotal} esta época`, color:T.sub });
+  if (r.reds > 0) segs.push({ t:plur(r.reds,"vermelho","vermelhos"), color:T.brand, bold:true });
+  return segs;
+};
+
 const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDeleteCard, onServeSuspension }) => {
   const [open, setOpen] = useState(null);
+  const [showNone, setShowNone] = useState(false);
   const rows = members.filter(m => m.teamId===team.id).map(m => ({ m, ...cardCount(cards, team.id, m.id) }))
     .sort((a,b) => b.yellows - a.yellows || a.m.name.localeCompare(b.m.name, "pt"));
   const risk = rows.filter(r => r.yellows >= 4);
-  const pill = (txt, bg, fg) => <span style={{ padding:"3px 9px", borderRadius:10, background:bg, color:fg, fontSize:12, fontWeight:800 }}>{txt}</span>;
+  const withCards = rows.filter(r => r.all.length > 0);
+  const noCards = rows.filter(r => r.all.length === 0);
+
+  const confirmDelete = (r, c) => {
+    const nome = r.m.name;
+    let efeito;
+    if (c.kind==="vermelho") efeito = `Os vermelhos descem para ${r.reds-1}.`;
+    else if (c.consumed) efeito = `Já estava cumprido: o contador em vigor não muda, mas desce para ${r.yellowsTotal-1} esta época.`;
+    else efeito = `O contador desce para ${r.yellows-1}.`;
+    if (window.confirm(`Apagar este ${c.kind} de ${nome}? ${efeito}`)) onDeleteCard(c.id);
+  };
+
+  const renderRow = r => {
+    const st = cardStatus(r.yellows);
+    const isOpen = open===r.m.id;
+    const segs = cardSegments(r);
+    const active = r.all.filter(c => !c.consumed).sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id-a.id));
+    const done = r.all.filter(c => c.consumed).sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id-a.id));
+    const histRow = c => (
+      <div key={c.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", opacity:c.consumed?0.5:1, color:c.consumed?"#888":T.text }}>
+        <span style={{ fontSize:20, filter:c.consumed?"grayscale(1)":"none" }}>{c.kind==="amarelo"?"🟨":"🟥"}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ margin:0, fontSize:13, fontWeight:700 }}>{fmtDate(c.date)}{c.opponent ? ` · vs ${c.opponent}` : ""}</p>
+          {c.note && <p style={{ margin:0, fontSize:12, color:T.sub }}>{c.note}</p>}
+        </div>
+        {canManage && <button onClick={()=>onEditCard(c)} style={{ padding:"3px 7px", borderRadius:7, border:`1.5px solid ${T.sub}`, background:"transparent", fontSize:12, cursor:"pointer" }}>✏️</button>}
+        {canManage && <button onClick={()=>confirmDelete(r, c)} style={{ padding:"3px 7px", borderRadius:7, border:"1.5px solid #888", background:"transparent", fontSize:12, cursor:"pointer" }}>🗑️</button>}
+      </div>
+    );
+    return (
+      <div key={r.m.id} style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`4px solid ${st?st.color:T.border}` }}>
+        <div onClick={()=>setOpen(isOpen?null:r.m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", cursor:"pointer" }}>
+          <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={team.color} size={38} />
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:"0 0 3px", fontWeight:800, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.m.name}</p>
+            <p style={{ margin:0, fontSize:13, lineHeight:1.4 }}>
+              {segs.map((s,i) => <span key={i} style={{ color:s.color, fontWeight:s.bold?800:500 }}>{i>0 && <span style={{ color:T.sub, fontWeight:500 }}> · </span>}{s.t}</span>)}
+            </p>
+          </div>
+          <span style={{ color:T.sub, fontSize:12 }}>{isOpen?"▼":"▶"}</span>
+        </div>
+        {r.yellows>=5 && canManage && (
+          <div style={{ padding:"0 12px 10px" }}>
+            <button onClick={()=>{ if(window.confirm(`${r.m.name} já cumpriu o jogo de castigo? O contador volta a 0. Os 5 amarelos continuam no histórico, marcados como cumpridos.`)) onServeSuspension(r.m.id); }} style={{ width:"100%", padding:"10px", borderRadius:10, border:"none", background:"#B00020", color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Já cumpriu o castigo</button>
+          </div>
+        )}
+        {isOpen && (
+          <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 12px 10px" }}>
+            {r.all.length===0 && <p style={{ margin:"6px 0", fontSize:13, color:T.sub }}>Sem cartões.</p>}
+            {active.map(histRow)}
+            {done.length>0 && (
+              <>
+                <p style={{ margin:"10px 0 4px", fontSize:11, fontWeight:700, color:T.sub, borderTop:`1px dashed ${T.border}`, paddingTop:8 }}>Já cumpridos — contam para a época, não para a suspensão</p>
+                {done.map(histRow)}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ padding:"14px 16px 100px" }}>
+      <h3 style={{ margin:"0 0 2px", fontSize:20, fontWeight:900 }}>Cartões</h3>
+      <p style={{ margin:"0 0 14px", fontSize:12, color:T.sub }}>5 amarelos = 1 jogo de castigo. Os castigos são dados pela associação.</p>
       {risk.length>0 && (
         <div style={{ background:"#B00020", borderRadius:16, padding:"14px", marginBottom:16, color:"#fff" }}>
           <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:900, letterSpacing:1 }}>🚨 EM RISCO</p>
@@ -2696,7 +2795,7 @@ const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDe
               <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={T.navy} size={36} />
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{r.m.name}</p>
-                <p style={{ margin:0, fontSize:12, opacity:0.95 }}>{r.yellows>=5 ? `${r.yellows} amarelos — SUSPENSO` : "4 amarelos — ao 5.º falha um jogo"}</p>
+                <p style={{ margin:0, fontSize:12, opacity:0.95 }}>{r.yellows>=5 ? "Suspende 1 jogo" : "A 1 amarelo da suspensão"}</p>
               </div>
             </div>
           ))}
@@ -2704,48 +2803,17 @@ const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDe
       )}
       {canManage && <button onClick={onAddCard} style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background:T.navy, color:"#fff", fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>+ Lançar cartão</button>}
       {rows.length===0 && <p style={{ textAlign:"center", color:T.sub }}>Sem jogadores na equipa.</p>}
-      {rows.map(r => {
-        const st = cardStatus(r.yellows);
-        const isOpen = open===r.m.id;
-        const hist = [...r.all].sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id-a.id));
-        return (
-          <div key={r.m.id} style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`4px solid ${st?st.color:T.border}` }}>
-            <div onClick={()=>setOpen(isOpen?null:r.m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", cursor:"pointer" }}>
-              <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={team.color} size={38} />
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ margin:"0 0 4px", fontWeight:800, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.m.name}</p>
-                <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-                  {pill(`🟨 ${r.yellows}`, T.yellow, "#1D1D1F")}
-                  {r.reds>0 && pill(`🟥 ${r.reds}`, T.brand, "#fff")}
-                  {st && <Badge label={st.label} color={st.color==="#FFCC00"?"#8A6D00":st.color} />}
-                </div>
-              </div>
-              <span style={{ color:T.sub, fontSize:12 }}>{isOpen?"▼":"▶"}</span>
-            </div>
-            {r.yellows>=5 && canManage && (
-              <div style={{ padding:"0 12px 10px" }}>
-                <button onClick={()=>{ if(window.confirm(`Confirmar castigo cumprido por ${r.m.name}? Os 5 amarelos mais antigos passam a ciclo anterior.`)) onServeSuspension(r.m.id); }} style={{ width:"100%", padding:"10px", borderRadius:10, border:"none", background:"#B00020", color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Castigo cumprido</button>
-              </div>
-            )}
-            {isOpen && (
-              <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 12px 10px" }}>
-                {hist.length===0 && <p style={{ margin:"6px 0", fontSize:13, color:T.sub }}>Sem cartões.</p>}
-                {hist.map(c => (
-                  <div key={c.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", opacity:c.consumed?0.5:1, color:c.consumed?"#888":T.text }}>
-                    <span style={{ fontSize:20, filter:c.consumed?"grayscale(1)":"none" }}>{c.kind==="amarelo"?"🟨":"🟥"}</span>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ margin:0, fontSize:13, fontWeight:700 }}>{fmtDate(c.date)}{c.opponent ? ` · vs ${c.opponent}` : ""}</p>
-                      {(c.note || c.consumed) && <p style={{ margin:0, fontSize:12, color:T.sub }}>{c.note}{c.note && c.consumed ? " · " : ""}{c.consumed ? "ciclo anterior" : ""}</p>}
-                    </div>
-                    {canManage && <button onClick={()=>onEditCard(c)} style={{ padding:"3px 7px", borderRadius:7, border:`1.5px solid ${T.sub}`, background:"transparent", fontSize:12, cursor:"pointer" }}>✏️</button>}
-                    {canManage && <button onClick={()=>{ if(window.confirm("Apagar este cartão?")) onDeleteCard(c.id); }} style={{ padding:"3px 7px", borderRadius:7, border:"1.5px solid #888", background:"transparent", fontSize:12, cursor:"pointer" }}>🗑️</button>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {withCards.map(renderRow)}
+      {noCards.length>0 && (
+        <>
+          <button onClick={()=>setShowNone(v=>!v)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"12px 0 8px", fontFamily:"inherit" }}>
+            <span style={{ fontSize:13, fontWeight:800, color:T.sub }}>Sem cartões ({noCards.length})</span>
+            <span style={{ fontSize:12, color:T.sub }}>{showNone?"▼":"▶"}</span>
+          </button>
+          {showNone && noCards.map(renderRow)}
+        </>
+      )}
+      {!canManage && <p style={{ margin:"14px 0 0", fontSize:12, color:T.sub, textAlign:"center" }}>Só o admin, o treinador ou o diretor podem lançar cartões.</p>}
     </div>
   );
 };
@@ -2998,6 +3066,7 @@ export default function App() {
     try {
       await api.patch(`cards?id=in.(${ids.join(',')})`, { consumed:true }, token);
       setCards(p => p.map(c => ids.includes(c.id) ? {...c, consumed:true} : c));
+      showToast(`Contador de ${members.find(m => String(m.id)===String(memberId))?.name || "jogador"} reposto a 0`, T.navy);
     } catch(e){ console.error(e); }
   };
   const addExpense = async d => {
@@ -3295,7 +3364,7 @@ export default function App() {
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
-  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🟥",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
+  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{ch}</div>;
 
