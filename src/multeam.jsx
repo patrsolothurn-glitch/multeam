@@ -441,11 +441,14 @@ const LogSessionModal = ({ training, existingDates, onLog, onClose }) => {
 
 const AddExpenseModal = ({ team, onAdd, onClose }) => {
   const [desc, setDesc] = useState(""); const [amount, setAmount] = useState("");
+  const val = Number(amount);
+  const valid = amount !== "" && Number.isFinite(val) && val > 0;
   return (
     <Sheet title="💸 Nova despesa" onClose={onClose}>
       <FL>Descrição</FL><FI type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Ex: Jantar de equipa..." />
-      <FL>Valor (€)</FL><FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
-      <PrimaryBtn onClick={() => { if(!desc||!amount) return; onAdd({ teamId:team.id, description:desc, amount:Number(amount), date:new Date().toISOString().split("T")[0] }); onClose(); }} disabled={!desc||!amount} color={T.navy}>Registar despesa</PrimaryBtn>
+      <FL>Valor (€)</FL><FI type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
+      {amount !== "" && !valid && <p style={{ color:T.brand, fontSize:13, fontWeight:700, margin:"-6px 0 10px" }}>O valor tem de ser maior que zero.</p>}
+      <PrimaryBtn onClick={() => { if(!desc||!valid) return; onAdd({ teamId:team.id, description:desc, amount:Math.abs(val), date:new Date().toISOString().split("T")[0] }); onClose(); }} disabled={!desc||!valid} color={T.navy}>Registar despesa</PrimaryBtn>
     </Sheet>
   );
 };
@@ -1145,7 +1148,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
   const [showTabela, setShowTabela] = React.useState(false);
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
-  const spent = expenses.filter(e=>e.teamId===team.id).reduce((s,e)=>s+e.amount,0);
+  const spent = expenses.filter(e=>e.teamId===team.id).reduce((s,e)=>s+Math.abs(e.amount),0);
   const balance = collected - spent;
   // Sort fines by member rank (most debt first), then by date desc within same member
   const memberRank = members
@@ -1730,7 +1733,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
   const tf = fines.filter(f=>f.teamId===team.id&&f.paid);
   const te = expenses.filter(e=>e.teamId===team.id);
   const income = tf.reduce((s,f)=>s+f.amount,0);
-  const spent = te.reduce((s,e)=>s+e.amount,0);
+  const spent = te.reduce((s,e)=>s+Math.abs(e.amount),0);
   const balance = income - spent;
   const gm = id => members.find(m=>m.id===id);
   const allTx = [...tf.map(f=>({...f,type:"in",label:`Multa — ${gm(f.memberId)?.name}`})),...te.map(e=>({...e,type:"out",label:e.description}))].sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -1756,7 +1759,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
             <p style={{ margin:0, fontWeight:600, fontSize:14 }}>{tx.label}</p>
             <p style={{ margin:0, fontSize:12, color:T.sub }}>{tx.date}</p>
           </div>
-          <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{tx.amount}€</p>
+          <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{Math.abs(tx.amount)}€</p>
         </div>
       ))}
     </div>
