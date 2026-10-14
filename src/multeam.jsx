@@ -35,6 +35,8 @@ const aFine = f => {
   return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||localDate };
 };
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
+const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
+  date:c.match_date||'', opponent:c.opponent||'', note:c.note||'', consumed:!!c.consumed });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:e.created_at?.split('T')[0]||'' });
 const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], createdBy:t.created_by });
 
@@ -43,6 +45,21 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
+const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const cardCount = (cards, teamId, memberId) => {
+  const mine = cards.filter(c => c.teamId===teamId && String(c.memberId)===String(memberId));
+  return {
+    yellows: mine.filter(c => c.kind==='amarelo' && !c.consumed).length,
+    yellowsTotal: mine.filter(c => c.kind==='amarelo').length,
+    reds: mine.filter(c => c.kind==='vermelho').length,
+    all: mine,
+  };
+};
+// 0-2 normal · 3 atenção · 4 EM RISCO · >=5 SUSPENSO
+const cardStatus = y => y>=5 ? {label:"SUSPENSO", color:"#B00020"}
+                   : y===4 ? {label:"PRÓXIMO SUSPENDE", color:T.brand}
+                   : y===3 ? {label:"Atenção", color:T.yellow}
+                   : null;
 const age = d => d ? Math.floor((new Date() - new Date(d)) / (365.25*24*3600*1000)) : null;
 
 const Avatar = ({ initials, color = T.navy, size = 38, photo }) => (
@@ -2579,6 +2596,228 @@ const Spinner = ({ msg="A carregar..." }) => (
 );
 
 // ── MAIN APP ──────────────────────────────────────────────────
+// ── CARTÕES ───────────────────────────────────────────────────
+const plur = (n, one, many) => `${n} ${n===1 ? one : many}`;
+
+const KindPicker = ({ value, onChange }) => (
+  <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+    {[["amarelo","🟨 Amarelo",T.yellow,"#1D1D1F"],["vermelho","🟥 Vermelho",T.brand,"#fff"]].map(([k,l,bg,fg])=>(
+      <button key={k} onClick={()=>onChange(k)} style={{ flex:1, padding:"16px 8px", borderRadius:14, border:value===k?`3px solid ${T.navy}`:`2px solid ${T.border}`, background:value===k?bg:T.inputBg, color:value===k?fg:T.sub, fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+    ))}
+  </div>
+);
+
+const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
+  const tm = members.filter(m => m.teamId===team.id);
+  const [mid, setMid] = useState("");
+  const [kind, setKind] = useState("amarelo");
+  const [date, setDate] = useState(todayLocal());
+  const [opponent, setOpponent] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const sel = tm.find(m => String(m.id)===String(mid));
+  const y = mid ? cardCount(cards, team.id, mid).yellows : 0;
+  const after = y + 1;
+  const consequence = !sel ? null
+    : kind==="vermelho" ? { t:"Cartão vermelho. O castigo é dado pela associação.", color:T.brand, strong:false }
+    : after>=5 ? { t:"Fica SUSPENSO por 1 jogo.", color:"#B00020", strong:true }
+    : after===4 ? { t:"Fica com 4 amarelos — a 1 da suspensão.", color:T.brand, strong:true }
+    : { t:`Fica com ${plur(after,"amarelo","amarelos")}.`, color:T.sub, strong:false };
+  const save = async () => {
+    if (!mid || !date || saving) return;
+    setSaving(true); setErr("");
+    try { await onAdd({ teamId:team.id, memberId:mid, kind, date, opponent:opponent.trim(), note:note.trim() }); onClose(); }
+    catch(e) { setErr(e.message); setSaving(false); }
+  };
+  return (
+    <Sheet onClose={onClose} title="Lançar cartão">
+      {sel && (
+        <div style={{ display:"flex", alignItems:"center", gap:12, background:`${T.navy}12`, border:`2px solid ${T.navy}`, borderRadius:14, padding:"10px 12px", marginBottom:14 }}>
+          <Avatar initials={sel.initials} photo={sel.avatarUrl} color={team.color} size={44} />
+          <div>
+            <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Cartão para</p>
+            <p style={{ margin:0, fontSize:17, fontWeight:900 }}>{sel.name}</p>
+          </div>
+        </div>
+      )}
+      <FL>{sel ? "Mudar jogador" : "Jogador"}</FL>
+      <div style={{ maxHeight:200, overflowY:"auto", marginBottom:14, border:`1.5px solid ${T.border}`, borderRadius:12 }}>
+        {tm.map(m => (
+          <div key={m.id} onClick={()=>setMid(m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", background:String(mid)===String(m.id)?`${T.navy}18`:"transparent", borderBottom:`1px solid ${T.border}` }}>
+            <Avatar initials={m.initials} photo={m.avatarUrl} color={team.color} size={32} />
+            <span style={{ flex:1, fontWeight:String(mid)===String(m.id)?800:600, fontSize:14 }}>{m.name}</span>
+            {String(mid)===String(m.id) && <span style={{ color:T.navy, fontWeight:800 }}>✓</span>}
+          </div>
+        ))}
+      </div>
+      <FL>Tipo</FL>
+      <KindPicker value={kind} onChange={setKind} />
+      {consequence && (
+        <p style={{ margin:"0 0 14px", padding:consequence.strong?"10px 12px":0, borderRadius:10, background:consequence.strong?consequence.color:"transparent", color:consequence.strong?"#fff":consequence.color, fontWeight:consequence.strong?800:600, fontSize:14 }}>{consequence.t}</p>
+      )}
+      <FL>Data do jogo</FL>
+      <FI type="date" value={date} onChange={e=>setDate(e.target.value)} />
+      <FL>Adversário (opcional)</FL>
+      <FI value={opponent} onChange={e=>setOpponent(e.target.value)} placeholder="Ex: Os Vizinhos FC" />
+      <FL>Nota (opcional)</FL>
+      <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="Ex: protestos" />
+      {err && <p style={{ color:T.brand, fontSize:13, margin:"0 0 8px" }}>{err}</p>}
+      <PrimaryBtn onClick={save} disabled={!mid || !date || saving}>{saving ? "A guardar..." : `Lançar ${kind}`}</PrimaryBtn>
+    </Sheet>
+  );
+};
+
+const EditCardModal = ({ card, onSave, onClose }) => {
+  const [kind, setKind] = useState(card.kind);
+  const [date, setDate] = useState(card.date || todayLocal());
+  const [opponent, setOpponent] = useState(card.opponent);
+  const [note, setNote] = useState(card.note);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!date || saving) return;
+    setSaving(true);
+    await onSave(card.id, { kind, date, opponent:opponent.trim(), note:note.trim() });
+    onClose();
+  };
+  return (
+    <Sheet onClose={onClose} title="Editar cartão">
+      <FL>Tipo</FL>
+      <KindPicker value={kind} onChange={setKind} />
+      <FL>Data do jogo</FL>
+      <FI type="date" value={date} onChange={e=>setDate(e.target.value)} />
+      <FL>Adversário (opcional)</FL>
+      <FI value={opponent} onChange={e=>setOpponent(e.target.value)} />
+      <FL>Nota (opcional)</FL>
+      <FI value={note} onChange={e=>setNote(e.target.value)} />
+      <PrimaryBtn onClick={save} disabled={!date || saving}>{saving ? "A guardar..." : "Guardar"}</PrimaryBtn>
+    </Sheet>
+  );
+};
+
+// Frase do estado de um jogador (nunca um número sozinho)
+const cardSegments = r => {
+  const hasConsumed = r.yellowsTotal > r.yellows;
+  const segs = [];
+  if (r.yellows >= 5) {
+    segs.push({ t:"SUSPENDE 1 JOGO", color:"#B00020", bold:true });
+  } else if (r.yellows === 4) {
+    segs.push({ t:`4 amarelos${hasConsumed?" em vigor":""} · falta 1 para suspensão`, color:T.brand, bold:true });
+  } else if (r.yellows > 0) {
+    segs.push({ t:`${plur(r.yellows,"amarelo","amarelos")}${hasConsumed?" em vigor":""}`, color:T.text });
+  } else if (hasConsumed) {
+    segs.push({ t:"Sem amarelos em vigor", color:T.sub });
+  } else if (r.reds === 0) {
+    segs.push({ t:"Sem cartões", color:"#B0B0B8" });
+  }
+  if (hasConsumed) segs.push({ t:`${r.yellowsTotal} esta época`, color:T.sub });
+  if (r.reds > 0) segs.push({ t:plur(r.reds,"vermelho","vermelhos"), color:T.brand, bold:true });
+  return segs;
+};
+
+const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDeleteCard, onServeSuspension }) => {
+  const [open, setOpen] = useState(null);
+  const [showNone, setShowNone] = useState(false);
+  const rows = members.filter(m => m.teamId===team.id).map(m => ({ m, ...cardCount(cards, team.id, m.id) }))
+    .sort((a,b) => b.yellows - a.yellows || a.m.name.localeCompare(b.m.name, "pt"));
+  const risk = rows.filter(r => r.yellows >= 4);
+  const withCards = rows.filter(r => r.all.length > 0);
+  const noCards = rows.filter(r => r.all.length === 0);
+
+  const confirmDelete = (r, c) => {
+    const nome = r.m.name;
+    let efeito;
+    if (c.kind==="vermelho") efeito = `Os vermelhos descem para ${r.reds-1}.`;
+    else if (c.consumed) efeito = `Já estava cumprido: o contador em vigor não muda, mas desce para ${r.yellowsTotal-1} esta época.`;
+    else efeito = `O contador desce para ${r.yellows-1}.`;
+    if (window.confirm(`Apagar este ${c.kind} de ${nome}? ${efeito}`)) onDeleteCard(c.id);
+  };
+
+  const renderRow = r => {
+    const st = cardStatus(r.yellows);
+    const isOpen = open===r.m.id;
+    const segs = cardSegments(r);
+    const active = r.all.filter(c => !c.consumed).sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id-a.id));
+    const done = r.all.filter(c => c.consumed).sort((a,b) => (b.date||'').localeCompare(a.date||'') || (b.id-a.id));
+    const histRow = c => (
+      <div key={c.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", opacity:c.consumed?0.5:1, color:c.consumed?"#888":T.text }}>
+        <span style={{ fontSize:20, filter:c.consumed?"grayscale(1)":"none" }}>{c.kind==="amarelo"?"🟨":"🟥"}</span>
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ margin:0, fontSize:13, fontWeight:700 }}>{fmtDate(c.date)}{c.opponent ? ` · vs ${c.opponent}` : ""}</p>
+          {c.note && <p style={{ margin:0, fontSize:12, color:T.sub }}>{c.note}</p>}
+        </div>
+        {canManage && <button onClick={()=>onEditCard(c)} style={{ padding:"3px 7px", borderRadius:7, border:`1.5px solid ${T.sub}`, background:"transparent", fontSize:12, cursor:"pointer" }}>✏️</button>}
+        {canManage && <button onClick={()=>confirmDelete(r, c)} style={{ padding:"3px 7px", borderRadius:7, border:"1.5px solid #888", background:"transparent", fontSize:12, cursor:"pointer" }}>🗑️</button>}
+      </div>
+    );
+    return (
+      <div key={r.m.id} style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`4px solid ${st?st.color:T.border}` }}>
+        <div onClick={()=>setOpen(isOpen?null:r.m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", cursor:"pointer" }}>
+          <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={team.color} size={38} />
+          <div style={{ flex:1, minWidth:0 }}>
+            <p style={{ margin:"0 0 3px", fontWeight:800, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.m.name}</p>
+            <p style={{ margin:0, fontSize:13, lineHeight:1.4 }}>
+              {segs.map((s,i) => <span key={i} style={{ color:s.color, fontWeight:s.bold?800:500 }}>{i>0 && <span style={{ color:T.sub, fontWeight:500 }}> · </span>}{s.t}</span>)}
+            </p>
+          </div>
+          <span style={{ color:T.sub, fontSize:12 }}>{isOpen?"▼":"▶"}</span>
+        </div>
+        {r.yellows>=5 && canManage && (
+          <div style={{ padding:"0 12px 10px" }}>
+            <button onClick={()=>{ if(window.confirm(`${r.m.name} já cumpriu o jogo de castigo? O contador volta a 0. Os 5 amarelos continuam no histórico, marcados como cumpridos.`)) onServeSuspension(r.m.id); }} style={{ width:"100%", padding:"10px", borderRadius:10, border:"none", background:"#B00020", color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Já cumpriu o castigo</button>
+          </div>
+        )}
+        {isOpen && (
+          <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 12px 10px" }}>
+            {r.all.length===0 && <p style={{ margin:"6px 0", fontSize:13, color:T.sub }}>Sem cartões.</p>}
+            {active.map(histRow)}
+            {done.length>0 && (
+              <>
+                <p style={{ margin:"10px 0 4px", fontSize:11, fontWeight:700, color:T.sub, borderTop:`1px dashed ${T.border}`, paddingTop:8 }}>Já cumpridos — contam para a época, não para a suspensão</p>
+                {done.map(histRow)}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding:"14px 16px 100px" }}>
+      <h3 style={{ margin:"0 0 2px", fontSize:20, fontWeight:900 }}>Cartões</h3>
+      <p style={{ margin:"0 0 14px", fontSize:12, color:T.sub }}>5 amarelos = 1 jogo de castigo. Os castigos são dados pela associação.</p>
+      {risk.length>0 && (
+        <div style={{ background:"#B00020", borderRadius:16, padding:"14px", marginBottom:16, color:"#fff" }}>
+          <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:900, letterSpacing:1 }}>🚨 EM RISCO</p>
+          {risk.map(r => (
+            <div key={r.m.id} style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.15)", borderRadius:12, padding:"8px 10px", marginBottom:6 }}>
+              <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={T.navy} size={36} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{r.m.name}</p>
+                <p style={{ margin:0, fontSize:12, opacity:0.95 }}>{r.yellows>=5 ? "Suspende 1 jogo" : "A 1 amarelo da suspensão"}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {canManage && <button onClick={onAddCard} style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background:T.navy, color:"#fff", fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>+ Lançar cartão</button>}
+      {rows.length===0 && <p style={{ textAlign:"center", color:T.sub }}>Sem jogadores na equipa.</p>}
+      {withCards.map(renderRow)}
+      {noCards.length>0 && (
+        <>
+          <button onClick={()=>setShowNone(v=>!v)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"12px 0 8px", fontFamily:"inherit" }}>
+            <span style={{ fontSize:13, fontWeight:800, color:T.sub }}>Sem cartões ({noCards.length})</span>
+            <span style={{ fontSize:12, color:T.sub }}>{showNone?"▼":"▶"}</span>
+          </button>
+          {showNone && noCards.map(renderRow)}
+        </>
+      )}
+      {!canManage && <p style={{ margin:"14px 0 0", fontSize:12, color:T.sub, textAlign:"center" }}>Só o admin, o treinador ou o diretor podem lançar cartões.</p>}
+    </div>
+  );
+};
+
 export default function App() {
   // Detect tokens from email links (magic link or password recovery)
   const [recoveryToken] = useState(() => {
@@ -2605,6 +2844,8 @@ export default function App() {
   const [members, setMembers]   = useState([]);
   const [fineTypes, setFineTypes] = useState([]);
   const [fines, setFines]       = useState([]);
+  const [cards, setCards]       = useState([]);
+  const [editingCard, setEditingCard] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [trainings, setTrainings] = useState([]);
   const [presences, setPresences] = useState({});
@@ -2626,13 +2867,14 @@ export default function App() {
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
-    const [mRaw, ftData, fData, eData, tData, pData] = await Promise.all([
+    const [mRaw, ftData, fData, eData, tData, pData, cData] = await Promise.all([
       api.get(`team_members?team_id=eq.${tid}&select=*`, tok),
       api.get(`fine_types?team_id=eq.${tid}&order=amount.asc`, tok),
       api.get(`fines?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`expenses?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`trainings?team_id=eq.${tid}&order=date.asc,time.asc`, tok),
       api.get(`presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.${tid}`, tok).catch(()=>[]),
+      api.get(`cards?team_id=eq.${tid}&order=match_date.desc,created_at.desc`, tok).catch(()=>[]),
     ]);
     // Fetch profiles via SECURITY DEFINER RPC (bypasses RLS - todos os membros podem ver)
     let profilesMap = {};
@@ -2661,7 +2903,7 @@ export default function App() {
       if (!presMap[p.training_id]) presMap[p.training_id] = {};
       presMap[p.training_id][p.member_id] = p.status;
     });
-    return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap };
+    return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, cards:(Array.isArray(cData)?cData:[]).map(aCard) };
   };
 
   // Init app after login
@@ -2709,7 +2951,7 @@ export default function App() {
       setTeamId(first);
       const td = await loadTeam(tok, first);
       setMembers(td.members); setFineTypes(td.fineTypes);
-      setFines(td.fines); setExpenses(td.expenses);
+      setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
       setTrainings(td.trainings); setPresences(td.presences);
       setAppReady(true);
     } catch(e) { setAuthError(`Erro: ${e.message}`); }
@@ -2722,7 +2964,7 @@ export default function App() {
     try {
       const td = await loadTeam(token, id);
       setMembers(td.members); setFineTypes(td.fineTypes);
-      setFines(td.fines); setExpenses(td.expenses);
+      setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
       setTrainings(td.trainings); setPresences(td.presences);
     } catch(e) { console.error(e); }
     setLoading(false);
@@ -2735,7 +2977,7 @@ export default function App() {
     try {
       const td = await loadTeam(token, teamId);
       setMembers(td.members); setFineTypes(td.fineTypes);
-      setFines(td.fines); setExpenses(td.expenses);
+      setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
       setTrainings(td.trainings); setPresences(td.presences);
     } catch(e) { console.error(e); }
     setRefreshing(false);
@@ -2778,7 +3020,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => { setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setExpenses([]); setTrainings([]); setPresences({}); setTeamId(null); setAppReady(false); setTab("home"); };
+  const handleLogout = () => { setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setTeamId(null); setAppReady(false); setTab("home"); };
 
   // Data actions
   const addFine = async d => {
@@ -2794,6 +3036,38 @@ export default function App() {
   };
   const editFine = async (id, data) => {
     try { await api.patch(`fines?id=eq.${id}`,{emoji:data.emoji,reason:data.reason,amount:data.amount},token); setFines(p=>p.map(f=>f.id===id?{...f,...data}:f)); } catch(e){console.error(e);}
+  };
+  const addCard = async d => {
+    const [c] = await api.post('cards', { team_id:d.teamId, member_id:d.memberId, kind:d.kind,
+      match_date:d.date, opponent:d.opponent||null, note:d.note||null, consumed:false,
+      created_by:myUserId }, token);
+    setCards(p => [aCard(c), ...p]);
+    return aCard(c);
+  };
+  const editCard = async (id, d) => {
+    try {
+      await api.patch(`cards?id=eq.${id}`, { kind:d.kind, match_date:d.date,
+        opponent:d.opponent||null, note:d.note||null }, token);
+      setCards(p => p.map(c => c.id===id ? {...c, ...d} : c));
+    } catch(e){ console.error(e); }
+  };
+  const delCard = async id => {
+    try { await api.del(`cards?id=eq.${id}`, token); setCards(p => p.filter(c=>c.id!==id)); }
+    catch(e){ console.error(e); }
+  };
+  // Castigo cumprido: marca os 5 amarelos mais antigos ainda em vigor
+  const serveSuspension = async memberId => {
+    const ids = cards
+      .filter(c => c.teamId===teamId && String(c.memberId)===String(memberId)
+                   && c.kind==='amarelo' && !c.consumed)
+      .sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.id-b.id))
+      .slice(0,5).map(c=>c.id);
+    if (ids.length < 5) return;
+    try {
+      await api.patch(`cards?id=in.(${ids.join(',')})`, { consumed:true }, token);
+      setCards(p => p.map(c => ids.includes(c.id) ? {...c, consumed:true} : c));
+      showToast(`Contador de ${members.find(m => String(m.id)===String(memberId))?.name || "jogador"} reposto a 0`, T.navy);
+    } catch(e){ console.error(e); }
   };
   const addExpense = async d => {
     try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
@@ -3059,6 +3333,23 @@ export default function App() {
       sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${d.amount}€ — ${d.reason || "Multa atribuída"}`).catch(()=>{});
     }
   };
+  const addCardWithAlert = async d => {
+    const c = await addCard(d);
+    const m = members.find(x => String(x.id) === String(d.memberId));
+    const name = m?.name || "jogador";
+    showToast(`${d.kind==='amarelo'?"🟨":"🟥"} Cartão ${d.kind} lançado a ${name}`, d.kind==='amarelo'?"#B38F00":T.brand);
+    if (c.kind !== 'amarelo') return;
+    const y = cards.filter(x => x.teamId===d.teamId && String(x.memberId)===String(d.memberId) && x.kind==='amarelo' && !x.consumed).length + 1;
+    if (y < 4) return;
+    const managers = members.filter(x => x.teamId===d.teamId && ["admin","treinador","diretor"].includes(x.role));
+    if (y === 4) {
+      if (m?.userId) sendPushToTeam(d.teamId, [m], "🟨 Estás a 1 amarelo da suspensão", "Tens 4 amarelos. Ao 5.º falhas um jogo.").catch(()=>{});
+      sendPushToTeam(d.teamId, managers, `🟨 ${name} está em risco`, "4 amarelos — ao 5.º falha um jogo.").catch(()=>{});
+    } else {
+      if (m?.userId) sendPushToTeam(d.teamId, [m], "🟥 Suspenso", "5 amarelos — tens de cumprir 1 jogo de castigo.").catch(()=>{});
+      sendPushToTeam(d.teamId, managers, `🟥 ${name} atingiu 5 amarelos`, "Cumpre 1 jogo de castigo.").catch(()=>{});
+    }
+  };
   // Auto-login with magic link token
   useEffect(() => {
     if (!magicToken || token) return;
@@ -3073,7 +3364,8 @@ export default function App() {
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
-  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🟥",label:"Multas"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
+  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
+  const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{ch}</div>;
 
   if (!team) return (
@@ -3119,6 +3411,7 @@ export default function App() {
 
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
+      {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
@@ -3126,7 +3419,7 @@ export default function App() {
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
           <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit" }}>
-            <span style={{ fontSize:20 }}>{item.emoji}</span>
+            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <span style={{ position:"absolute", top:-4, right:-9, minWidth:15, height:15, borderRadius:8, background:"#B00020", color:"#fff", fontSize:10, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 3px", boxSizing:"border-box" }}>{atRiskCount}</span>}</span>
             <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?team.color:T.sub }}>{item.label}</span>
           </button>
         ))}
@@ -3134,6 +3427,8 @@ export default function App() {
 
       {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} />}
       {modal==="fine"    && isAdmin && <AddFineModal team={team} myUserId={myUserId} token={token} onAdd={addFineWithToast} onClose={()=>setModal(null)} />}
+      {modal==="card"    && canManageTrainings && <AddCardModal team={team} members={members} cards={cards} onAdd={addCardWithAlert} onClose={()=>setModal(null)} />}
+      {editingCard && canManageTrainings && <EditCardModal card={editingCard} onSave={editCard} onClose={()=>setEditingCard(null)} />}
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
