@@ -2715,6 +2715,25 @@ const cardSegments = r => {
   return segs;
 };
 
+// Bloco recolhido dos cartões já cumpridos (estado local; fecha ao fechar a linha do jogador)
+const CompletedCards = ({ count, children }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ marginTop:8, borderTop:`1px dashed ${T.border}` }}>
+      <button onClick={()=>setShow(v=>!v)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"10px 0 6px", fontFamily:"inherit" }}>
+        <span style={{ fontSize:13, fontWeight:800, color:T.sub }}>Já cumpridos ({count})</span>
+        <span style={{ fontSize:12, color:T.sub }}>{show?"▾":"▸"}</span>
+      </button>
+      {show && (
+        <>
+          <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:700, color:T.sub }}>Contam para a época, não para a suspensão.</p>
+          {children}
+        </>
+      )}
+    </div>
+  );
+};
+
 const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDeleteCard, onServeSuspension }) => {
   const [open, setOpen] = useState(null);
   const [showNone, setShowNone] = useState(false);
@@ -2771,12 +2790,7 @@ const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDe
           <div style={{ borderTop:`1px solid ${T.border}`, padding:"8px 12px 10px" }}>
             {r.all.length===0 && <p style={{ margin:"6px 0", fontSize:13, color:T.sub }}>Sem cartões.</p>}
             {active.map(histRow)}
-            {done.length>0 && (
-              <>
-                <p style={{ margin:"10px 0 4px", fontSize:11, fontWeight:700, color:T.sub, borderTop:`1px dashed ${T.border}`, paddingTop:8 }}>Já cumpridos — contam para a época, não para a suspensão</p>
-                {done.map(histRow)}
-              </>
-            )}
+            {done.length>0 && <CompletedCards count={done.length}>{done.map(histRow)}</CompletedCards>}
           </div>
         )}
       </div>
