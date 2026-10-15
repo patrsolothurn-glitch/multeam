@@ -666,6 +666,7 @@ var useForecast = function useForecast(team, trainings) {
         };
       });
     }
+    setHourly(null);
     c.promise.then(function (m) {
       if (alive) setHourly(m);
     }).catch(function () {});
@@ -8659,53 +8660,426 @@ var FineTypesManager = function FineTypesManager(_ref95) {
     }
   }, "\u2795 Adicionar tipo de multa"));
 };
-var ManageTeamScreen = function ManageTeamScreen(_ref99) {
+var TeamDataSection = function TeamDataSection(_ref99) {
   var team = _ref99.team,
-    members = _ref99.members,
-    fineTypes = _ref99.fineTypes,
-    token = _ref99.token,
-    myUserId = _ref99.myUserId,
-    onBack = _ref99.onBack,
-    onAddMember = _ref99.onAddMember,
-    onToggleRole = _ref99.onToggleRole,
-    onRemoveMember = _ref99.onRemoveMember,
-    onEditMember = _ref99.onEditMember,
-    onRegenerateCode = _ref99.onRegenerateCode,
-    onDeleteTeam = _ref99.onDeleteTeam,
-    setFineTypes = _ref99.setFineTypes;
+    onSave = _ref99.onSave;
+  var opt = function opt(list, cur) {
+    return cur && !list.includes(cur) ? [cur].concat(_toConsumableArray(list)) : list;
+  };
+  var init = function init() {
+    return {
+      name: team.name || "",
+      emoji: team.emoji || "⚽",
+      color: team.color || "#1D3557",
+      season: team.season || "",
+      sport: team.sport || "",
+      currency: team.currency || "",
+      country: team.country || "",
+      city: team.city || "",
+      postal: team.postal || ""
+    };
+  };
+  var _useState239 = useState(false),
+    _useState240 = _slicedToArray(_useState239, 2),
+    editing = _useState240[0],
+    setEditing = _useState240[1];
+  var _useState241 = useState(init),
+    _useState242 = _slicedToArray(_useState241, 2),
+    f = _useState242[0],
+    setF = _useState242[1];
+  var _useState243 = useState(false),
+    _useState244 = _slicedToArray(_useState243, 2),
+    busy = _useState244[0],
+    setBusy = _useState244[1];
+  var _useState245 = useState(""),
+    _useState246 = _slicedToArray(_useState245, 2),
+    err = _useState246[0],
+    setErr = _useState246[1];
+  var set = function set(k, v) {
+    return setF(function (p) {
+      return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, k, v));
+    });
+  };
+  var nameOk = f.name.trim().length > 0,
+    seasonOk = f.season.trim().length > 0;
+  var canSave = nameOk && seasonOk && !busy;
+  var open = function open() {
+    setF(init());
+    setErr("");
+    setEditing(true);
+  };
+  var save = function () {
+    var _ref100 = _asyncToGenerator(_regenerator().m(function _callee32() {
+      var cur, next, patch, _t40;
+      return _regenerator().w(function (_context32) {
+        while (1) switch (_context32.p = _context32.n) {
+          case 0:
+            if (canSave) {
+              _context32.n = 1;
+              break;
+            }
+            return _context32.a(2);
+          case 1:
+            cur = init(), next = _objectSpread(_objectSpread({}, f), {}, {
+              name: f.name.trim(),
+              season: f.season.trim(),
+              city: f.city.trim(),
+              postal: f.postal.trim()
+            });
+            patch = {};
+            Object.keys(next).forEach(function (k) {
+              if (next[k] !== cur[k]) patch[k] = next[k];
+            });
+            if (Object.keys(patch).length) {
+              _context32.n = 2;
+              break;
+            }
+            setEditing(false);
+            return _context32.a(2);
+          case 2:
+            setBusy(true);
+            setErr("");
+            _context32.p = 3;
+            _context32.n = 4;
+            return onSave(team.id, patch);
+          case 4:
+            setEditing(false);
+            _context32.n = 6;
+            break;
+          case 5:
+            _context32.p = 5;
+            _t40 = _context32.v;
+            setErr(_t40.message || "Erro ao guardar");
+          case 6:
+            setBusy(false);
+          case 7:
+            return _context32.a(2);
+        }
+      }, _callee32, null, [[3, 5]]);
+    }));
+    return function save() {
+      return _ref100.apply(this, arguments);
+    };
+  }();
+  var Val = function Val(_ref101) {
+    var label = _ref101.label,
+      v = _ref101.v;
+    return React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "6px 0"
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 13,
+        color: T.sub
+      }
+    }, label), React.createElement("span", {
+      style: {
+        fontSize: 14,
+        fontWeight: 600,
+        textAlign: "right"
+      }
+    }, v || "—"));
+  };
+  return React.createElement("div", {
+    style: {
+      background: T.card,
+      borderRadius: 16,
+      padding: "16px",
+      marginBottom: 20
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: editing ? 12 : 6
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 11,
+      fontWeight: 700,
+      color: T.sub,
+      textTransform: "uppercase",
+      letterSpacing: 0.5
+    }
+  }, "Dados da equipa"), !editing && React.createElement("button", {
+    onClick: open,
+    style: {
+      background: "".concat(team.color, "15"),
+      border: "none",
+      borderRadius: 10,
+      padding: "7px 12px",
+      fontSize: 13,
+      fontWeight: 700,
+      cursor: "pointer",
+      color: team.color,
+      fontFamily: "inherit"
+    }
+  }, "\u270F\uFE0F Editar")), !editing ? React.createElement(React.Fragment, null, React.createElement(Val, {
+    label: "Nome",
+    v: "".concat(team.emoji || "", " ").concat(team.name || "").trim()
+  }), React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "6px 0"
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: T.sub
+    }
+  }, "Cor"), React.createElement("span", {
+    style: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      background: team.color,
+      display: "inline-block"
+    }
+  })), React.createElement(Val, {
+    label: "\xC9poca",
+    v: team.season
+  }), React.createElement(Val, {
+    label: "Desporto",
+    v: team.sport
+  }), React.createElement(Val, {
+    label: "Moeda",
+    v: team.currency
+  }), React.createElement(Val, {
+    label: "Pa\xEDs",
+    v: team.country
+  }), React.createElement(Val, {
+    label: "Cidade",
+    v: [team.postal, team.city].filter(Boolean).join(" ")
+  }), React.createElement("p", {
+    style: {
+      margin: "4px 0 0",
+      fontSize: 12,
+      color: T.sub
+    }
+  }, "Cidade e pa\xEDs: usados para a previs\xE3o do tempo nos treinos.")) : React.createElement(React.Fragment, null, React.createElement(FL, null, "Nome"), React.createElement(FI, {
+    value: f.name,
+    onChange: function onChange(e) {
+      return set("name", e.target.value);
+    }
+  }), React.createElement(FL, null, "Emoji"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      marginBottom: 14
+    }
+  }, opt(EMOJIS, f.emoji).map(function (e) {
+    return React.createElement("button", {
+      key: e,
+      onClick: function onClick() {
+        return set("emoji", e);
+      },
+      style: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        fontSize: 20,
+        cursor: "pointer",
+        border: "2px solid ".concat(f.emoji === e ? f.color : T.border),
+        background: f.emoji === e ? "".concat(f.color, "15") : "transparent"
+      }
+    }, e);
+  })), React.createElement(FL, null, "Cor"), React.createElement("div", {
+    style: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 14
+    }
+  }, opt(COLORS, f.color).map(function (c) {
+    return React.createElement("button", {
+      key: c,
+      onClick: function onClick() {
+        return set("color", c);
+      },
+      "aria-label": c,
+      style: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        background: c,
+        cursor: "pointer",
+        border: f.color === c ? "3px solid ".concat(T.text) : "3px solid transparent"
+      }
+    });
+  })), React.createElement(FL, null, "\xC9poca"), React.createElement(FI, {
+    value: f.season,
+    onChange: function onChange(e) {
+      return set("season", e.target.value);
+    },
+    placeholder: "2025/26"
+  }), React.createElement(FL, null, "Desporto"), React.createElement(FSel, {
+    value: f.sport,
+    onChange: function onChange(e) {
+      return set("sport", e.target.value);
+    }
+  }, opt(SPORTS, f.sport).map(function (x) {
+    return React.createElement("option", {
+      key: x,
+      value: x
+    }, x);
+  })), React.createElement(FL, null, "Moeda"), React.createElement(FSel, {
+    value: f.currency,
+    onChange: function onChange(e) {
+      return set("currency", e.target.value);
+    }
+  }, opt(CURRENCIES, f.currency).map(function (x) {
+    return React.createElement("option", {
+      key: x,
+      value: x
+    }, x);
+  })), React.createElement(FL, null, "Pa\xEDs"), React.createElement(FSel, {
+    value: f.country,
+    onChange: function onChange(e) {
+      return set("country", e.target.value);
+    }
+  }, opt(COUNTRIES, f.country).map(function (x) {
+    return React.createElement("option", {
+      key: x,
+      value: x
+    }, x);
+  })), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      flex: 2
+    }
+  }, React.createElement(FL, null, "Cidade"), React.createElement(FI, {
+    value: f.city,
+    onChange: function onChange(e) {
+      return set("city", e.target.value);
+    },
+    placeholder: "Ex: Selzach"
+  })), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, React.createElement(FL, null, "C\xF3d. Postal"), React.createElement(FI, {
+    value: f.postal,
+    onChange: function onChange(e) {
+      return set("postal", e.target.value);
+    },
+    placeholder: "2545"
+  }))), React.createElement("p", {
+    style: {
+      margin: "-8px 0 14px",
+      fontSize: 12,
+      color: T.sub
+    }
+  }, "Usado para a previs\xE3o do tempo nos treinos."), (!nameOk || !seasonOk) && React.createElement("p", {
+    style: {
+      margin: "0 0 10px",
+      fontSize: 13,
+      fontWeight: 600,
+      color: T.brand
+    }
+  }, !nameOk ? "O nome não pode ficar vazio." : "A época não pode ficar vazia."), err && React.createElement("p", {
+    style: {
+      margin: "0 0 10px",
+      fontSize: 13,
+      fontWeight: 600,
+      color: T.brand
+    }
+  }, err), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10
+    }
+  }, React.createElement("button", {
+    onClick: function onClick() {
+      setEditing(false);
+      setErr("");
+    },
+    disabled: busy,
+    style: {
+      flex: 1,
+      padding: "15px",
+      borderRadius: 14,
+      border: "1.5px solid ".concat(T.border),
+      background: "transparent",
+      color: T.sub,
+      fontSize: 15,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Cancelar"), React.createElement("div", {
+    style: {
+      flex: 2
+    }
+  }, React.createElement(PrimaryBtn, {
+    onClick: save,
+    disabled: !canSave,
+    color: f.color
+  }, busy ? "A guardar…" : "Guardar")))));
+};
+var ManageTeamScreen = function ManageTeamScreen(_ref102) {
+  var team = _ref102.team,
+    members = _ref102.members,
+    fineTypes = _ref102.fineTypes,
+    token = _ref102.token,
+    myUserId = _ref102.myUserId,
+    onBack = _ref102.onBack,
+    onAddMember = _ref102.onAddMember,
+    onToggleRole = _ref102.onToggleRole,
+    onRemoveMember = _ref102.onRemoveMember,
+    onEditMember = _ref102.onEditMember,
+    onRegenerateCode = _ref102.onRegenerateCode,
+    onDeleteTeam = _ref102.onDeleteTeam,
+    onEditTeam = _ref102.onEditTeam,
+    setFineTypes = _ref102.setFineTypes;
   var tm = members.filter(function (m) {
     return m.teamId === team.id;
   });
+  var canEditTeam = tm.some(function (m) {
+    return m.userId === myUserId && m.role === "admin";
+  }) || team.createdBy === myUserId;
   var admins = tm.filter(function (m) {
     return m.role === "admin";
   });
   var players = tm.filter(function (m) {
     return m.role === "player";
   });
-  var _useState239 = useState(null),
-    _useState240 = _slicedToArray(_useState239, 2),
-    confirmRemove = _useState240[0],
-    setConfirmRemove = _useState240[1];
-  var _useState241 = useState(null),
-    _useState242 = _slicedToArray(_useState241, 2),
-    editingMember = _useState242[0],
-    setEditingMember = _useState242[1];
-  var _useState243 = useState(false),
-    _useState244 = _slicedToArray(_useState243, 2),
-    copied = _useState244[0],
-    setCopied = _useState244[1];
+  var _useState247 = useState(null),
+    _useState248 = _slicedToArray(_useState247, 2),
+    confirmRemove = _useState248[0],
+    setConfirmRemove = _useState248[1];
+  var _useState249 = useState(null),
+    _useState250 = _slicedToArray(_useState249, 2),
+    editingMember = _useState250[0],
+    setEditingMember = _useState250[1];
+  var _useState251 = useState(false),
+    _useState252 = _slicedToArray(_useState251, 2),
+    copied = _useState252[0],
+    setCopied = _useState252[1];
   var copyCode = function copyCode() {
     setCopied(true);
     setTimeout(function () {
       return setCopied(false);
     }, 2000);
   };
-  var _useState245 = useState(null),
-    _useState246 = _slicedToArray(_useState245, 2),
-    expandedMember = _useState246[0],
-    setExpandedMember = _useState246[1];
-  var Row = function Row(_ref100) {
-    var m = _ref100.m;
+  var _useState253 = useState(null),
+    _useState254 = _slicedToArray(_useState253, 2),
+    expandedMember = _useState254[0],
+    setExpandedMember = _useState254[1];
+  var Row = function Row(_ref103) {
+    var m = _ref103.m;
     var expanded = expandedMember === m.id;
     return React.createElement("div", {
       style: {
@@ -8874,11 +9248,11 @@ var ManageTeamScreen = function ManageTeamScreen(_ref99) {
         gap: 4,
         flexWrap: "wrap"
       }
-    }, [["admin", "🛡 Admin", "#1D3557"], ["treinador", "🎽 Treinador", "#2E7D32"], ["diretor", "📋 Diretor", "#7B1FA2"], ["player", "👤 Jogador", "#86868B"]].map(function (_ref101) {
-      var _ref102 = _slicedToArray(_ref101, 3),
-        r = _ref102[0],
-        l = _ref102[1],
-        c = _ref102[2];
+    }, [["admin", "🛡 Admin", "#1D3557"], ["treinador", "🎽 Treinador", "#2E7D32"], ["diretor", "📋 Diretor", "#7B1FA2"], ["player", "👤 Jogador", "#86868B"]].map(function (_ref104) {
+      var _ref105 = _slicedToArray(_ref104, 3),
+        r = _ref105[0],
+        l = _ref105[1],
+        c = _ref105[2];
       return React.createElement("button", {
         key: r,
         onClick: function onClick() {
@@ -8956,7 +9330,10 @@ var ManageTeamScreen = function ManageTeamScreen(_ref99) {
     style: {
       padding: "16px 16px 100px"
     }
-  }, React.createElement("div", {
+  }, canEditTeam && onEditTeam && React.createElement(TeamDataSection, {
+    team: team,
+    onSave: onEditTeam
+  }), React.createElement("div", {
     style: {
       background: T.card,
       borderRadius: 16,
@@ -9279,14 +9656,14 @@ var ManageTeamScreen = function ManageTeamScreen(_ref99) {
     }
   }));
 };
-var MemberDetailScreen = function MemberDetailScreen(_ref103) {
-  var member = _ref103.member,
-    team = _ref103.team,
-    fines = _ref103.fines,
-    onBack = _ref103.onBack,
-    onTogglePaid = _ref103.onTogglePaid,
-    onDeleteFine = _ref103.onDeleteFine,
-    isAdmin = _ref103.isAdmin;
+var MemberDetailScreen = function MemberDetailScreen(_ref106) {
+  var member = _ref106.member,
+    team = _ref106.team,
+    fines = _ref106.fines,
+    onBack = _ref106.onBack,
+    onTogglePaid = _ref106.onTogglePaid,
+    onDeleteFine = _ref106.onDeleteFine,
+    isAdmin = _ref106.isAdmin;
   var pf = fines.filter(function (f) {
     return f.teamId === team.id && f.memberId === member.id;
   }).sort(function (a, b) {
@@ -9491,16 +9868,16 @@ var MemberDetailScreen = function MemberDetailScreen(_ref103) {
     }, "\uD83D\uDDD1\uFE0F")));
   })));
 };
-var LoginScreen = function LoginScreen(_ref104) {
-  var onLogin = _ref104.onLogin;
-  var _useState247 = useState("patricio@multeam.app"),
-    _useState248 = _slicedToArray(_useState247, 2),
-    email = _useState248[0],
-    setEmail = _useState248[1];
-  var _useState249 = useState("••••••••"),
-    _useState250 = _slicedToArray(_useState249, 2),
-    pass = _useState250[0],
-    setPass = _useState250[1];
+var LoginScreen = function LoginScreen(_ref107) {
+  var onLogin = _ref107.onLogin;
+  var _useState255 = useState("patricio@multeam.app"),
+    _useState256 = _slicedToArray(_useState255, 2),
+    email = _useState256[0],
+    setEmail = _useState256[1];
+  var _useState257 = useState("••••••••"),
+    _useState258 = _slicedToArray(_useState257, 2),
+    pass = _useState258[0],
+    setPass = _useState258[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -9603,33 +9980,33 @@ var LoginScreen = function LoginScreen(_ref104) {
     }
   }, "N\xE3o tens conta? Pede ao teu admin.")));
 };
-var ResetPasswordScreen = function ResetPasswordScreen(_ref105) {
-  var accessToken = _ref105.accessToken,
-    onDone = _ref105.onDone;
-  var _useState251 = useState(""),
-    _useState252 = _slicedToArray(_useState251, 2),
-    pass = _useState252[0],
-    setPass = _useState252[1];
-  var _useState253 = useState(""),
-    _useState254 = _slicedToArray(_useState253, 2),
-    pass2 = _useState254[0],
-    setPass2 = _useState254[1];
-  var _useState255 = useState(false),
-    _useState256 = _slicedToArray(_useState255, 2),
-    showPass = _useState256[0],
-    setShowPass = _useState256[1];
-  var _useState257 = useState(""),
-    _useState258 = _slicedToArray(_useState257, 2),
-    err = _useState258[0],
-    setErr = _useState258[1];
-  var _useState259 = useState(false),
+var ResetPasswordScreen = function ResetPasswordScreen(_ref108) {
+  var accessToken = _ref108.accessToken,
+    onDone = _ref108.onDone;
+  var _useState259 = useState(""),
     _useState260 = _slicedToArray(_useState259, 2),
-    done = _useState260[0],
-    setDone = _useState260[1];
-  var _useState261 = useState(false),
+    pass = _useState260[0],
+    setPass = _useState260[1];
+  var _useState261 = useState(""),
     _useState262 = _slicedToArray(_useState261, 2),
-    loading = _useState262[0],
-    setLoading = _useState262[1];
+    pass2 = _useState262[0],
+    setPass2 = _useState262[1];
+  var _useState263 = useState(false),
+    _useState264 = _slicedToArray(_useState263, 2),
+    showPass = _useState264[0],
+    setShowPass = _useState264[1];
+  var _useState265 = useState(""),
+    _useState266 = _slicedToArray(_useState265, 2),
+    err = _useState266[0],
+    setErr = _useState266[1];
+  var _useState267 = useState(false),
+    _useState268 = _slicedToArray(_useState267, 2),
+    done = _useState268[0],
+    setDone = _useState268[1];
+  var _useState269 = useState(false),
+    _useState270 = _slicedToArray(_useState269, 2),
+    loading = _useState270[0],
+    setLoading = _useState270[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -9644,46 +10021,46 @@ var ResetPasswordScreen = function ResetPasswordScreen(_ref105) {
     fontFamily: "inherit"
   };
   var save = function () {
-    var _ref106 = _asyncToGenerator(_regenerator().m(function _callee32() {
-      var _t40;
-      return _regenerator().w(function (_context32) {
-        while (1) switch (_context32.p = _context32.n) {
+    var _ref109 = _asyncToGenerator(_regenerator().m(function _callee33() {
+      var _t41;
+      return _regenerator().w(function (_context33) {
+        while (1) switch (_context33.p = _context33.n) {
           case 0:
             if (!(pass.length < 6)) {
-              _context32.n = 1;
+              _context33.n = 1;
               break;
             }
-            return _context32.a(2, setErr("Mínimo 6 caracteres"));
+            return _context33.a(2, setErr("Mínimo 6 caracteres"));
           case 1:
             if (!(pass !== pass2)) {
-              _context32.n = 2;
+              _context33.n = 2;
               break;
             }
-            return _context32.a(2, setErr("As passwords não coincidem"));
+            return _context33.a(2, setErr("As passwords não coincidem"));
           case 2:
             setLoading(true);
             setErr("");
-            _context32.p = 3;
-            _context32.n = 4;
+            _context33.p = 3;
+            _context33.n = 4;
             return api.updatePassword(pass, accessToken);
           case 4:
             setDone(true);
             setTimeout(onDone, 2500);
-            _context32.n = 6;
+            _context33.n = 6;
             break;
           case 5:
-            _context32.p = 5;
-            _t40 = _context32.v;
-            setErr(_t40.message);
+            _context33.p = 5;
+            _t41 = _context33.v;
+            setErr(_t41.message);
           case 6:
             setLoading(false);
           case 7:
-            return _context32.a(2);
+            return _context33.a(2);
         }
-      }, _callee32, null, [[3, 5]]);
+      }, _callee33, null, [[3, 5]]);
     }));
     return function save() {
-      return _ref106.apply(this, arguments);
+      return _ref109.apply(this, arguments);
     };
   }();
   return React.createElement("div", {
@@ -9801,31 +10178,31 @@ var ResetPasswordScreen = function ResetPasswordScreen(_ref105) {
     }
   }, loading ? "A guardar..." : "💾 Guardar password")));
 };
-var AuthScreen = function AuthScreen(_ref107) {
-  var onLogin = _ref107.onLogin,
-    onRegister = _ref107.onRegister,
-    error = _ref107.error,
-    loading = _ref107.loading;
-  var _useState263 = useState("login"),
-    _useState264 = _slicedToArray(_useState263, 2),
-    mode = _useState264[0],
-    setMode = _useState264[1];
-  var _useState265 = useState(""),
-    _useState266 = _slicedToArray(_useState265, 2),
-    email = _useState266[0],
-    setEmail = _useState266[1];
-  var _useState267 = useState(""),
-    _useState268 = _slicedToArray(_useState267, 2),
-    pass = _useState268[0],
-    setPass = _useState268[1];
-  var _useState269 = useState(""),
-    _useState270 = _slicedToArray(_useState269, 2),
-    name = _useState270[0],
-    setName = _useState270[1];
-  var _useState271 = useState(false),
+var AuthScreen = function AuthScreen(_ref110) {
+  var onLogin = _ref110.onLogin,
+    onRegister = _ref110.onRegister,
+    error = _ref110.error,
+    loading = _ref110.loading;
+  var _useState271 = useState("login"),
     _useState272 = _slicedToArray(_useState271, 2),
-    showPass = _useState272[0],
-    setShowPass = _useState272[1];
+    mode = _useState272[0],
+    setMode = _useState272[1];
+  var _useState273 = useState(""),
+    _useState274 = _slicedToArray(_useState273, 2),
+    email = _useState274[0],
+    setEmail = _useState274[1];
+  var _useState275 = useState(""),
+    _useState276 = _slicedToArray(_useState275, 2),
+    pass = _useState276[0],
+    setPass = _useState276[1];
+  var _useState277 = useState(""),
+    _useState278 = _slicedToArray(_useState277, 2),
+    name = _useState278[0],
+    setName = _useState278[1];
+  var _useState279 = useState(false),
+    _useState280 = _slicedToArray(_useState279, 2),
+    showPass = _useState280[0],
+    setShowPass = _useState280[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -9918,10 +10295,10 @@ var AuthScreen = function AuthScreen(_ref107) {
       padding: 4,
       marginBottom: 20
     }
-  }, [["login", "Entrar"], ["register", "Criar conta"]].map(function (_ref108) {
-    var _ref109 = _slicedToArray(_ref108, 2),
-      m = _ref109[0],
-      l = _ref109[1];
+  }, [["login", "Entrar"], ["register", "Criar conta"]].map(function (_ref111) {
+    var _ref112 = _slicedToArray(_ref111, 2),
+      m = _ref112[0],
+      l = _ref112[1];
     return React.createElement("button", {
       key: m,
       onClick: function onClick() {
@@ -10017,35 +10394,6 @@ var AuthScreen = function AuthScreen(_ref107) {
       marginTop: 4
     }
   }, loading ? "A carregar..." : mode === "login" ? "Entrar" : "Criar conta"), mode === "login" && React.createElement("p", {
-    onClick: _asyncToGenerator(_regenerator().m(function _callee33() {
-      return _regenerator().w(function (_context33) {
-        while (1) switch (_context33.n) {
-          case 0:
-            if (email) {
-              _context33.n = 1;
-              break;
-            }
-            alert("Escreve o teu email primeiro");
-            return _context33.a(2);
-          case 1:
-            _context33.n = 2;
-            return api.resetPassword(email);
-          case 2:
-            alert("Email de recuperação enviado para " + email);
-          case 3:
-            return _context33.a(2);
-        }
-      }, _callee33);
-    })),
-    style: {
-      textAlign: "center",
-      color: "rgba(255,255,255,0.35)",
-      fontSize: 13,
-      marginTop: 14,
-      cursor: "pointer",
-      textDecoration: "underline"
-    }
-  }, "Esqueceste a password?"), mode === "login" && React.createElement("p", {
     onClick: _asyncToGenerator(_regenerator().m(function _callee34() {
       return _regenerator().w(function (_context34) {
         while (1) switch (_context34.n) {
@@ -10054,20 +10402,11 @@ var AuthScreen = function AuthScreen(_ref107) {
               _context34.n = 1;
               break;
             }
-            alert("Mete o teu email primeiro");
+            alert("Escreve o teu email primeiro");
             return _context34.a(2);
           case 1:
             _context34.n = 2;
-            return fetch("".concat(SB_URL, "/auth/v1/recover"), {
-              method: "POST",
-              headers: {
-                "apikey": SB_KEY,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                email: email
-              })
-            });
+            return api.resetPassword(email);
           case 2:
             alert("Email de recuperação enviado para " + email);
           case 3:
@@ -10083,11 +10422,49 @@ var AuthScreen = function AuthScreen(_ref107) {
       cursor: "pointer",
       textDecoration: "underline"
     }
+  }, "Esqueceste a password?"), mode === "login" && React.createElement("p", {
+    onClick: _asyncToGenerator(_regenerator().m(function _callee35() {
+      return _regenerator().w(function (_context35) {
+        while (1) switch (_context35.n) {
+          case 0:
+            if (email) {
+              _context35.n = 1;
+              break;
+            }
+            alert("Mete o teu email primeiro");
+            return _context35.a(2);
+          case 1:
+            _context35.n = 2;
+            return fetch("".concat(SB_URL, "/auth/v1/recover"), {
+              method: "POST",
+              headers: {
+                "apikey": SB_KEY,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                email: email
+              })
+            });
+          case 2:
+            alert("Email de recuperação enviado para " + email);
+          case 3:
+            return _context35.a(2);
+        }
+      }, _callee35);
+    })),
+    style: {
+      textAlign: "center",
+      color: "rgba(255,255,255,0.35)",
+      fontSize: 13,
+      marginTop: 14,
+      cursor: "pointer",
+      textDecoration: "underline"
+    }
   }, "Esqueci a password")));
 };
-var Spinner = function Spinner(_ref112) {
-  var _ref112$msg = _ref112.msg,
-    msg = _ref112$msg === void 0 ? "A carregar..." : _ref112$msg;
+var Spinner = function Spinner(_ref115) {
+  var _ref115$msg = _ref115.msg,
+    msg = _ref115$msg === void 0 ? "A carregar..." : _ref115$msg;
   return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -10118,21 +10495,21 @@ var Spinner = function Spinner(_ref112) {
 var plur = function plur(n, one, many) {
   return "".concat(n, " ").concat(n === 1 ? one : many);
 };
-var KindPicker = function KindPicker(_ref113) {
-  var value = _ref113.value,
-    onChange = _ref113.onChange;
+var KindPicker = function KindPicker(_ref116) {
+  var value = _ref116.value,
+    onChange = _ref116.onChange;
   return React.createElement("div", {
     style: {
       display: "flex",
       gap: 10,
       marginBottom: 14
     }
-  }, [["amarelo", "🟨 Amarelo", T.yellow, "#1D1D1F"], ["vermelho", "🟥 Vermelho", T.brand, "#fff"]].map(function (_ref114) {
-    var _ref115 = _slicedToArray(_ref114, 4),
-      k = _ref115[0],
-      l = _ref115[1],
-      bg = _ref115[2],
-      fg = _ref115[3];
+  }, [["amarelo", "🟨 Amarelo", T.yellow, "#1D1D1F"], ["vermelho", "🟥 Vermelho", T.brand, "#fff"]].map(function (_ref117) {
+    var _ref118 = _slicedToArray(_ref117, 4),
+      k = _ref118[0],
+      l = _ref118[1],
+      bg = _ref118[2],
+      fg = _ref118[3];
     return React.createElement("button", {
       key: k,
       onClick: function onClick() {
@@ -10153,43 +10530,43 @@ var KindPicker = function KindPicker(_ref113) {
     }, l);
   }));
 };
-var AddCardModal = function AddCardModal(_ref116) {
-  var team = _ref116.team,
-    members = _ref116.members,
-    cards = _ref116.cards,
-    onAdd = _ref116.onAdd,
-    onClose = _ref116.onClose;
+var AddCardModal = function AddCardModal(_ref119) {
+  var team = _ref119.team,
+    members = _ref119.members,
+    cards = _ref119.cards,
+    onAdd = _ref119.onAdd,
+    onClose = _ref119.onClose;
   var tm = members.filter(function (m) {
     return m.teamId === team.id;
   });
-  var _useState273 = useState(""),
-    _useState274 = _slicedToArray(_useState273, 2),
-    mid = _useState274[0],
-    setMid = _useState274[1];
-  var _useState275 = useState("amarelo"),
-    _useState276 = _slicedToArray(_useState275, 2),
-    kind = _useState276[0],
-    setKind = _useState276[1];
-  var _useState277 = useState(todayLocal()),
-    _useState278 = _slicedToArray(_useState277, 2),
-    date = _useState278[0],
-    setDate = _useState278[1];
-  var _useState279 = useState(""),
-    _useState280 = _slicedToArray(_useState279, 2),
-    opponent = _useState280[0],
-    setOpponent = _useState280[1];
   var _useState281 = useState(""),
     _useState282 = _slicedToArray(_useState281, 2),
-    note = _useState282[0],
-    setNote = _useState282[1];
-  var _useState283 = useState(false),
+    mid = _useState282[0],
+    setMid = _useState282[1];
+  var _useState283 = useState("amarelo"),
     _useState284 = _slicedToArray(_useState283, 2),
-    saving = _useState284[0],
-    setSaving = _useState284[1];
-  var _useState285 = useState(""),
+    kind = _useState284[0],
+    setKind = _useState284[1];
+  var _useState285 = useState(todayLocal()),
     _useState286 = _slicedToArray(_useState285, 2),
-    err = _useState286[0],
-    setErr = _useState286[1];
+    date = _useState286[0],
+    setDate = _useState286[1];
+  var _useState287 = useState(""),
+    _useState288 = _slicedToArray(_useState287, 2),
+    opponent = _useState288[0],
+    setOpponent = _useState288[1];
+  var _useState289 = useState(""),
+    _useState290 = _slicedToArray(_useState289, 2),
+    note = _useState290[0],
+    setNote = _useState290[1];
+  var _useState291 = useState(false),
+    _useState292 = _slicedToArray(_useState291, 2),
+    saving = _useState292[0],
+    setSaving = _useState292[1];
+  var _useState293 = useState(""),
+    _useState294 = _slicedToArray(_useState293, 2),
+    err = _useState294[0],
+    setErr = _useState294[1];
   var sel = tm.find(function (m) {
     return String(m.id) === String(mid);
   });
@@ -10213,21 +10590,21 @@ var AddCardModal = function AddCardModal(_ref116) {
     strong: false
   };
   var save = function () {
-    var _ref117 = _asyncToGenerator(_regenerator().m(function _callee35() {
-      var _t41;
-      return _regenerator().w(function (_context35) {
-        while (1) switch (_context35.p = _context35.n) {
+    var _ref120 = _asyncToGenerator(_regenerator().m(function _callee36() {
+      var _t42;
+      return _regenerator().w(function (_context36) {
+        while (1) switch (_context36.p = _context36.n) {
           case 0:
             if (!(!mid || !date || saving)) {
-              _context35.n = 1;
+              _context36.n = 1;
               break;
             }
-            return _context35.a(2);
+            return _context36.a(2);
           case 1:
             setSaving(true);
             setErr("");
-            _context35.p = 2;
-            _context35.n = 3;
+            _context36.p = 2;
+            _context36.n = 3;
             return onAdd({
               teamId: team.id,
               memberId: mid,
@@ -10238,20 +10615,20 @@ var AddCardModal = function AddCardModal(_ref116) {
             });
           case 3:
             onClose();
-            _context35.n = 5;
+            _context36.n = 5;
             break;
           case 4:
-            _context35.p = 4;
-            _t41 = _context35.v;
-            setErr(_t41.message);
+            _context36.p = 4;
+            _t42 = _context36.v;
+            setErr(_t42.message);
             setSaving(false);
           case 5:
-            return _context35.a(2);
+            return _context36.a(2);
         }
-      }, _callee35, null, [[2, 4]]);
+      }, _callee36, null, [[2, 4]]);
     }));
     return function save() {
-      return _ref117.apply(this, arguments);
+      return _ref120.apply(this, arguments);
     };
   }();
   return React.createElement(Sheet, {
@@ -10370,43 +10747,43 @@ var AddCardModal = function AddCardModal(_ref116) {
     disabled: !mid || !date || saving
   }, saving ? "A guardar..." : "Lan\xE7ar ".concat(kind)));
 };
-var EditCardModal = function EditCardModal(_ref118) {
-  var card = _ref118.card,
-    onSave = _ref118.onSave,
-    onClose = _ref118.onClose;
-  var _useState287 = useState(card.kind),
-    _useState288 = _slicedToArray(_useState287, 2),
-    kind = _useState288[0],
-    setKind = _useState288[1];
-  var _useState289 = useState(card.date || todayLocal()),
-    _useState290 = _slicedToArray(_useState289, 2),
-    date = _useState290[0],
-    setDate = _useState290[1];
-  var _useState291 = useState(card.opponent),
-    _useState292 = _slicedToArray(_useState291, 2),
-    opponent = _useState292[0],
-    setOpponent = _useState292[1];
-  var _useState293 = useState(card.note),
-    _useState294 = _slicedToArray(_useState293, 2),
-    note = _useState294[0],
-    setNote = _useState294[1];
-  var _useState295 = useState(false),
+var EditCardModal = function EditCardModal(_ref121) {
+  var card = _ref121.card,
+    onSave = _ref121.onSave,
+    onClose = _ref121.onClose;
+  var _useState295 = useState(card.kind),
     _useState296 = _slicedToArray(_useState295, 2),
-    saving = _useState296[0],
-    setSaving = _useState296[1];
+    kind = _useState296[0],
+    setKind = _useState296[1];
+  var _useState297 = useState(card.date || todayLocal()),
+    _useState298 = _slicedToArray(_useState297, 2),
+    date = _useState298[0],
+    setDate = _useState298[1];
+  var _useState299 = useState(card.opponent),
+    _useState300 = _slicedToArray(_useState299, 2),
+    opponent = _useState300[0],
+    setOpponent = _useState300[1];
+  var _useState301 = useState(card.note),
+    _useState302 = _slicedToArray(_useState301, 2),
+    note = _useState302[0],
+    setNote = _useState302[1];
+  var _useState303 = useState(false),
+    _useState304 = _slicedToArray(_useState303, 2),
+    saving = _useState304[0],
+    setSaving = _useState304[1];
   var save = function () {
-    var _ref119 = _asyncToGenerator(_regenerator().m(function _callee36() {
-      return _regenerator().w(function (_context36) {
-        while (1) switch (_context36.n) {
+    var _ref122 = _asyncToGenerator(_regenerator().m(function _callee37() {
+      return _regenerator().w(function (_context37) {
+        while (1) switch (_context37.n) {
           case 0:
             if (!(!date || saving)) {
-              _context36.n = 1;
+              _context37.n = 1;
               break;
             }
-            return _context36.a(2);
+            return _context37.a(2);
           case 1:
             setSaving(true);
-            _context36.n = 2;
+            _context37.n = 2;
             return onSave(card.id, {
               kind: kind,
               date: date,
@@ -10416,12 +10793,12 @@ var EditCardModal = function EditCardModal(_ref118) {
           case 2:
             onClose();
           case 3:
-            return _context36.a(2);
+            return _context37.a(2);
         }
-      }, _callee36);
+      }, _callee37);
     }));
     return function save() {
-      return _ref119.apply(this, arguments);
+      return _ref122.apply(this, arguments);
     };
   }();
   return React.createElement(Sheet, {
@@ -10493,13 +10870,13 @@ var cardSegments = function cardSegments(r) {
   });
   return segs;
 };
-var CompletedCards = function CompletedCards(_ref120) {
-  var count = _ref120.count,
-    children = _ref120.children;
-  var _useState297 = useState(false),
-    _useState298 = _slicedToArray(_useState297, 2),
-    show = _useState298[0],
-    setShow = _useState298[1];
+var CompletedCards = function CompletedCards(_ref123) {
+  var count = _ref123.count,
+    children = _ref123.children;
+  var _useState305 = useState(false),
+    _useState306 = _slicedToArray(_useState305, 2),
+    show = _useState306[0],
+    setShow = _useState306[1];
   return React.createElement("div", {
     style: {
       marginTop: 8,
@@ -10542,23 +10919,23 @@ var CompletedCards = function CompletedCards(_ref120) {
     }
   }, "Contam para a \xE9poca, n\xE3o para a suspens\xE3o."), children));
 };
-var CardsTab = function CardsTab(_ref121) {
-  var team = _ref121.team,
-    cards = _ref121.cards,
-    members = _ref121.members,
-    canManage = _ref121.canManage,
-    onAddCard = _ref121.onAddCard,
-    onEditCard = _ref121.onEditCard,
-    onDeleteCard = _ref121.onDeleteCard,
-    onServeSuspension = _ref121.onServeSuspension;
-  var _useState299 = useState(null),
-    _useState300 = _slicedToArray(_useState299, 2),
-    open = _useState300[0],
-    setOpen = _useState300[1];
-  var _useState301 = useState(false),
-    _useState302 = _slicedToArray(_useState301, 2),
-    showNone = _useState302[0],
-    setShowNone = _useState302[1];
+var CardsTab = function CardsTab(_ref124) {
+  var team = _ref124.team,
+    cards = _ref124.cards,
+    members = _ref124.members,
+    canManage = _ref124.canManage,
+    onAddCard = _ref124.onAddCard,
+    onEditCard = _ref124.onEditCard,
+    onDeleteCard = _ref124.onDeleteCard,
+    onServeSuspension = _ref124.onServeSuspension;
+  var _useState307 = useState(null),
+    _useState308 = _slicedToArray(_useState307, 2),
+    open = _useState308[0],
+    setOpen = _useState308[1];
+  var _useState309 = useState(false),
+    _useState310 = _slicedToArray(_useState309, 2),
+    showNone = _useState310[0],
+    setShowNone = _useState310[1];
   var rows = members.filter(function (m) {
     return m.teamId === team.id;
   }).map(function (m) {
@@ -10879,15 +11256,15 @@ var CardsTab = function CardsTab(_ref121) {
 };
 function App() {
   var _members$find, _members$find3;
-  var _useState303 = useState(function () {
+  var _useState311 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("type=recovery")) return null;
       var m = h.match(/access_token=([^&#&]+)/);
       return m ? decodeURIComponent(m[1]) : null;
     }),
-    _useState304 = _slicedToArray(_useState303, 1),
-    recoveryToken = _useState304[0];
-  var _useState305 = useState(function () {
+    _useState312 = _slicedToArray(_useState311, 1),
+    recoveryToken = _useState312[0];
+  var _useState313 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("access_token=")) return null;
       if (h.includes("type=recovery")) return null;
@@ -10899,96 +11276,96 @@ function App() {
         refresh: rt ? decodeURIComponent(rt[1]) : ""
       };
     }),
-    _useState306 = _slicedToArray(_useState305, 1),
-    magicToken = _useState306[0];
-  var _useState307 = useState(null),
-    _useState308 = _slicedToArray(_useState307, 2),
-    token = _useState308[0],
-    setToken = _useState308[1];
-  var _useState309 = useState(null),
-    _useState310 = _slicedToArray(_useState309, 2),
-    myUserId = _useState310[0],
-    setMyUserId = _useState310[1];
-  var _useState311 = useState(null),
-    _useState312 = _slicedToArray(_useState311, 2),
-    profile = _useState312[0],
-    setProfile = _useState312[1];
-  var _useState313 = useState([]),
-    _useState314 = _slicedToArray(_useState313, 2),
-    teams = _useState314[0],
-    setTeams = _useState314[1];
-  var _useState315 = useState([]),
+    _useState314 = _slicedToArray(_useState313, 1),
+    magicToken = _useState314[0];
+  var _useState315 = useState(null),
     _useState316 = _slicedToArray(_useState315, 2),
-    members = _useState316[0],
-    setMembers = _useState316[1];
-  var _useState317 = useState([]),
+    token = _useState316[0],
+    setToken = _useState316[1];
+  var _useState317 = useState(null),
     _useState318 = _slicedToArray(_useState317, 2),
-    fineTypes = _useState318[0],
-    setFineTypes = _useState318[1];
-  var _useState319 = useState([]),
+    myUserId = _useState318[0],
+    setMyUserId = _useState318[1];
+  var _useState319 = useState(null),
     _useState320 = _slicedToArray(_useState319, 2),
-    fines = _useState320[0],
-    setFines = _useState320[1];
+    profile = _useState320[0],
+    setProfile = _useState320[1];
   var _useState321 = useState([]),
     _useState322 = _slicedToArray(_useState321, 2),
-    cards = _useState322[0],
-    setCards = _useState322[1];
-  var _useState323 = useState(null),
+    teams = _useState322[0],
+    setTeams = _useState322[1];
+  var _useState323 = useState([]),
     _useState324 = _slicedToArray(_useState323, 2),
-    editingCard = _useState324[0],
-    setEditingCard = _useState324[1];
+    members = _useState324[0],
+    setMembers = _useState324[1];
   var _useState325 = useState([]),
     _useState326 = _slicedToArray(_useState325, 2),
-    expenses = _useState326[0],
-    setExpenses = _useState326[1];
+    fineTypes = _useState326[0],
+    setFineTypes = _useState326[1];
   var _useState327 = useState([]),
     _useState328 = _slicedToArray(_useState327, 2),
-    trainings = _useState328[0],
-    setTrainings = _useState328[1];
-  var _useState329 = useState({}),
+    fines = _useState328[0],
+    setFines = _useState328[1];
+  var _useState329 = useState([]),
     _useState330 = _slicedToArray(_useState329, 2),
-    presences = _useState330[0],
-    setPresences = _useState330[1];
+    cards = _useState330[0],
+    setCards = _useState330[1];
   var _useState331 = useState(null),
     _useState332 = _slicedToArray(_useState331, 2),
-    teamId = _useState332[0],
-    setTeamId = _useState332[1];
-  var _useState333 = useState("home"),
+    editingCard = _useState332[0],
+    setEditingCard = _useState332[1];
+  var _useState333 = useState([]),
     _useState334 = _slicedToArray(_useState333, 2),
-    tab = _useState334[0],
-    setTab = _useState334[1];
-  var _useState335 = useState(null),
+    expenses = _useState334[0],
+    setExpenses = _useState334[1];
+  var _useState335 = useState([]),
     _useState336 = _slicedToArray(_useState335, 2),
-    sub = _useState336[0],
-    setSub = _useState336[1];
-  var _useState337 = useState(null),
+    trainings = _useState336[0],
+    setTrainings = _useState336[1];
+  var _useState337 = useState({}),
     _useState338 = _slicedToArray(_useState337, 2),
-    modal = _useState338[0],
-    setModal = _useState338[1];
+    presences = _useState338[0],
+    setPresences = _useState338[1];
   var _useState339 = useState(null),
     _useState340 = _slicedToArray(_useState339, 2),
-    editingFine = _useState340[0],
-    setEditingFine = _useState340[1];
-  var _useState341 = useState(null),
+    teamId = _useState340[0],
+    setTeamId = _useState340[1];
+  var _useState341 = useState("home"),
     _useState342 = _slicedToArray(_useState341, 2),
-    treinosModal = _useState342[0],
-    setTreinosModal = _useState342[1];
-  var _useState343 = useState(false),
+    tab = _useState342[0],
+    setTab = _useState342[1];
+  var _useState343 = useState(null),
     _useState344 = _slicedToArray(_useState343, 2),
-    loading = _useState344[0],
-    setLoading = _useState344[1];
-  var _useState345 = useState(false),
+    sub = _useState344[0],
+    setSub = _useState344[1];
+  var _useState345 = useState(null),
     _useState346 = _slicedToArray(_useState345, 2),
-    appReady = _useState346[0],
-    setAppReady = _useState346[1];
-  var _useState347 = useState(false),
+    modal = _useState346[0],
+    setModal = _useState346[1];
+  var _useState347 = useState(null),
     _useState348 = _slicedToArray(_useState347, 2),
-    refreshing = _useState348[0],
-    setRefreshing = _useState348[1];
+    editingFine = _useState348[0],
+    setEditingFine = _useState348[1];
   var _useState349 = useState(null),
     _useState350 = _slicedToArray(_useState349, 2),
-    authError = _useState350[0],
-    setAuthError = _useState350[1];
+    treinosModal = _useState350[0],
+    setTreinosModal = _useState350[1];
+  var _useState351 = useState(false),
+    _useState352 = _slicedToArray(_useState351, 2),
+    loading = _useState352[0],
+    setLoading = _useState352[1];
+  var _useState353 = useState(false),
+    _useState354 = _slicedToArray(_useState353, 2),
+    appReady = _useState354[0],
+    setAppReady = _useState354[1];
+  var _useState355 = useState(false),
+    _useState356 = _slicedToArray(_useState355, 2),
+    refreshing = _useState356[0],
+    setRefreshing = _useState356[1];
+  var _useState357 = useState(null),
+    _useState358 = _slicedToArray(_useState357, 2),
+    authError = _useState358[0],
+    setAuthError = _useState358[1];
   var team = teams.find(function (t) {
     return t.id === teamId;
   });
@@ -11000,19 +11377,19 @@ function App() {
   })) === null || _members$find === void 0 ? void 0 : _members$find.role) || "player";
   var canManageTrainings = isAdmin || myRole === "treinador" || myRole === "diretor";
   var loadTeam = function () {
-    var _ref122 = _asyncToGenerator(_regenerator().m(function _callee37(tok, tid) {
-      var _yield$Promise$all3, _yield$Promise$all4, mRaw, ftData, fData, eData, tData, pData, cData, profilesMap, profs, uids, _profs, mData, presMap, _t42, _t43;
-      return _regenerator().w(function (_context37) {
-        while (1) switch (_context37.p = _context37.n) {
+    var _ref125 = _asyncToGenerator(_regenerator().m(function _callee38(tok, tid) {
+      var _yield$Promise$all3, _yield$Promise$all4, mRaw, ftData, fData, eData, tData, pData, cData, profilesMap, profs, uids, _profs, mData, presMap, _t43, _t44;
+      return _regenerator().w(function (_context38) {
+        while (1) switch (_context38.p = _context38.n) {
           case 0:
-            _context37.n = 1;
+            _context38.n = 1;
             return Promise.all([api.get("team_members?team_id=eq.".concat(tid, "&select=*"), tok), api.get("fine_types?team_id=eq.".concat(tid, "&order=amount.asc"), tok), api.get("fines?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("expenses?team_id=eq.".concat(tid, "&order=created_at.desc"), tok), api.get("trainings?team_id=eq.".concat(tid, "&order=date.asc,time.asc"), tok), api.get("presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.".concat(tid), tok).catch(function () {
               return [];
             }), api.get("cards?team_id=eq.".concat(tid, "&order=match_date.desc,created_at.desc"), tok).catch(function () {
               return [];
             })]);
           case 1:
-            _yield$Promise$all3 = _context37.v;
+            _yield$Promise$all3 = _context38.v;
             _yield$Promise$all4 = _slicedToArray(_yield$Promise$all3, 7);
             mRaw = _yield$Promise$all4[0];
             ftData = _yield$Promise$all4[1];
@@ -11022,8 +11399,8 @@ function App() {
             pData = _yield$Promise$all4[5];
             cData = _yield$Promise$all4[6];
             profilesMap = {};
-            _context37.p = 2;
-            _context37.n = 3;
+            _context38.p = 2;
+            _context38.n = 3;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/get_team_profiles"), {
               method: 'POST',
               headers: {
@@ -11040,44 +11417,44 @@ function App() {
               return [];
             });
           case 3:
-            profs = _context37.v;
+            profs = _context38.v;
             (Array.isArray(profs) ? profs : []).forEach(function (p) {
               profilesMap[p.id] = p;
             });
-            _context37.n = 5;
+            _context38.n = 5;
             break;
           case 4:
-            _context37.p = 4;
-            _t42 = _context37.v;
-            console.warn('get_team_profiles failed:', _t42);
+            _context38.p = 4;
+            _t43 = _context38.v;
+            console.warn('get_team_profiles failed:', _t43);
           case 5:
             if (!(Object.keys(profilesMap).length === 0)) {
-              _context37.n = 10;
+              _context38.n = 10;
               break;
             }
-            _context37.p = 6;
+            _context38.p = 6;
             uids = mRaw.map(function (m) {
               return m.user_id;
             }).filter(Boolean);
             if (!(uids.length > 0)) {
-              _context37.n = 8;
+              _context38.n = 8;
               break;
             }
-            _context37.n = 7;
+            _context38.n = 7;
             return api.get("profiles?id=in.(".concat(uids.join(','), ")"), tok).catch(function () {
               return [];
             });
           case 7:
-            _profs = _context37.v;
+            _profs = _context38.v;
             (Array.isArray(_profs) ? _profs : []).forEach(function (p) {
               profilesMap[p.id] = p;
             });
           case 8:
-            _context37.n = 10;
+            _context38.n = 10;
             break;
           case 9:
-            _context37.p = 9;
-            _t43 = _context37.v;
+            _context38.p = 9;
+            _t44 = _context38.v;
           case 10:
             mData = mRaw.map(function (m) {
               return _objectSpread(_objectSpread({}, m), {}, {
@@ -11089,7 +11466,7 @@ function App() {
               if (!presMap[p.training_id]) presMap[p.training_id] = {};
               presMap[p.training_id][p.member_id] = p.status;
             });
-            return _context37.a(2, {
+            return _context38.a(2, {
               members: mData.map(aMember),
               fineTypes: ftData.map(aFineType),
               fines: fData.map(aFine),
@@ -11099,44 +11476,44 @@ function App() {
               cards: (Array.isArray(cData) ? cData : []).map(aCard)
             });
         }
-      }, _callee37, null, [[6, 9], [2, 4]]);
+      }, _callee38, null, [[6, 9], [2, 4]]);
     }));
     return function loadTeam(_x10, _x11) {
-      return _ref122.apply(this, arguments);
+      return _ref125.apply(this, arguments);
     };
   }();
   var initApp = function () {
-    var _ref123 = _asyncToGenerator(_regenerator().m(function _callee38(tok, uid) {
-      var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t44, _t45;
-      return _regenerator().w(function (_context38) {
-        while (1) switch (_context38.p = _context38.n) {
+    var _ref126 = _asyncToGenerator(_regenerator().m(function _callee39(tok, uid) {
+      var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t45, _t46;
+      return _regenerator().w(function (_context39) {
+        while (1) switch (_context39.p = _context39.n) {
           case 0:
             setLoading(true);
-            _context38.p = 1;
-            _context38.n = 2;
+            _context39.p = 1;
+            _context39.n = 2;
             return api.get("profiles?id=eq.".concat(uid), tok);
           case 2:
-            profData = _context38.v;
+            profData = _context39.v;
             p = profData[0];
             if (p) {
-              _context38.n = 6;
+              _context39.n = 6;
               break;
             }
-            _context38.p = 3;
-            _context38.n = 4;
+            _context39.p = 3;
+            _context39.n = 4;
             return api.post('profiles', {
               id: uid,
               name: 'Utilizador'
             }, tok);
           case 4:
-            created = _context38.v;
+            created = _context39.v;
             p = Array.isArray(created) ? created[0] : created;
-            _context38.n = 6;
+            _context39.n = 6;
             break;
           case 5:
-            _context38.p = 5;
-            _t44 = _context38.v;
-            console.warn('Profile creation fallback failed:', _t44);
+            _context39.p = 5;
+            _t45 = _context39.v;
+            console.warn('Profile creation fallback failed:', _t45);
           case 6:
             if (p) setProfile({
               id: p.id,
@@ -11149,7 +11526,7 @@ function App() {
               isAppAdmin: p.is_admin === true,
               avatarUrl: p.avatar_url || null
             });
-            _context38.n = 7;
+            _context39.n = 7;
             return fetch("".concat(SB_URL, "/rest/v1/team_members?user_id=eq.").concat(uid, "&select=team_id"), {
               headers: {
                 'apikey': SB_KEY,
@@ -11157,24 +11534,24 @@ function App() {
               }
             });
           case 7:
-            membershipsR = _context38.v;
+            membershipsR = _context39.v;
             adapted = [];
             if (!membershipsR.ok) {
-              _context38.n = 11;
+              _context39.n = 11;
               break;
             }
-            _context38.n = 8;
+            _context39.n = 8;
             return membershipsR.json();
           case 8:
-            memberships = _context38.v;
+            memberships = _context39.v;
             teamIds = (Array.isArray(memberships) ? memberships : []).map(function (m) {
               return m.team_id;
             }).filter(Boolean);
             if (!(teamIds.length > 0)) {
-              _context38.n = 11;
+              _context39.n = 11;
               break;
             }
-            _context38.n = 9;
+            _context39.n = 9;
             return fetch("".concat(SB_URL, "/rest/v1/teams?id=in.(").concat(teamIds.join(','), ")&order=created_at.asc"), {
               headers: {
                 'apikey': SB_KEY,
@@ -11182,72 +11559,31 @@ function App() {
               }
             });
           case 9:
-            teamsR = _context38.v;
+            teamsR = _context39.v;
             if (!teamsR.ok) {
-              _context38.n = 11;
+              _context39.n = 11;
               break;
             }
-            _context38.n = 10;
+            _context39.n = 10;
             return teamsR.json();
           case 10:
-            teamsJson = _context38.v;
+            teamsJson = _context39.v;
             adapted = (Array.isArray(teamsJson) ? teamsJson : []).map(aTeam);
           case 11:
             setTeams(adapted);
             if (adapted.length) {
-              _context38.n = 12;
+              _context39.n = 12;
               break;
             }
             setAppReady(true);
             setLoading(false);
-            return _context38.a(2);
+            return _context39.a(2);
           case 12:
             first = adapted[0].id;
             setTeamId(first);
-            _context38.n = 13;
+            _context39.n = 13;
             return loadTeam(tok, first);
           case 13:
-            td = _context38.v;
-            setMembers(td.members);
-            setFineTypes(td.fineTypes);
-            setFines(td.fines);
-            setCards(td.cards);
-            setExpenses(td.expenses);
-            setTrainings(td.trainings);
-            setPresences(td.presences);
-            setAppReady(true);
-            _context38.n = 15;
-            break;
-          case 14:
-            _context38.p = 14;
-            _t45 = _context38.v;
-            setAuthError("Erro: ".concat(_t45.message));
-          case 15:
-            _context38.p = 15;
-            setLoading(false);
-            return _context38.f(15);
-          case 16:
-            return _context38.a(2);
-        }
-      }, _callee38, null, [[3, 5], [1, 14, 15, 16]]);
-    }));
-    return function initApp(_x12, _x13) {
-      return _ref123.apply(this, arguments);
-    };
-  }();
-  var switchTeam = function () {
-    var _ref124 = _asyncToGenerator(_regenerator().m(function _callee39(id) {
-      var td, _t46;
-      return _regenerator().w(function (_context39) {
-        while (1) switch (_context39.p = _context39.n) {
-          case 0:
-            setTeamId(id);
-            setLoading(true);
-            setTab("home");
-            _context39.p = 1;
-            _context39.n = 2;
-            return loadTeam(token, id);
-          case 2:
             td = _context39.v;
             setMembers(td.members);
             setFineTypes(td.fineTypes);
@@ -11256,40 +11592,81 @@ function App() {
             setExpenses(td.expenses);
             setTrainings(td.trainings);
             setPresences(td.presences);
-            _context39.n = 4;
+            setAppReady(true);
+            _context39.n = 15;
+            break;
+          case 14:
+            _context39.p = 14;
+            _t46 = _context39.v;
+            setAuthError("Erro: ".concat(_t46.message));
+          case 15:
+            _context39.p = 15;
+            setLoading(false);
+            return _context39.f(15);
+          case 16:
+            return _context39.a(2);
+        }
+      }, _callee39, null, [[3, 5], [1, 14, 15, 16]]);
+    }));
+    return function initApp(_x12, _x13) {
+      return _ref126.apply(this, arguments);
+    };
+  }();
+  var switchTeam = function () {
+    var _ref127 = _asyncToGenerator(_regenerator().m(function _callee40(id) {
+      var td, _t47;
+      return _regenerator().w(function (_context40) {
+        while (1) switch (_context40.p = _context40.n) {
+          case 0:
+            setTeamId(id);
+            setLoading(true);
+            setTab("home");
+            _context40.p = 1;
+            _context40.n = 2;
+            return loadTeam(token, id);
+          case 2:
+            td = _context40.v;
+            setMembers(td.members);
+            setFineTypes(td.fineTypes);
+            setFines(td.fines);
+            setCards(td.cards);
+            setExpenses(td.expenses);
+            setTrainings(td.trainings);
+            setPresences(td.presences);
+            _context40.n = 4;
             break;
           case 3:
-            _context39.p = 3;
-            _t46 = _context39.v;
-            console.error(_t46);
+            _context40.p = 3;
+            _t47 = _context40.v;
+            console.error(_t47);
           case 4:
             setLoading(false);
           case 5:
-            return _context39.a(2);
+            return _context40.a(2);
         }
-      }, _callee39, null, [[1, 3]]);
+      }, _callee40, null, [[1, 3]]);
     }));
     return function switchTeam(_x14) {
-      return _ref124.apply(this, arguments);
+      return _ref127.apply(this, arguments);
     };
   }();
-  var refresh = useCallback(_asyncToGenerator(_regenerator().m(function _callee40() {
-    var td, _t47;
-    return _regenerator().w(function (_context40) {
-      while (1) switch (_context40.p = _context40.n) {
+  var refresh = useCallback(_asyncToGenerator(_regenerator().m(function _callee41() {
+    var td, _t48;
+    return _regenerator().w(function (_context41) {
+      while (1) switch (_context41.p = _context41.n) {
         case 0:
           if (!(refreshing || !token || !teamId)) {
-            _context40.n = 1;
+            _context41.n = 1;
             break;
           }
-          return _context40.a(2);
+          return _context41.a(2);
         case 1:
           setRefreshing(true);
-          _context40.p = 2;
-          _context40.n = 3;
+          _context41.p = 2;
+          _context41.n = 3;
           return loadTeam(token, teamId);
         case 3:
-          td = _context40.v;
+          td = _context41.v;
           setMembers(td.members);
           setFineTypes(td.fineTypes);
           setFines(td.fines);
@@ -11297,67 +11674,25 @@ function App() {
           setExpenses(td.expenses);
           setTrainings(td.trainings);
           setPresences(td.presences);
-          _context40.n = 5;
+          _context41.n = 5;
           break;
         case 4:
-          _context40.p = 4;
-          _t47 = _context40.v;
-          console.error(_t47);
+          _context41.p = 4;
+          _t48 = _context41.v;
+          console.error(_t48);
         case 5:
           setRefreshing(false);
         case 6:
-          return _context40.a(2);
+          return _context41.a(2);
       }
-    }, _callee40, null, [[2, 4]]);
+    }, _callee41, null, [[2, 4]]);
   })), [token, teamId, refreshing]);
   useEffect(function () {
     window.__multeamRefresh = refresh;
   }, [refresh]);
   var handleLogin = function () {
-    var _ref126 = _asyncToGenerator(_regenerator().m(function _callee41(email, pass) {
-      var _d$session, _d$user, d, tok, uid, _t48;
-      return _regenerator().w(function (_context41) {
-        while (1) switch (_context41.p = _context41.n) {
-          case 0:
-            setLoading(true);
-            setAuthError(null);
-            _context41.p = 1;
-            _context41.n = 2;
-            return api.signIn(email, pass);
-          case 2:
-            d = _context41.v;
-            tok = d.access_token || ((_d$session = d.session) === null || _d$session === void 0 ? void 0 : _d$session.access_token);
-            uid = (_d$user = d.user) === null || _d$user === void 0 ? void 0 : _d$user.id;
-            if (!(!tok || !uid)) {
-              _context41.n = 3;
-              break;
-            }
-            throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
-          case 3:
-            setToken(tok);
-            setMyUserId(uid);
-            _context41.n = 4;
-            return initApp(tok, uid);
-          case 4:
-            _context41.n = 6;
-            break;
-          case 5:
-            _context41.p = 5;
-            _t48 = _context41.v;
-            setAuthError(_t48.message);
-            setLoading(false);
-          case 6:
-            return _context41.a(2);
-        }
-      }, _callee41, null, [[1, 5]]);
-    }));
-    return function handleLogin(_x15, _x16) {
-      return _ref126.apply(this, arguments);
-    };
-  }();
-  var handleRegister = function () {
-    var _ref127 = _asyncToGenerator(_regenerator().m(function _callee42(email, pass, name) {
-      var _d$session2, _d$user2, d, tok, uid, _d2$session, d2, tok2, _t49, _t50, _t51;
+    var _ref129 = _asyncToGenerator(_regenerator().m(function _callee42(email, pass) {
+      var _d$session, _d$user, d, tok, uid, _t49;
       return _regenerator().w(function (_context42) {
         while (1) switch (_context42.p = _context42.n) {
           case 0:
@@ -11365,87 +11700,129 @@ function App() {
             setAuthError(null);
             _context42.p = 1;
             _context42.n = 2;
-            return api.signUp(email, pass, name);
+            return api.signIn(email, pass);
           case 2:
             d = _context42.v;
-            tok = d.access_token || ((_d$session2 = d.session) === null || _d$session2 === void 0 ? void 0 : _d$session2.access_token);
-            uid = (_d$user2 = d.user) === null || _d$user2 === void 0 ? void 0 : _d$user2.id;
-            if (!(tok && uid)) {
-              _context42.n = 8;
+            tok = d.access_token || ((_d$session = d.session) === null || _d$session === void 0 ? void 0 : _d$session.access_token);
+            uid = (_d$user = d.user) === null || _d$user === void 0 ? void 0 : _d$user.id;
+            if (!(!tok || !uid)) {
+              _context42.n = 3;
               break;
             }
-            _context42.p = 3;
+            throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
+          case 3:
+            setToken(tok);
+            setMyUserId(uid);
             _context42.n = 4;
-            return api.patch("profiles?id=eq.".concat(uid), {
-              name: name,
-              initials: mk(name)
-            }, tok);
+            return initApp(tok, uid);
           case 4:
             _context42.n = 6;
             break;
           case 5:
             _context42.p = 5;
             _t49 = _context42.v;
+            setAuthError(_t49.message);
+            setLoading(false);
+          case 6:
+            return _context42.a(2);
+        }
+      }, _callee42, null, [[1, 5]]);
+    }));
+    return function handleLogin(_x15, _x16) {
+      return _ref129.apply(this, arguments);
+    };
+  }();
+  var handleRegister = function () {
+    var _ref130 = _asyncToGenerator(_regenerator().m(function _callee43(email, pass, name) {
+      var _d$session2, _d$user2, d, tok, uid, _d2$session, d2, tok2, _t50, _t51, _t52;
+      return _regenerator().w(function (_context43) {
+        while (1) switch (_context43.p = _context43.n) {
+          case 0:
+            setLoading(true);
+            setAuthError(null);
+            _context43.p = 1;
+            _context43.n = 2;
+            return api.signUp(email, pass, name);
+          case 2:
+            d = _context43.v;
+            tok = d.access_token || ((_d$session2 = d.session) === null || _d$session2 === void 0 ? void 0 : _d$session2.access_token);
+            uid = (_d$user2 = d.user) === null || _d$user2 === void 0 ? void 0 : _d$user2.id;
+            if (!(tok && uid)) {
+              _context43.n = 8;
+              break;
+            }
+            _context43.p = 3;
+            _context43.n = 4;
+            return api.patch("profiles?id=eq.".concat(uid), {
+              name: name,
+              initials: mk(name)
+            }, tok);
+          case 4:
+            _context43.n = 6;
+            break;
+          case 5:
+            _context43.p = 5;
+            _t50 = _context43.v;
           case 6:
             setToken(tok);
             setMyUserId(uid);
-            _context42.n = 7;
+            _context43.n = 7;
             return initApp(tok, uid);
           case 7:
-            _context42.n = 17;
+            _context43.n = 17;
             break;
           case 8:
             if (!uid) {
-              _context42.n = 16;
+              _context43.n = 16;
               break;
             }
-            _context42.p = 9;
-            _context42.n = 10;
+            _context43.p = 9;
+            _context43.n = 10;
             return api.signIn(email, pass);
           case 10:
-            d2 = _context42.v;
+            d2 = _context43.v;
             tok2 = d2.access_token || ((_d2$session = d2.session) === null || _d2$session === void 0 ? void 0 : _d2$session.access_token);
             if (!tok2) {
-              _context42.n = 12;
+              _context43.n = 12;
               break;
             }
             setToken(tok2);
             setMyUserId(d2.user.id);
-            _context42.n = 11;
+            _context43.n = 11;
             return initApp(tok2, d2.user.id);
           case 11:
-            _context42.n = 13;
+            _context43.n = 13;
             break;
           case 12:
             setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
           case 13:
-            _context42.n = 15;
+            _context43.n = 15;
             break;
           case 14:
-            _context42.p = 14;
-            _t50 = _context42.v;
+            _context43.p = 14;
+            _t51 = _context43.v;
             setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
           case 15:
-            _context42.n = 17;
+            _context43.n = 17;
             break;
           case 16:
             setAuthError("Erro ao criar conta. Tenta novamente.");
           case 17:
-            _context42.n = 19;
+            _context43.n = 19;
             break;
           case 18:
-            _context42.p = 18;
-            _t51 = _context42.v;
-            setAuthError(_t51.message);
+            _context43.p = 18;
+            _t52 = _context43.v;
+            setAuthError(_t52.message);
           case 19:
             setLoading(false);
           case 20:
-            return _context42.a(2);
+            return _context43.a(2);
         }
-      }, _callee42, null, [[9, 14], [3, 5], [1, 18]]);
+      }, _callee43, null, [[9, 14], [3, 5], [1, 18]]);
     }));
     return function handleRegister(_x17, _x18, _x19) {
-      return _ref127.apply(this, arguments);
+      return _ref130.apply(this, arguments);
     };
   }();
   var handleLogout = function handleLogout() {
@@ -11465,12 +11842,12 @@ function App() {
     setTab("home");
   };
   var addFine = function () {
-    var _ref128 = _asyncToGenerator(_regenerator().m(function _callee43(d) {
+    var _ref131 = _asyncToGenerator(_regenerator().m(function _callee44(d) {
       var _yield$api$post, _yield$api$post2, f;
-      return _regenerator().w(function (_context43) {
-        while (1) switch (_context43.n) {
+      return _regenerator().w(function (_context44) {
+        while (1) switch (_context44.n) {
           case 0:
-            _context43.n = 1;
+            _context44.n = 1;
             return api.post('fines', {
               team_id: d.teamId,
               member_id: d.memberId,
@@ -11481,38 +11858,38 @@ function App() {
               assigned_by: myUserId
             }, token);
           case 1:
-            _yield$api$post = _context43.v;
+            _yield$api$post = _context44.v;
             _yield$api$post2 = _slicedToArray(_yield$api$post, 1);
             f = _yield$api$post2[0];
             setFines(function (p) {
               return [aFine(f)].concat(_toConsumableArray(p));
             });
           case 2:
-            return _context43.a(2);
+            return _context44.a(2);
         }
-      }, _callee43);
+      }, _callee44);
     }));
     return function addFine(_x20) {
-      return _ref128.apply(this, arguments);
+      return _ref131.apply(this, arguments);
     };
   }();
   var togglePaid = function () {
-    var _ref129 = _asyncToGenerator(_regenerator().m(function _callee44(id) {
-      var f, _t52;
-      return _regenerator().w(function (_context44) {
-        while (1) switch (_context44.p = _context44.n) {
+    var _ref132 = _asyncToGenerator(_regenerator().m(function _callee45(id) {
+      var f, _t53;
+      return _regenerator().w(function (_context45) {
+        while (1) switch (_context45.p = _context45.n) {
           case 0:
             f = fines.find(function (f) {
               return f.id === id;
             });
             if (f) {
-              _context44.n = 1;
+              _context45.n = 1;
               break;
             }
-            return _context44.a(2);
+            return _context45.a(2);
           case 1:
-            _context44.p = 1;
-            _context44.n = 2;
+            _context45.p = 1;
+            _context45.n = 2;
             return api.patch("fines?id=eq.".concat(id), {
               paid: !f.paid,
               paid_at: !f.paid ? new Date().toISOString() : null
@@ -11525,68 +11902,34 @@ function App() {
                 }) : x;
               });
             });
-            _context44.n = 4;
+            _context45.n = 4;
             break;
           case 3:
-            _context44.p = 3;
-            _t52 = _context44.v;
-            console.error(_t52);
+            _context45.p = 3;
+            _t53 = _context45.v;
+            console.error(_t53);
           case 4:
-            return _context44.a(2);
+            return _context45.a(2);
         }
-      }, _callee44, null, [[1, 3]]);
+      }, _callee45, null, [[1, 3]]);
     }));
     return function togglePaid(_x21) {
-      return _ref129.apply(this, arguments);
+      return _ref132.apply(this, arguments);
     };
   }();
   var delFine = function () {
-    var _ref130 = _asyncToGenerator(_regenerator().m(function _callee45(id) {
-      var _t53;
-      return _regenerator().w(function (_context45) {
-        while (1) switch (_context45.p = _context45.n) {
-          case 0:
-            _context45.p = 0;
-            _context45.n = 1;
-            return api.del("fines?id=eq.".concat(id), token);
-          case 1:
-            setFines(function (p) {
-              return p.filter(function (f) {
-                return f.id !== id;
-              });
-            });
-            _context45.n = 3;
-            break;
-          case 2:
-            _context45.p = 2;
-            _t53 = _context45.v;
-            console.error(_t53);
-          case 3:
-            return _context45.a(2);
-        }
-      }, _callee45, null, [[0, 2]]);
-    }));
-    return function delFine(_x22) {
-      return _ref130.apply(this, arguments);
-    };
-  }();
-  var editFine = function () {
-    var _ref131 = _asyncToGenerator(_regenerator().m(function _callee46(id, data) {
+    var _ref133 = _asyncToGenerator(_regenerator().m(function _callee46(id) {
       var _t54;
       return _regenerator().w(function (_context46) {
         while (1) switch (_context46.p = _context46.n) {
           case 0:
             _context46.p = 0;
             _context46.n = 1;
-            return api.patch("fines?id=eq.".concat(id), {
-              emoji: data.emoji,
-              reason: data.reason,
-              amount: data.amount
-            }, token);
+            return api.del("fines?id=eq.".concat(id), token);
           case 1:
             setFines(function (p) {
-              return p.map(function (f) {
-                return f.id === id ? _objectSpread(_objectSpread({}, f), data) : f;
+              return p.filter(function (f) {
+                return f.id !== id;
               });
             });
             _context46.n = 3;
@@ -11600,17 +11943,51 @@ function App() {
         }
       }, _callee46, null, [[0, 2]]);
     }));
+    return function delFine(_x22) {
+      return _ref133.apply(this, arguments);
+    };
+  }();
+  var editFine = function () {
+    var _ref134 = _asyncToGenerator(_regenerator().m(function _callee47(id, data) {
+      var _t55;
+      return _regenerator().w(function (_context47) {
+        while (1) switch (_context47.p = _context47.n) {
+          case 0:
+            _context47.p = 0;
+            _context47.n = 1;
+            return api.patch("fines?id=eq.".concat(id), {
+              emoji: data.emoji,
+              reason: data.reason,
+              amount: data.amount
+            }, token);
+          case 1:
+            setFines(function (p) {
+              return p.map(function (f) {
+                return f.id === id ? _objectSpread(_objectSpread({}, f), data) : f;
+              });
+            });
+            _context47.n = 3;
+            break;
+          case 2:
+            _context47.p = 2;
+            _t55 = _context47.v;
+            console.error(_t55);
+          case 3:
+            return _context47.a(2);
+        }
+      }, _callee47, null, [[0, 2]]);
+    }));
     return function editFine(_x23, _x24) {
-      return _ref131.apply(this, arguments);
+      return _ref134.apply(this, arguments);
     };
   }();
   var addCard = function () {
-    var _ref132 = _asyncToGenerator(_regenerator().m(function _callee47(d) {
+    var _ref135 = _asyncToGenerator(_regenerator().m(function _callee48(d) {
       var _yield$api$post3, _yield$api$post4, c;
-      return _regenerator().w(function (_context47) {
-        while (1) switch (_context47.n) {
+      return _regenerator().w(function (_context48) {
+        while (1) switch (_context48.n) {
           case 0:
-            _context47.n = 1;
+            _context48.n = 1;
             return api.post('cards', {
               team_id: d.teamId,
               member_id: d.memberId,
@@ -11622,28 +11999,28 @@ function App() {
               created_by: myUserId
             }, token);
           case 1:
-            _yield$api$post3 = _context47.v;
+            _yield$api$post3 = _context48.v;
             _yield$api$post4 = _slicedToArray(_yield$api$post3, 1);
             c = _yield$api$post4[0];
             setCards(function (p) {
               return [aCard(c)].concat(_toConsumableArray(p));
             });
-            return _context47.a(2, aCard(c));
+            return _context48.a(2, aCard(c));
         }
-      }, _callee47);
+      }, _callee48);
     }));
     return function addCard(_x25) {
-      return _ref132.apply(this, arguments);
+      return _ref135.apply(this, arguments);
     };
   }();
   var editCard = function () {
-    var _ref133 = _asyncToGenerator(_regenerator().m(function _callee48(id, d) {
-      var _t55;
-      return _regenerator().w(function (_context48) {
-        while (1) switch (_context48.p = _context48.n) {
+    var _ref136 = _asyncToGenerator(_regenerator().m(function _callee49(id, d) {
+      var _t56;
+      return _regenerator().w(function (_context49) {
+        while (1) switch (_context49.p = _context49.n) {
           case 0:
-            _context48.p = 0;
-            _context48.n = 1;
+            _context49.p = 0;
+            _context49.n = 1;
             return api.patch("cards?id=eq.".concat(id), {
               kind: d.kind,
               match_date: d.date,
@@ -11654,36 +12031,6 @@ function App() {
             setCards(function (p) {
               return p.map(function (c) {
                 return c.id === id ? _objectSpread(_objectSpread({}, c), d) : c;
-              });
-            });
-            _context48.n = 3;
-            break;
-          case 2:
-            _context48.p = 2;
-            _t55 = _context48.v;
-            console.error(_t55);
-          case 3:
-            return _context48.a(2);
-        }
-      }, _callee48, null, [[0, 2]]);
-    }));
-    return function editCard(_x26, _x27) {
-      return _ref133.apply(this, arguments);
-    };
-  }();
-  var delCard = function () {
-    var _ref134 = _asyncToGenerator(_regenerator().m(function _callee49(id) {
-      var _t56;
-      return _regenerator().w(function (_context49) {
-        while (1) switch (_context49.p = _context49.n) {
-          case 0:
-            _context49.p = 0;
-            _context49.n = 1;
-            return api.del("cards?id=eq.".concat(id), token);
-          case 1:
-            setCards(function (p) {
-              return p.filter(function (c) {
-                return c.id !== id;
               });
             });
             _context49.n = 3;
@@ -11697,15 +12044,45 @@ function App() {
         }
       }, _callee49, null, [[0, 2]]);
     }));
+    return function editCard(_x26, _x27) {
+      return _ref136.apply(this, arguments);
+    };
+  }();
+  var delCard = function () {
+    var _ref137 = _asyncToGenerator(_regenerator().m(function _callee50(id) {
+      var _t57;
+      return _regenerator().w(function (_context50) {
+        while (1) switch (_context50.p = _context50.n) {
+          case 0:
+            _context50.p = 0;
+            _context50.n = 1;
+            return api.del("cards?id=eq.".concat(id), token);
+          case 1:
+            setCards(function (p) {
+              return p.filter(function (c) {
+                return c.id !== id;
+              });
+            });
+            _context50.n = 3;
+            break;
+          case 2:
+            _context50.p = 2;
+            _t57 = _context50.v;
+            console.error(_t57);
+          case 3:
+            return _context50.a(2);
+        }
+      }, _callee50, null, [[0, 2]]);
+    }));
     return function delCard(_x28) {
-      return _ref134.apply(this, arguments);
+      return _ref137.apply(this, arguments);
     };
   }();
   var serveSuspension = function () {
-    var _ref135 = _asyncToGenerator(_regenerator().m(function _callee50(memberId) {
-      var ids, _members$find2, _t57;
-      return _regenerator().w(function (_context50) {
-        while (1) switch (_context50.p = _context50.n) {
+    var _ref138 = _asyncToGenerator(_regenerator().m(function _callee51(memberId) {
+      var ids, _members$find2, _t58;
+      return _regenerator().w(function (_context51) {
+        while (1) switch (_context51.p = _context51.n) {
           case 0:
             ids = cards.filter(function (c) {
               return c.teamId === teamId && String(c.memberId) === String(memberId) && c.kind === 'amarelo' && !c.consumed;
@@ -11715,13 +12092,13 @@ function App() {
               return c.id;
             });
             if (!(ids.length < 5)) {
-              _context50.n = 1;
+              _context51.n = 1;
               break;
             }
-            return _context50.a(2);
+            return _context51.a(2);
           case 1:
-            _context50.p = 1;
-            _context50.n = 2;
+            _context51.p = 1;
+            _context51.n = 2;
             return api.patch("cards?id=in.(".concat(ids.join(','), ")"), {
               consumed: true
             }, token);
@@ -11736,29 +12113,29 @@ function App() {
             showToast("Contador de ".concat(((_members$find2 = members.find(function (m) {
               return String(m.id) === String(memberId);
             })) === null || _members$find2 === void 0 ? void 0 : _members$find2.name) || "jogador", " reposto a 0"), T.navy);
-            _context50.n = 4;
+            _context51.n = 4;
             break;
           case 3:
-            _context50.p = 3;
-            _t57 = _context50.v;
-            console.error(_t57);
+            _context51.p = 3;
+            _t58 = _context51.v;
+            console.error(_t58);
           case 4:
-            return _context50.a(2);
+            return _context51.a(2);
         }
-      }, _callee50, null, [[1, 3]]);
+      }, _callee51, null, [[1, 3]]);
     }));
     return function serveSuspension(_x29) {
-      return _ref135.apply(this, arguments);
+      return _ref138.apply(this, arguments);
     };
   }();
   var addExpense = function () {
-    var _ref136 = _asyncToGenerator(_regenerator().m(function _callee51(d) {
-      var _yield$api$post5, _yield$api$post6, e, _t58;
-      return _regenerator().w(function (_context51) {
-        while (1) switch (_context51.p = _context51.n) {
+    var _ref139 = _asyncToGenerator(_regenerator().m(function _callee52(d) {
+      var _yield$api$post5, _yield$api$post6, e, _t59;
+      return _regenerator().w(function (_context52) {
+        while (1) switch (_context52.p = _context52.n) {
           case 0:
-            _context51.p = 0;
-            _context51.n = 1;
+            _context52.p = 0;
+            _context52.n = 1;
             return api.post('expenses', {
               team_id: d.teamId,
               description: d.description,
@@ -11766,45 +12143,45 @@ function App() {
               created_by: myUserId
             }, token);
           case 1:
-            _yield$api$post5 = _context51.v;
+            _yield$api$post5 = _context52.v;
             _yield$api$post6 = _slicedToArray(_yield$api$post5, 1);
             e = _yield$api$post6[0];
             setExpenses(function (p) {
               return [aExpense(e)].concat(_toConsumableArray(p));
             });
-            _context51.n = 3;
+            _context52.n = 3;
             break;
           case 2:
-            _context51.p = 2;
-            _t58 = _context51.v;
-            console.error(_t58);
+            _context52.p = 2;
+            _t59 = _context52.v;
+            console.error(_t59);
           case 3:
-            return _context51.a(2);
+            return _context52.a(2);
         }
-      }, _callee51, null, [[0, 2]]);
+      }, _callee52, null, [[0, 2]]);
     }));
     return function addExpense(_x30) {
-      return _ref136.apply(this, arguments);
+      return _ref139.apply(this, arguments);
     };
   }();
   var logSession = function () {
-    var _ref137 = _asyncToGenerator(_regenerator().m(function _callee52(recurring, date, currentPresences) {
-      var alreadyLogged, res, newT, presArr, _t59;
-      return _regenerator().w(function (_context52) {
-        while (1) switch (_context52.p = _context52.n) {
+    var _ref140 = _asyncToGenerator(_regenerator().m(function _callee53(recurring, date, currentPresences) {
+      var alreadyLogged, res, newT, presArr, _t60;
+      return _regenerator().w(function (_context53) {
+        while (1) switch (_context53.p = _context53.n) {
           case 0:
             alreadyLogged = trainings.find(function (t) {
               return t.teamId === recurring.teamId && t.type === "treino" && t.date === date && t.location === recurring.location && t.time === recurring.time;
             });
             if (!alreadyLogged) {
-              _context52.n = 1;
+              _context53.n = 1;
               break;
             }
             alert("Sessão já foi registada!");
-            return _context52.a(2);
+            return _context53.a(2);
           case 1:
-            _context52.p = 1;
-            _context52.n = 2;
+            _context53.p = 1;
+            _context53.n = 2;
             return api.post("trainings", {
               team_id: recurring.teamId,
               type: "treino",
@@ -11816,31 +12193,31 @@ function App() {
               created_by: myUserId
             }, token);
           case 2:
-            res = _context52.v;
+            res = _context53.v;
             newT = Array.isArray(res) ? res[0] : res;
             if (newT) {
-              _context52.n = 3;
+              _context53.n = 3;
               break;
             }
-            return _context52.a(2);
+            return _context53.a(2);
           case 3:
             setTrainings(function (p) {
               return [].concat(_toConsumableArray(p), [aTraining(newT)]);
             });
-            presArr = Object.entries(currentPresences || {}).filter(function (_ref138) {
-              var _ref139 = _slicedToArray(_ref138, 2),
-                s = _ref139[1];
+            presArr = Object.entries(currentPresences || {}).filter(function (_ref141) {
+              var _ref142 = _slicedToArray(_ref141, 2),
+                s = _ref142[1];
               return s;
             });
             if (!(presArr.length > 0)) {
-              _context52.n = 5;
+              _context53.n = 5;
               break;
             }
-            _context52.n = 4;
-            return Promise.all(presArr.map(function (_ref140) {
-              var _ref141 = _slicedToArray(_ref140, 2),
-                mid = _ref141[0],
-                status = _ref141[1];
+            _context53.n = 4;
+            return Promise.all(presArr.map(function (_ref143) {
+              var _ref144 = _slicedToArray(_ref143, 2),
+                mid = _ref144[0],
+                status = _ref144[1];
               return api.upsert("presences", {
                 training_id: newT.id,
                 member_id: mid,
@@ -11852,28 +12229,28 @@ function App() {
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, newT.id, Object.fromEntries(presArr)));
             });
           case 5:
-            _context52.n = 7;
+            _context53.n = 7;
             break;
           case 6:
-            _context52.p = 6;
-            _t59 = _context52.v;
-            console.error(_t59);
+            _context53.p = 6;
+            _t60 = _context53.v;
+            console.error(_t60);
           case 7:
-            return _context52.a(2);
+            return _context53.a(2);
         }
-      }, _callee52, null, [[1, 6]]);
+      }, _callee53, null, [[1, 6]]);
     }));
     return function logSession(_x31, _x32, _x33) {
-      return _ref137.apply(this, arguments);
+      return _ref140.apply(this, arguments);
     };
   }();
   var addTraining = function () {
-    var _ref142 = _asyncToGenerator(_regenerator().m(function _callee53(d) {
+    var _ref145 = _asyncToGenerator(_regenerator().m(function _callee54(d) {
       var res, t, tm, isJogo, title, body;
-      return _regenerator().w(function (_context53) {
-        while (1) switch (_context53.n) {
+      return _regenerator().w(function (_context54) {
+        while (1) switch (_context54.n) {
           case 0:
-            _context53.n = 1;
+            _context54.n = 1;
             return api.post('trainings', {
               team_id: d.teamId,
               type: d.type,
@@ -11889,7 +12266,7 @@ function App() {
               created_by: myUserId
             }, token);
           case 1:
-            res = _context53.v;
+            res = _context54.v;
             t = Array.isArray(res) ? res[0] : res;
             if (t) {
               setTrainings(function (p) {
@@ -11908,22 +12285,22 @@ function App() {
               sendPushToTeam(d.teamId, tm, title, body).catch(function () {});
             }
           case 2:
-            return _context53.a(2);
+            return _context54.a(2);
         }
-      }, _callee53);
+      }, _callee54);
     }));
     return function addTraining(_x34) {
-      return _ref142.apply(this, arguments);
+      return _ref145.apply(this, arguments);
     };
   }();
   var delTraining = function () {
-    var _ref143 = _asyncToGenerator(_regenerator().m(function _callee54(id) {
-      var _t60;
-      return _regenerator().w(function (_context54) {
-        while (1) switch (_context54.p = _context54.n) {
+    var _ref146 = _asyncToGenerator(_regenerator().m(function _callee55(id) {
+      var _t61;
+      return _regenerator().w(function (_context55) {
+        while (1) switch (_context55.p = _context55.n) {
           case 0:
-            _context54.p = 0;
-            _context54.n = 1;
+            _context55.p = 0;
+            _context55.n = 1;
             return api.del("trainings?id=eq.".concat(id), token);
           case 1:
             setTrainings(function (p) {
@@ -11931,26 +12308,26 @@ function App() {
                 return t.id !== id;
               });
             });
-            _context54.n = 3;
+            _context55.n = 3;
             break;
           case 2:
-            _context54.p = 2;
-            _t60 = _context54.v;
-            console.error(_t60);
+            _context55.p = 2;
+            _t61 = _context55.v;
+            console.error(_t61);
           case 3:
-            return _context54.a(2);
+            return _context55.a(2);
         }
-      }, _callee54, null, [[0, 2]]);
+      }, _callee55, null, [[0, 2]]);
     }));
     return function delTraining(_x35) {
-      return _ref143.apply(this, arguments);
+      return _ref146.apply(this, arguments);
     };
   }();
   var editTraining = function () {
-    var _ref144 = _asyncToGenerator(_regenerator().m(function _callee55(id, d) {
+    var _ref147 = _asyncToGenerator(_regenerator().m(function _callee56(id, d) {
       var patch, res, t;
-      return _regenerator().w(function (_context55) {
-        while (1) switch (_context55.n) {
+      return _regenerator().w(function (_context56) {
+        while (1) switch (_context56.n) {
           case 0:
             patch = {};
             if (d.date !== undefined) patch.date = d.date || null;
@@ -11961,10 +12338,10 @@ function App() {
             if (d.opponent !== undefined) patch.opponent = d.opponent || null;
             if (d.homeAway !== undefined) patch.home_away = d.homeAway;
             if (d.squad !== undefined) patch.squad = d.squad;
-            _context55.n = 1;
+            _context56.n = 1;
             return api.patch("trainings?id=eq.".concat(id), patch, token);
           case 1:
-            res = _context55.v;
+            res = _context56.v;
             t = Array.isArray(res) ? res[0] : res;
             if (t) setTrainings(function (p) {
               return p.map(function (x) {
@@ -11972,26 +12349,26 @@ function App() {
               });
             });
           case 2:
-            return _context55.a(2);
+            return _context56.a(2);
         }
-      }, _callee55);
+      }, _callee56);
     }));
     return function editTraining(_x36, _x37) {
-      return _ref144.apply(this, arguments);
+      return _ref147.apply(this, arguments);
     };
   }();
   var setPresence = function () {
-    var _ref145 = _asyncToGenerator(_regenerator().m(function _callee56(tid, mid, status) {
-      var _t61;
-      return _regenerator().w(function (_context56) {
-        while (1) switch (_context56.p = _context56.n) {
+    var _ref148 = _asyncToGenerator(_regenerator().m(function _callee57(tid, mid, status) {
+      var _t62;
+      return _regenerator().w(function (_context57) {
+        while (1) switch (_context57.p = _context57.n) {
           case 0:
-            _context56.p = 0;
+            _context57.p = 0;
             if (status) {
-              _context56.n = 2;
+              _context57.n = 2;
               break;
             }
-            _context56.n = 1;
+            _context57.n = 1;
             return api.del("presences?training_id=eq.".concat(tid, "&member_id=eq.").concat(mid), token);
           case 1:
             setPresences(function (p) {
@@ -11999,10 +12376,10 @@ function App() {
               delete t[mid];
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, t));
             });
-            _context56.n = 4;
+            _context57.n = 4;
             break;
           case 2:
-            _context56.n = 3;
+            _context57.n = 3;
             return api.upsert('presences', {
               training_id: tid,
               member_id: mid,
@@ -12013,29 +12390,29 @@ function App() {
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, _objectSpread(_objectSpread({}, p[tid] || {}), {}, _defineProperty({}, mid, status))));
             });
           case 4:
-            _context56.n = 6;
+            _context57.n = 6;
             break;
           case 5:
-            _context56.p = 5;
-            _t61 = _context56.v;
-            console.error(_t61);
+            _context57.p = 5;
+            _t62 = _context57.v;
+            console.error(_t62);
           case 6:
-            return _context56.a(2);
+            return _context57.a(2);
         }
-      }, _callee56, null, [[0, 5]]);
+      }, _callee57, null, [[0, 5]]);
     }));
     return function setPresence(_x38, _x39, _x40) {
-      return _ref145.apply(this, arguments);
+      return _ref148.apply(this, arguments);
     };
   }();
   var addMember = function () {
-    var _ref146 = _asyncToGenerator(_regenerator().m(function _callee57(d) {
-      var r, m, _t62;
-      return _regenerator().w(function (_context57) {
-        while (1) switch (_context57.p = _context57.n) {
+    var _ref149 = _asyncToGenerator(_regenerator().m(function _callee58(d) {
+      var r, m, _t63;
+      return _regenerator().w(function (_context58) {
+        while (1) switch (_context58.p = _context58.n) {
           case 0:
-            _context57.p = 0;
-            _context57.n = 1;
+            _context58.p = 0;
+            _context58.n = 1;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/add_member_to_team"), {
               method: 'POST',
               headers: {
@@ -12053,11 +12430,11 @@ function App() {
               })
             });
           case 1:
-            r = _context57.v;
-            _context57.n = 2;
+            r = _context58.v;
+            _context58.n = 2;
             return r.json();
           case 2:
-            m = _context57.v;
+            m = _context58.v;
             if (m !== null && m !== void 0 && m.id) {
               setMembers(function (p) {
                 return [].concat(_toConsumableArray(p), [{
@@ -12073,38 +12450,38 @@ function App() {
                 }]);
               });
             }
-            _context57.n = 4;
+            _context58.n = 4;
             break;
           case 3:
-            _context57.p = 3;
-            _t62 = _context57.v;
-            console.error(_t62);
+            _context58.p = 3;
+            _t63 = _context58.v;
+            console.error(_t63);
           case 4:
-            return _context57.a(2);
+            return _context58.a(2);
         }
-      }, _callee57, null, [[0, 3]]);
+      }, _callee58, null, [[0, 3]]);
     }));
     return function addMember(_x41) {
-      return _ref146.apply(this, arguments);
+      return _ref149.apply(this, arguments);
     };
   }();
   var leaveTeam = function () {
-    var _ref147 = _asyncToGenerator(_regenerator().m(function _callee58(tid) {
-      var m, remaining, _t63;
-      return _regenerator().w(function (_context58) {
-        while (1) switch (_context58.p = _context58.n) {
+    var _ref150 = _asyncToGenerator(_regenerator().m(function _callee59(tid) {
+      var m, remaining, _t64;
+      return _regenerator().w(function (_context59) {
+        while (1) switch (_context59.p = _context59.n) {
           case 0:
             m = members.find(function (m) {
               return m.teamId === tid && m.userId === myUserId;
             });
             if (m) {
-              _context58.n = 1;
+              _context59.n = 1;
               break;
             }
-            return _context58.a(2);
+            return _context59.a(2);
           case 1:
-            _context58.p = 1;
-            _context58.n = 2;
+            _context59.p = 1;
+            _context59.n = 2;
             return api.del("team_members?id=eq.".concat(m.id), token);
           case 2:
             setTeams(function (p) {
@@ -12121,46 +12498,46 @@ function App() {
               return t.id !== tid;
             });
             if (!(remaining.length > 0)) {
-              _context58.n = 3;
+              _context59.n = 3;
               break;
             }
-            _context58.n = 3;
+            _context59.n = 3;
             return switchTeam(remaining[0].id);
           case 3:
-            _context58.n = 5;
+            _context59.n = 5;
             break;
           case 4:
-            _context58.p = 4;
-            _t63 = _context58.v;
-            console.error(_t63);
+            _context59.p = 4;
+            _t64 = _context59.v;
+            console.error(_t64);
             alert("Erro ao sair da equipa");
           case 5:
-            return _context58.a(2);
+            return _context59.a(2);
         }
-      }, _callee58, null, [[1, 4]]);
+      }, _callee59, null, [[1, 4]]);
     }));
     return function leaveTeam(_x42) {
-      return _ref147.apply(this, arguments);
+      return _ref150.apply(this, arguments);
     };
   }();
   var toggleRole = function () {
-    var _ref148 = _asyncToGenerator(_regenerator().m(function _callee59(id, newRole) {
-      var m, nr, _t64;
-      return _regenerator().w(function (_context59) {
-        while (1) switch (_context59.p = _context59.n) {
+    var _ref151 = _asyncToGenerator(_regenerator().m(function _callee60(id, newRole) {
+      var m, nr, _t65;
+      return _regenerator().w(function (_context60) {
+        while (1) switch (_context60.p = _context60.n) {
           case 0:
             m = members.find(function (m) {
               return m.id === id;
             });
             if (m) {
-              _context59.n = 1;
+              _context60.n = 1;
               break;
             }
-            return _context59.a(2);
+            return _context60.a(2);
           case 1:
             nr = newRole || (m.role === 'admin' ? 'player' : 'admin');
-            _context59.p = 2;
-            _context59.n = 3;
+            _context60.p = 2;
+            _context60.n = 3;
             return api.patch("team_members?id=eq.".concat(id), {
               role: nr
             }, token);
@@ -12172,29 +12549,29 @@ function App() {
                 }) : m;
               });
             });
-            _context59.n = 5;
+            _context60.n = 5;
             break;
           case 4:
-            _context59.p = 4;
-            _t64 = _context59.v;
-            console.error(_t64);
+            _context60.p = 4;
+            _t65 = _context60.v;
+            console.error(_t65);
           case 5:
-            return _context59.a(2);
+            return _context60.a(2);
         }
-      }, _callee59, null, [[2, 4]]);
+      }, _callee60, null, [[2, 4]]);
     }));
     return function toggleRole(_x43, _x44) {
-      return _ref148.apply(this, arguments);
+      return _ref151.apply(this, arguments);
     };
   }();
   var removeMember = function () {
-    var _ref149 = _asyncToGenerator(_regenerator().m(function _callee60(id) {
-      var _t65;
-      return _regenerator().w(function (_context60) {
-        while (1) switch (_context60.p = _context60.n) {
+    var _ref152 = _asyncToGenerator(_regenerator().m(function _callee61(id) {
+      var _t66;
+      return _regenerator().w(function (_context61) {
+        while (1) switch (_context61.p = _context61.n) {
           case 0:
-            _context60.p = 0;
-            _context60.n = 1;
+            _context61.p = 0;
+            _context61.n = 1;
             return api.del("team_members?id=eq.".concat(id), token);
           case 1:
             setMembers(function (p) {
@@ -12202,32 +12579,32 @@ function App() {
                 return m.id !== id;
               });
             });
-            _context60.n = 3;
+            _context61.n = 3;
             break;
           case 2:
-            _context60.p = 2;
-            _t65 = _context60.v;
-            console.error(_t65);
+            _context61.p = 2;
+            _t66 = _context61.v;
+            console.error(_t66);
           case 3:
-            return _context60.a(2);
+            return _context61.a(2);
         }
-      }, _callee60, null, [[0, 2]]);
+      }, _callee61, null, [[0, 2]]);
     }));
     return function removeMember(_x45) {
-      return _ref149.apply(this, arguments);
+      return _ref152.apply(this, arguments);
     };
   }();
   var editMember = function () {
-    var _ref150 = _asyncToGenerator(_regenerator().m(function _callee61(id, data) {
-      var m, r, e, _t66;
-      return _regenerator().w(function (_context61) {
-        while (1) switch (_context61.p = _context61.n) {
+    var _ref153 = _asyncToGenerator(_regenerator().m(function _callee62(id, data) {
+      var m, r, e, _t67;
+      return _regenerator().w(function (_context62) {
+        while (1) switch (_context62.p = _context62.n) {
           case 0:
-            _context61.p = 0;
+            _context62.p = 0;
             m = members.find(function (m) {
               return m.id === id;
             });
-            _context61.n = 1;
+            _context62.n = 1;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/update_team_member_profile"), {
               method: 'POST',
               headers: {
@@ -12246,15 +12623,15 @@ function App() {
               })
             });
           case 1:
-            r = _context61.v;
+            r = _context62.v;
             if (r.ok) {
-              _context61.n = 3;
+              _context62.n = 3;
               break;
             }
-            _context61.n = 2;
+            _context62.n = 2;
             return r.json();
           case 2:
-            e = _context61.v;
+            e = _context62.v;
             throw new Error(e.message || 'Erro ao guardar');
           case 3:
             setMembers(function (p) {
@@ -12267,37 +12644,37 @@ function App() {
             if ((m === null || m === void 0 ? void 0 : m.userId) === myUserId) setProfile(function (p) {
               return _objectSpread(_objectSpread({}, p), data);
             });
-            _context61.n = 5;
+            _context62.n = 5;
             break;
           case 4:
-            _context61.p = 4;
-            _t66 = _context61.v;
-            console.error(_t66);
-            alert('Erro: ' + _t66.message);
+            _context62.p = 4;
+            _t67 = _context62.v;
+            console.error(_t67);
+            alert('Erro: ' + _t67.message);
           case 5:
-            return _context61.a(2);
+            return _context62.a(2);
         }
-      }, _callee61, null, [[0, 4]]);
+      }, _callee62, null, [[0, 4]]);
     }));
     return function editMember(_x46, _x47) {
-      return _ref150.apply(this, arguments);
+      return _ref153.apply(this, arguments);
     };
   }();
-  var _useState351 = useState(null),
-    _useState352 = _slicedToArray(_useState351, 2),
-    teamError = _useState352[0],
-    setTeamError = _useState352[1];
+  var _useState359 = useState(null),
+    _useState360 = _slicedToArray(_useState359, 2),
+    teamError = _useState360[0],
+    setTeamError = _useState360[1];
   var createTeam = function () {
-    var _ref151 = _asyncToGenerator(_regenerator().m(function _callee62(d) {
-      var tid, invCode, sr, se, tr, newTeam, _t67;
-      return _regenerator().w(function (_context62) {
-        while (1) switch (_context62.p = _context62.n) {
+    var _ref154 = _asyncToGenerator(_regenerator().m(function _callee63(d) {
+      var tid, invCode, sr, se, tr, newTeam, _t68;
+      return _regenerator().w(function (_context63) {
+        while (1) switch (_context63.p = _context63.n) {
           case 0:
             setTeamError(null);
-            _context62.p = 1;
+            _context63.p = 1;
             tid = crypto.randomUUID();
             invCode = Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-            _context62.n = 2;
+            _context63.n = 2;
             return api.post('teams', {
               id: tid,
               name: d.name,
@@ -12313,7 +12690,7 @@ function App() {
               invite_code: invCode
             }, token);
           case 2:
-            _context62.n = 3;
+            _context63.n = 3;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/setup_new_team"), {
               method: 'POST',
               headers: {
@@ -12327,21 +12704,21 @@ function App() {
               })
             });
           case 3:
-            sr = _context62.v;
+            sr = _context63.v;
             if (sr.ok) {
-              _context62.n = 5;
+              _context63.n = 5;
               break;
             }
-            _context62.n = 4;
+            _context63.n = 4;
             return sr.json();
           case 4:
-            se = _context62.v;
+            se = _context63.v;
             throw new Error(se.message || se.hint || 'Erro ao configurar equipa');
           case 5:
-            _context62.n = 6;
+            _context63.n = 6;
             return api.get("teams?id=eq.".concat(tid), token);
           case 6:
-            tr = _context62.v;
+            tr = _context63.v;
             newTeam = aTeam(tr[0] || {
               id: tid,
               name: d.name,
@@ -12353,32 +12730,62 @@ function App() {
             setTeams(function (p) {
               return [].concat(_toConsumableArray(p), [newTeam]);
             });
-            _context62.n = 7;
+            _context63.n = 7;
             return switchTeam(tid);
           case 7:
-            _context62.n = 9;
+            _context63.n = 9;
             break;
           case 8:
-            _context62.p = 8;
-            _t67 = _context62.v;
-            setTeamError(_t67.message || JSON.stringify(_t67));
+            _context63.p = 8;
+            _t68 = _context63.v;
+            setTeamError(_t68.message || JSON.stringify(_t68));
           case 9:
-            return _context62.a(2);
+            return _context63.a(2);
         }
-      }, _callee62, null, [[1, 8]]);
+      }, _callee63, null, [[1, 8]]);
     }));
     return function createTeam(_x48) {
-      return _ref151.apply(this, arguments);
+      return _ref154.apply(this, arguments);
+    };
+  }();
+  var editTeam = function () {
+    var _ref155 = _asyncToGenerator(_regenerator().m(function _callee64(id, patch) {
+      var res;
+      return _regenerator().w(function (_context64) {
+        while (1) switch (_context64.n) {
+          case 0:
+            _context64.n = 1;
+            return api.patch("teams?id=eq.".concat(id), patch, token);
+          case 1:
+            res = _context64.v;
+            if (!(!Array.isArray(res) || !res.length)) {
+              _context64.n = 2;
+              break;
+            }
+            throw new Error("Não foi possível guardar (sem permissão?)");
+          case 2:
+            setTeams(function (p) {
+              return p.map(function (t) {
+                return t.id === id ? _objectSpread(_objectSpread({}, t), aTeam(res[0])) : t;
+              });
+            });
+          case 3:
+            return _context64.a(2);
+        }
+      }, _callee64);
+    }));
+    return function editTeam(_x49, _x50) {
+      return _ref155.apply(this, arguments);
     };
   }();
   var deleteTeam = function () {
-    var _ref152 = _asyncToGenerator(_regenerator().m(function _callee63(teamId) {
-      var remaining, _t68;
-      return _regenerator().w(function (_context63) {
-        while (1) switch (_context63.p = _context63.n) {
+    var _ref156 = _asyncToGenerator(_regenerator().m(function _callee65(teamId) {
+      var remaining, _t69;
+      return _regenerator().w(function (_context65) {
+        while (1) switch (_context65.p = _context65.n) {
           case 0:
-            _context63.p = 0;
-            _context63.n = 1;
+            _context65.p = 0;
+            _context65.n = 1;
             return api.del("teams?id=eq.".concat(teamId), token);
           case 1:
             remaining = teams.filter(function (t) {
@@ -12388,13 +12795,13 @@ function App() {
             setSub(null);
             setTab("home");
             if (!(remaining.length > 0)) {
-              _context63.n = 3;
+              _context65.n = 3;
               break;
             }
-            _context63.n = 2;
+            _context65.n = 2;
             return switchTeam(remaining[0].id);
           case 2:
-            _context63.n = 4;
+            _context65.n = 4;
             break;
           case 3:
             setTeamId(null);
@@ -12405,71 +12812,71 @@ function App() {
             setTrainings([]);
             setPresences({});
           case 4:
-            _context63.n = 6;
+            _context65.n = 6;
             break;
           case 5:
-            _context63.p = 5;
-            _t68 = _context63.v;
-            console.error('deleteTeam error:', _t68);
+            _context65.p = 5;
+            _t69 = _context65.v;
+            console.error('deleteTeam error:', _t69);
           case 6:
-            return _context63.a(2);
+            return _context65.a(2);
         }
-      }, _callee63, null, [[0, 5]]);
+      }, _callee65, null, [[0, 5]]);
     }));
-    return function deleteTeam(_x49) {
-      return _ref152.apply(this, arguments);
+    return function deleteTeam(_x51) {
+      return _ref156.apply(this, arguments);
     };
   }();
   var joinTeam = function () {
-    var _ref153 = _asyncToGenerator(_regenerator().m(function _callee64(t) {
-      var _e$message, _t69;
-      return _regenerator().w(function (_context64) {
-        while (1) switch (_context64.p = _context64.n) {
+    var _ref157 = _asyncToGenerator(_regenerator().m(function _callee66(t) {
+      var _e$message, _t70;
+      return _regenerator().w(function (_context66) {
+        while (1) switch (_context66.p = _context66.n) {
           case 0:
-            _context64.p = 0;
-            _context64.n = 1;
+            _context66.p = 0;
+            _context66.n = 1;
             return api.insert('team_members', {
               team_id: t.id,
               user_id: myUserId,
               role: 'player'
             }, token);
           case 1:
-            _context64.n = 3;
+            _context66.n = 3;
             break;
           case 2:
-            _context64.p = 2;
-            _t69 = _context64.v;
-            if ((_e$message = _t69.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
-              _context64.n = 3;
+            _context66.p = 2;
+            _t70 = _context66.v;
+            if ((_e$message = _t70.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
+              _context66.n = 3;
               break;
             }
-            alert("Erro ao entrar na equipa: ".concat(_t69.message || "tenta novamente"));
-            return _context64.a(2);
+            alert("Erro ao entrar na equipa: ".concat(_t70.message || "tenta novamente"));
+            return _context66.a(2);
           case 3:
             setTeams(function (prev) {
               return prev.some(function (x) {
                 return x.id === t.id;
               }) ? prev : [].concat(_toConsumableArray(prev), [t]);
             });
-            _context64.n = 4;
+            _context66.n = 4;
             return switchTeam(t.id);
           case 4:
-            return _context64.a(2);
+            return _context66.a(2);
         }
-      }, _callee64, null, [[0, 2]]);
+      }, _callee66, null, [[0, 2]]);
     }));
-    return function joinTeam(_x50) {
-      return _ref153.apply(this, arguments);
+    return function joinTeam(_x52) {
+      return _ref157.apply(this, arguments);
     };
   }();
   var findTeamByCode = function () {
-    var _ref154 = _asyncToGenerator(_regenerator().m(function _callee65(code) {
-      var r, d, t, _t70;
-      return _regenerator().w(function (_context65) {
-        while (1) switch (_context65.p = _context65.n) {
+    var _ref158 = _asyncToGenerator(_regenerator().m(function _callee67(code) {
+      var r, d, t, _t71;
+      return _regenerator().w(function (_context67) {
+        while (1) switch (_context67.p = _context67.n) {
           case 0:
-            _context65.p = 0;
-            _context65.n = 1;
+            _context67.p = 0;
+            _context67.n = 1;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/find_team_by_code"), {
               method: 'POST',
               headers: {
@@ -12482,33 +12889,33 @@ function App() {
               })
             });
           case 1:
-            r = _context65.v;
-            _context65.n = 2;
+            r = _context67.v;
+            _context67.n = 2;
             return r.json();
           case 2:
-            d = _context65.v;
+            d = _context67.v;
             t = Array.isArray(d) ? d[0] : d;
-            return _context65.a(2, t !== null && t !== void 0 && t.id ? aTeam(_objectSpread(_objectSpread({}, t), {}, {
+            return _context67.a(2, t !== null && t !== void 0 && t.id ? aTeam(_objectSpread(_objectSpread({}, t), {}, {
               invite_code: t.invite_code
             })) : null);
           case 3:
-            _context65.p = 3;
-            _t70 = _context65.v;
-            return _context65.a(2, null);
+            _context67.p = 3;
+            _t71 = _context67.v;
+            return _context67.a(2, null);
         }
-      }, _callee65, null, [[0, 3]]);
+      }, _callee67, null, [[0, 3]]);
     }));
-    return function findTeamByCode(_x51) {
-      return _ref154.apply(this, arguments);
+    return function findTeamByCode(_x53) {
+      return _ref158.apply(this, arguments);
     };
   }();
-  var _useState353 = useState(function () {
+  var _useState361 = useState(function () {
       var p = new URLSearchParams(window.location.search);
       return p.get('invite') || null;
     }),
-    _useState354 = _slicedToArray(_useState353, 2),
-    pendingInvite = _useState354[0],
-    setPendingInvite = _useState354[1];
+    _useState362 = _slicedToArray(_useState361, 2),
+    pendingInvite = _useState362[0],
+    setPendingInvite = _useState362[1];
   useEffect(function () {
     if (!appReady || !pendingInvite) return;
     var alreadyIn = teams.find(function (t) {
@@ -12524,42 +12931,42 @@ function App() {
     }
   }, [appReady, pendingInvite, teams]);
   var subscribeToPush = function () {
-    var _ref155 = _asyncToGenerator(_regenerator().m(function _callee66(tok, uid) {
-      var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t71, _t72;
-      return _regenerator().w(function (_context66) {
-        while (1) switch (_context66.p = _context66.n) {
+    var _ref159 = _asyncToGenerator(_regenerator().m(function _callee68(tok, uid) {
+      var _subJson$keys, _subJson$keys2, reg, existing, _sub, subJson, _t72, _t73;
+      return _regenerator().w(function (_context68) {
+        while (1) switch (_context68.p = _context68.n) {
           case 0:
             if (!(!("serviceWorker" in navigator) || !("PushManager" in window))) {
-              _context66.n = 1;
+              _context68.n = 1;
               break;
             }
-            return _context66.a(2);
+            return _context68.a(2);
           case 1:
-            _context66.p = 1;
-            _context66.n = 2;
+            _context68.p = 1;
+            _context68.n = 2;
             return navigator.serviceWorker.ready;
           case 2:
-            reg = _context66.v;
-            _context66.n = 3;
+            reg = _context68.v;
+            _context68.n = 3;
             return reg.pushManager.getSubscription();
           case 3:
-            existing = _context66.v;
-            _t71 = existing;
-            if (_t71) {
-              _context66.n = 5;
+            existing = _context68.v;
+            _t72 = existing;
+            if (_t72) {
+              _context68.n = 5;
               break;
             }
-            _context66.n = 4;
+            _context68.n = 4;
             return reg.pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: VAPID_PUBLIC
             });
           case 4:
-            _t71 = _context66.v;
+            _t72 = _context68.v;
           case 5:
-            _sub = _t71;
+            _sub = _t72;
             subJson = _sub.toJSON();
-            _context66.n = 6;
+            _context68.n = 6;
             return fetch("".concat(SB_URL, "/rest/v1/push_subscriptions"), {
               method: "POST",
               headers: {
@@ -12576,47 +12983,47 @@ function App() {
               })
             });
           case 6:
-            _context66.n = 8;
+            _context68.n = 8;
             break;
           case 7:
-            _context66.p = 7;
-            _t72 = _context66.v;
-            console.warn("Push subscribe failed:", _t72.message);
+            _context68.p = 7;
+            _t73 = _context68.v;
+            console.warn("Push subscribe failed:", _t73.message);
           case 8:
-            return _context66.a(2);
+            return _context68.a(2);
         }
-      }, _callee66, null, [[1, 7]]);
+      }, _callee68, null, [[1, 7]]);
     }));
-    return function subscribeToPush(_x52, _x53) {
-      return _ref155.apply(this, arguments);
+    return function subscribeToPush(_x54, _x55) {
+      return _ref159.apply(this, arguments);
     };
   }();
   useEffect(function () {
     if (!appReady || !token || !myUserId) return;
     if ("Notification" in window && Notification.permission === "default") {
-      setTimeout(_asyncToGenerator(_regenerator().m(function _callee67() {
+      setTimeout(_asyncToGenerator(_regenerator().m(function _callee69() {
         var perm;
-        return _regenerator().w(function (_context67) {
-          while (1) switch (_context67.n) {
+        return _regenerator().w(function (_context69) {
+          while (1) switch (_context69.n) {
             case 0:
-              _context67.n = 1;
+              _context69.n = 1;
               return Notification.requestPermission();
             case 1:
-              perm = _context67.v;
+              perm = _context69.v;
               if (perm === "granted") subscribeToPush(token, myUserId);
             case 2:
-              return _context67.a(2);
+              return _context69.a(2);
           }
-        }, _callee67);
+        }, _callee69);
       })), 2500);
     } else if ("Notification" in window && Notification.permission === "granted") {
       subscribeToPush(token, myUserId);
     }
   }, [appReady, token, myUserId]);
-  var _useState355 = useState(null),
-    _useState356 = _slicedToArray(_useState355, 2),
-    toast = _useState356[0],
-    setToast = _useState356[1];
+  var _useState363 = useState(null),
+    _useState364 = _slicedToArray(_useState363, 2),
+    toast = _useState364[0],
+    setToast = _useState364[1];
   var showToast = function showToast(msg) {
     var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : T.navy;
     setToast({
@@ -12628,22 +13035,22 @@ function App() {
     }, 3000);
   };
   var sendPushToTeam = function () {
-    var _ref157 = _asyncToGenerator(_regenerator().m(function _callee68(teamId, members, title, body) {
-      var userIds, _t73;
-      return _regenerator().w(function (_context68) {
-        while (1) switch (_context68.p = _context68.n) {
+    var _ref161 = _asyncToGenerator(_regenerator().m(function _callee70(teamId, members, title, body) {
+      var userIds, _t74;
+      return _regenerator().w(function (_context70) {
+        while (1) switch (_context70.p = _context70.n) {
           case 0:
             userIds = members.map(function (m) {
               return m.userId;
             }).filter(Boolean);
             if (userIds.length) {
-              _context68.n = 1;
+              _context70.n = 1;
               break;
             }
-            return _context68.a(2);
+            return _context70.a(2);
           case 1:
-            _context68.p = 1;
-            _context68.n = 2;
+            _context70.p = 1;
+            _context70.n = 2;
             return fetch("".concat(SB_URL, "/functions/v1/send-team-push"), {
               method: "POST",
               headers: {
@@ -12659,28 +13066,28 @@ function App() {
               })
             });
           case 2:
-            _context68.n = 4;
+            _context70.n = 4;
             break;
           case 3:
-            _context68.p = 3;
-            _t73 = _context68.v;
-            console.warn("Push send failed:", _t73.message);
+            _context70.p = 3;
+            _t74 = _context70.v;
+            console.warn("Push send failed:", _t74.message);
           case 4:
-            return _context68.a(2);
+            return _context70.a(2);
         }
-      }, _callee68, null, [[1, 3]]);
+      }, _callee70, null, [[1, 3]]);
     }));
-    return function sendPushToTeam(_x54, _x55, _x56, _x57) {
-      return _ref157.apply(this, arguments);
+    return function sendPushToTeam(_x56, _x57, _x58, _x59) {
+      return _ref161.apply(this, arguments);
     };
   }();
   var addFineWithToast = function () {
-    var _ref158 = _asyncToGenerator(_regenerator().m(function _callee69(d) {
+    var _ref162 = _asyncToGenerator(_regenerator().m(function _callee71(d) {
       var m;
-      return _regenerator().w(function (_context69) {
-        while (1) switch (_context69.n) {
+      return _regenerator().w(function (_context71) {
+        while (1) switch (_context71.n) {
           case 0:
-            _context69.n = 1;
+            _context71.n = 1;
             return addFine(d);
           case 1:
             m = members.find(function (x) {
@@ -12691,43 +13098,43 @@ function App() {
               sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", "".concat(d.amount, "\u20AC \u2014 ").concat(d.reason || "Multa atribuída")).catch(function () {});
             }
           case 2:
-            return _context69.a(2);
+            return _context71.a(2);
         }
-      }, _callee69);
+      }, _callee71);
     }));
-    return function addFineWithToast(_x58) {
-      return _ref158.apply(this, arguments);
+    return function addFineWithToast(_x60) {
+      return _ref162.apply(this, arguments);
     };
   }();
   var addCardWithAlert = function () {
-    var _ref159 = _asyncToGenerator(_regenerator().m(function _callee70(d) {
+    var _ref163 = _asyncToGenerator(_regenerator().m(function _callee72(d) {
       var c, m, name, y, managers;
-      return _regenerator().w(function (_context70) {
-        while (1) switch (_context70.n) {
+      return _regenerator().w(function (_context72) {
+        while (1) switch (_context72.n) {
           case 0:
-            _context70.n = 1;
+            _context72.n = 1;
             return addCard(d);
           case 1:
-            c = _context70.v;
+            c = _context72.v;
             m = members.find(function (x) {
               return String(x.id) === String(d.memberId);
             });
             name = (m === null || m === void 0 ? void 0 : m.name) || "jogador";
             showToast("".concat(d.kind === 'amarelo' ? "🟨" : "🟥", " Cart\xE3o ").concat(d.kind, " lan\xE7ado a ").concat(name), d.kind === 'amarelo' ? "#B38F00" : T.brand);
             if (!(c.kind !== 'amarelo')) {
-              _context70.n = 2;
+              _context72.n = 2;
               break;
             }
-            return _context70.a(2);
+            return _context72.a(2);
           case 2:
             y = cards.filter(function (x) {
               return x.teamId === d.teamId && String(x.memberId) === String(d.memberId) && x.kind === 'amarelo' && !x.consumed;
             }).length + 1;
             if (!(y < 4)) {
-              _context70.n = 3;
+              _context72.n = 3;
               break;
             }
-            return _context70.a(2);
+            return _context72.a(2);
           case 3:
             managers = members.filter(function (x) {
               return x.teamId === d.teamId && ["admin", "treinador", "diretor"].includes(x.role);
@@ -12740,12 +13147,12 @@ function App() {
               sendPushToTeam(d.teamId, managers, "\uD83D\uDFE5 ".concat(name, " atingiu 5 amarelos"), "Cumpre 1 jogo de castigo.").catch(function () {});
             }
           case 4:
-            return _context70.a(2);
+            return _context72.a(2);
         }
-      }, _callee70);
+      }, _callee72);
     }));
-    return function addCardWithAlert(_x59) {
-      return _ref159.apply(this, arguments);
+    return function addCardWithAlert(_x61) {
+      return _ref163.apply(this, arguments);
     };
   }();
   useEffect(function () {
@@ -12897,22 +13304,22 @@ function App() {
     user: profile,
     onFindByCode: findTeamByCode,
     onJoin: (function () {
-      var _ref160 = _asyncToGenerator(_regenerator().m(function _callee71(t) {
-        return _regenerator().w(function (_context71) {
-          while (1) switch (_context71.n) {
+      var _ref164 = _asyncToGenerator(_regenerator().m(function _callee73(t) {
+        return _regenerator().w(function (_context73) {
+          while (1) switch (_context73.n) {
             case 0:
-              _context71.n = 1;
+              _context73.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context71.a(2);
+              return _context73.a(2);
           }
-        }, _callee71);
+        }, _callee73);
       }));
-      return function (_x60) {
-        return _ref160.apply(this, arguments);
+      return function (_x62) {
+        return _ref164.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
@@ -12980,7 +13387,8 @@ function App() {
       onRegenerateCode: function onRegenerateCode() {},
       onDeleteTeam: function onDeleteTeam() {
         return deleteTeam(mt.id);
-      }
+      },
+      onEditTeam: editTeam
     }), modal === "member" && React.createElement(AddMemberModal, {
       team: mt,
       onAdd: addMember,
@@ -13320,14 +13728,14 @@ function App() {
   }), modal === "profile" && React.createElement(EditProfileModal, {
     user: profile || {},
     onSave: (function () {
-      var _ref161 = _asyncToGenerator(_regenerator().m(function _callee72(u) {
+      var _ref165 = _asyncToGenerator(_regenerator().m(function _callee74(u) {
         var _members$find4;
-        var _t74;
-        return _regenerator().w(function (_context72) {
-          while (1) switch (_context72.p = _context72.n) {
+        var _t75;
+        return _regenerator().w(function (_context74) {
+          while (1) switch (_context74.p = _context74.n) {
             case 0:
-              _context72.p = 0;
-              _context72.n = 1;
+              _context74.p = 0;
+              _context74.n = 1;
               return api.patch("profiles?id=eq.".concat(myUserId), {
                 name: u.name,
                 phone: u.phone || null,
@@ -13336,14 +13744,14 @@ function App() {
                 position: u.position || null
               }, token);
             case 1:
-              _context72.n = 3;
+              _context74.n = 3;
               break;
             case 2:
-              _context72.p = 2;
-              _t74 = _context72.v;
-              console.error(_t74);
+              _context74.p = 2;
+              _t75 = _context74.v;
+              console.error(_t75);
             case 3:
-              _context72.n = 4;
+              _context74.n = 4;
               return editMember((_members$find4 = members.find(function (m) {
                 return m.userId === myUserId && m.teamId === teamId;
               })) === null || _members$find4 === void 0 ? void 0 : _members$find4.id, u);
@@ -13352,12 +13760,12 @@ function App() {
                 return _objectSpread(_objectSpread({}, p), u);
               });
             case 5:
-              return _context72.a(2);
+              return _context74.a(2);
           }
-        }, _callee72, null, [[0, 2]]);
+        }, _callee74, null, [[0, 2]]);
       }));
-      return function (_x61) {
-        return _ref161.apply(this, arguments);
+      return function (_x63) {
+        return _ref165.apply(this, arguments);
       };
     }()),
     onClose: function onClose() {
@@ -13368,22 +13776,22 @@ function App() {
     user: profile,
     onFindByCode: findTeamByCode,
     onJoin: (function () {
-      var _ref162 = _asyncToGenerator(_regenerator().m(function _callee73(t) {
-        return _regenerator().w(function (_context73) {
-          while (1) switch (_context73.n) {
+      var _ref166 = _asyncToGenerator(_regenerator().m(function _callee75(t) {
+        return _regenerator().w(function (_context75) {
+          while (1) switch (_context75.n) {
             case 0:
-              _context73.n = 1;
+              _context75.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context73.a(2);
+              return _context75.a(2);
           }
-        }, _callee73);
+        }, _callee75);
       }));
-      return function (_x62) {
-        return _ref162.apply(this, arguments);
+      return function (_x64) {
+        return _ref166.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
