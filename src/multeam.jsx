@@ -141,6 +141,7 @@ const useForecast = (team, trainings) => {
       c = fcCache[key] = { at: Date.now(), hourly: null, promise: p };
       p.then(m => { fcCache[key] = { at: Date.now(), hourly: m, promise: null }; });
     }
+    setHourly(null); // cidade/país mudaram: não mostrar a previsão do sítio antigo
     c.promise.then(m => { if (alive) setHourly(m); }).catch(() => {});
     return () => { alive = false; };
   }, [key]);
@@ -2362,8 +2363,70 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
   );
 };
 
-const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, setFineTypes }) => {
+const TeamSettingsSection = ({ team, onSave }) => {
+  const opt = (list, cur) => (cur && !list.includes(cur)) ? [cur, ...list] : list;
+  const [name, setName]     = useState(team.name || "");
+  const [emoji, setEmoji]   = useState(team.emoji || "⚽");
+  const [color, setColor]   = useState(team.color || "#1D3557");
+  const [season, setSeason] = useState(team.season || "");
+  const [country, setCountry] = useState(team.country || "Portugal");
+  const [city, setCity]     = useState(team.city || "");
+  const [postal, setPostal] = useState(team.postal || "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg]   = useState(null); // { ok, text }
+  const ok = name.trim().length > 1 && !busy;
+  const save = async () => {
+    if (!ok) return;
+    setBusy(true); setMsg(null);
+    try {
+      await onSave(team.id, { name:name.trim(), emoji, color, season:season.trim(), country, city:city.trim(), postal:postal.trim() });
+      setMsg({ ok:true, text:"Guardado ✓" });
+    } catch(e) { setMsg({ ok:false, text:e.message || "Erro ao guardar" }); }
+    setBusy(false);
+  };
+  return (
+    <div style={{ background:T.card, borderRadius:16, padding:"16px", marginBottom:20 }}>
+      <p style={{ margin:"0 0 12px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Definições da equipa</p>
+      <FL>Nome</FL>
+      <FI value={name} onChange={e=>setName(e.target.value)} />
+      <FL>Emoji</FL>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+        {opt(EMOJIS, emoji).map(e=>(
+          <button key={e} onClick={()=>setEmoji(e)} style={{ width:40, height:40, borderRadius:10, fontSize:20, cursor:"pointer", border:`2px solid ${emoji===e?color:T.border}`, background:emoji===e?`${color}15`:"transparent" }}>{e}</button>
+        ))}
+      </div>
+      <FL>Cor</FL>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+        {opt(COLORS, color).map(c=>(
+          <button key={c} onClick={()=>setColor(c)} aria-label={c} style={{ width:32, height:32, borderRadius:16, background:c, cursor:"pointer", border:color===c?`3px solid ${T.text}`:`3px solid transparent` }} />
+        ))}
+      </div>
+      <FL>Época</FL>
+      <FI value={season} onChange={e=>setSeason(e.target.value)} placeholder="2025/26" />
+      <FL>País</FL>
+      <FSel value={country} onChange={e=>setCountry(e.target.value)}>
+        {opt(COUNTRIES, country).map(c=><option key={c} value={c}>{c}</option>)}
+      </FSel>
+      <div style={{ display:"flex", gap:10 }}>
+        <div style={{ flex:2 }}>
+          <FL>Cidade</FL>
+          <FI value={city} onChange={e=>setCity(e.target.value)} placeholder="Ex: Selzach" />
+        </div>
+        <div style={{ flex:1 }}>
+          <FL>Cód. Postal</FL>
+          <FI value={postal} onChange={e=>setPostal(e.target.value)} placeholder="2545" />
+        </div>
+      </div>
+      <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.sub }}>Usado para a previsão do tempo nos treinos.</p>
+      {msg && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:msg.ok?T.green:T.brand }}>{msg.text}</p>}
+      <PrimaryBtn onClick={save} disabled={!ok} color={color}>{busy?"A guardar…":"Guardar definições"}</PrimaryBtn>
+    </div>
+  );
+};
+
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
+  const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
   const [confirmRemove, setConfirmRemove] = useState(null);
@@ -2474,6 +2537,8 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
             </a>
           </div>
         </div>
+
+        {canEditTeam && onEditTeam && <TeamSettingsSection team={team} onSave={onEditTeam} />}
 
         {/* Role hierarchy info */}
         <div style={{ background:`${T.yellow}15`, borderRadius:14, padding:"12px 14px", marginBottom:16, display:"flex", gap:10, alignItems:"flex-start" }}>
@@ -3327,6 +3392,11 @@ export default function App() {
       await switchTeam(tid);
     } catch(e){ setTeamError(e.message||JSON.stringify(e)); }
   };
+  const editTeam = async (id, d) => {
+    const res = await api.patch(`teams?id=eq.${id}`, { name:d.name, emoji:d.emoji, color:d.color, season:d.season, country:d.country, city:d.city, postal:d.postal }, token);
+    if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
+    setTeams(p=>p.map(t=>t.id===id?{ ...t, ...aTeam(res[0]) }:t));
+  };
   const deleteTeam = async (teamId) => {
     try {
       await api.del(`teams?id=eq.${teamId}`, token);
@@ -3509,7 +3579,7 @@ export default function App() {
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
