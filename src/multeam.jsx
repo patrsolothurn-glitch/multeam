@@ -141,6 +141,7 @@ const useForecast = (team, trainings) => {
       c = fcCache[key] = { at: Date.now(), hourly: null, promise: p };
       p.then(m => { fcCache[key] = { at: Date.now(), hourly: m, promise: null }; });
     }
+    setHourly(null); // cidade/país mudaram: não mostrar a previsão do sítio antigo
     c.promise.then(m => { if (alive) setHourly(m); }).catch(() => {});
     return () => { alive = false; };
   }, [key]);
@@ -2362,8 +2363,110 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
   );
 };
 
-const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, setFineTypes }) => {
+const TeamDataSection = ({ team, onSave }) => {
+  const opt = (list, cur) => (cur && !list.includes(cur)) ? [cur, ...list] : list;
+  const init = () => ({ name:team.name||"", emoji:team.emoji||"⚽", color:team.color||"#1D3557", season:team.season||"", sport:team.sport||"", currency:team.currency||"", country:team.country||"", city:team.city||"", postal:team.postal||"" });
+  const [editing, setEditing] = useState(false);
+  const [f, setF] = useState(init);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const nameOk = f.name.trim().length > 0, seasonOk = f.season.trim().length > 0;
+  const canSave = nameOk && seasonOk && !busy;
+  const open = () => { setF(init()); setErr(""); setEditing(true); };
+  const save = async () => {
+    if (!canSave) return;
+    const cur = init(), next = { ...f, name:f.name.trim(), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim() };
+    const patch = {};
+    Object.keys(next).forEach(k => { if (next[k] !== cur[k]) patch[k] = next[k]; });
+    if (!Object.keys(patch).length) { setEditing(false); return; }
+    setBusy(true); setErr("");
+    try { await onSave(team.id, patch); setEditing(false); }
+    catch(e) { setErr(e.message || "Erro ao guardar"); } // mantém os campos preenchidos
+    setBusy(false);
+  };
+  const Val = ({ label, v }) => (
+    <div style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"6px 0" }}>
+      <span style={{ fontSize:13, color:T.sub }}>{label}</span>
+      <span style={{ fontSize:14, fontWeight:600, textAlign:"right" }}>{v || "—"}</span>
+    </div>
+  );
+  return (
+    <div style={{ background:T.card, borderRadius:16, padding:"16px", marginBottom:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:editing?12:6 }}>
+        <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Dados da equipa</p>
+        {!editing && <button onClick={open} style={{ background:`${team.color}15`, border:"none", borderRadius:10, padding:"7px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:team.color, fontFamily:"inherit" }}>✏️ Editar</button>}
+      </div>
+      {!editing ? (
+        <>
+          <Val label="Nome" v={`${team.emoji||""} ${team.name||""}`.trim()} />
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0" }}>
+            <span style={{ fontSize:13, color:T.sub }}>Cor</span>
+            <span style={{ width:20, height:20, borderRadius:10, background:team.color, display:"inline-block" }} />
+          </div>
+          <Val label="Época" v={team.season} />
+          <Val label="Desporto" v={team.sport} />
+          <Val label="Moeda" v={team.currency} />
+          <Val label="País" v={team.country} />
+          <Val label="Cidade" v={[team.postal, team.city].filter(Boolean).join(" ")} />
+          <p style={{ margin:"4px 0 0", fontSize:12, color:T.sub }}>Cidade e país: usados para a previsão do tempo nos treinos.</p>
+        </>
+      ) : (
+        <>
+          <FL>Nome</FL>
+          <FI value={f.name} onChange={e=>set("name",e.target.value)} />
+          <FL>Emoji</FL>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+            {opt(EMOJIS, f.emoji).map(e=>(
+              <button key={e} onClick={()=>set("emoji",e)} style={{ width:40, height:40, borderRadius:10, fontSize:20, cursor:"pointer", border:`2px solid ${f.emoji===e?f.color:T.border}`, background:f.emoji===e?`${f.color}15`:"transparent" }}>{e}</button>
+            ))}
+          </div>
+          <FL>Cor</FL>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+            {opt(COLORS, f.color).map(c=>(
+              <button key={c} onClick={()=>set("color",c)} aria-label={c} style={{ width:32, height:32, borderRadius:16, background:c, cursor:"pointer", border:f.color===c?`3px solid ${T.text}`:"3px solid transparent" }} />
+            ))}
+          </div>
+          <FL>Época</FL>
+          <FI value={f.season} onChange={e=>set("season",e.target.value)} placeholder="2025/26" />
+          <FL>Desporto</FL>
+          <FSel value={f.sport} onChange={e=>set("sport",e.target.value)}>
+            {opt(SPORTS, f.sport).map(x=><option key={x} value={x}>{x}</option>)}
+          </FSel>
+          <FL>Moeda</FL>
+          <FSel value={f.currency} onChange={e=>set("currency",e.target.value)}>
+            {opt(CURRENCIES, f.currency).map(x=><option key={x} value={x}>{x}</option>)}
+          </FSel>
+          <FL>País</FL>
+          <FSel value={f.country} onChange={e=>set("country",e.target.value)}>
+            {opt(COUNTRIES, f.country).map(x=><option key={x} value={x}>{x}</option>)}
+          </FSel>
+          <div style={{ display:"flex", gap:10 }}>
+            <div style={{ flex:2 }}>
+              <FL>Cidade</FL>
+              <FI value={f.city} onChange={e=>set("city",e.target.value)} placeholder="Ex: Selzach" />
+            </div>
+            <div style={{ flex:1 }}>
+              <FL>Cód. Postal</FL>
+              <FI value={f.postal} onChange={e=>set("postal",e.target.value)} placeholder="2545" />
+            </div>
+          </div>
+          <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.sub }}>Usado para a previsão do tempo nos treinos.</p>
+          {(!nameOk || !seasonOk) && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:T.brand }}>{!nameOk ? "O nome não pode ficar vazio." : "A época não pode ficar vazia."}</p>}
+          {err && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:T.brand }}>{err}</p>}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>{ setEditing(false); setErr(""); }} disabled={busy} style={{ flex:1, padding:"15px", borderRadius:14, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+            <div style={{ flex:2 }}><PrimaryBtn onClick={save} disabled={!canSave} color={f.color}>{busy?"A guardar…":"Guardar"}</PrimaryBtn></div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
+  const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
   const [confirmRemove, setConfirmRemove] = useState(null);
@@ -2453,6 +2556,8 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
       </div>
 
       <div style={{ padding:"16px 16px 100px" }}>
+        {canEditTeam && onEditTeam && <TeamDataSection team={team} onSave={onEditTeam} />}
+
         {/* Invite code card */}
         <div style={{ background:T.card, borderRadius:16, padding:"16px", marginBottom:20, borderLeft:`3px solid ${team.color}` }}>
           <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Código de convite</p>
@@ -3327,6 +3432,11 @@ export default function App() {
       await switchTeam(tid);
     } catch(e){ setTeamError(e.message||JSON.stringify(e)); }
   };
+  const editTeam = async (id, patch) => {
+    const res = await api.patch(`teams?id=eq.${id}`, patch, token);
+    if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
+    setTeams(p=>p.map(t=>t.id===id?{ ...t, ...aTeam(res[0]) }:t));
+  };
   const deleteTeam = async (teamId) => {
     try {
       await api.del(`teams?id=eq.${teamId}`, token);
@@ -3509,7 +3619,7 @@ export default function App() {
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
