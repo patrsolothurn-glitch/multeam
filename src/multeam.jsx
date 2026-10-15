@@ -94,9 +94,24 @@ const matchForecast = (hourly, trainings, now = new Date()) => {
 const fcText = f => f ? ` · ${f.emoji} ${f.temp}°` : "";
 const FC_TTL = 60 * 60 * 1000;
 const fcCache = {}; // chave da equipa → { at, hourly, promise } — partilhada entre separadores
-const fetchHourly = city =>
-  fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pt`)
-    .then(r => r.json())
+// País (nome em PT/EN/DE ou código) → ISO 3166-1 alpha-2; tolerante a maiúsculas e acentos.
+const normCountry = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const COUNTRY_ISO = {};
+[["PT","portugal"],["CH","suica","switzerland","schweiz","suisse","svizzera"],["ES","espanha","spain","espana"],
+ ["FR","franca","france","frankreich"],["DE","alemanha","germany","deutschland"],["IT","italia","italy","italien"],
+ ["BR","brasil","brazil"],["AO","angola"],["MZ","mocambique","mozambique"],["CV","cabo verde","cape verde"],
+ ["GB","reino unido","united kingdom","uk","gb","great britain"],["NL","holanda","paises baixos","netherlands","niederlande"],
+ ["BE","belgica","belgium","belgien"],["LU","luxemburgo","luxembourg"],["AT","austria","osterreich"],["LI","liechtenstein"]
+].forEach(([iso, ...names]) => { COUNTRY_ISO[iso.toLowerCase()] = iso; names.forEach(n => { COUNTRY_ISO[n] = iso; }); });
+const countryISO = c => COUNTRY_ISO[normCountry(c)] || "";
+const fetchHourly = (city, country) => {
+  const base = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pt`;
+  const iso = countryISO(country);
+  const geocode = iso
+    ? fetch(`${base}&countryCode=${iso}`).then(r => r.json()).catch(() => null)
+        .then(g => (g && g.results && g.results[0]) ? g : fetch(base).then(r => r.json()))
+    : fetch(base).then(r => r.json());
+  return geocode
     .then(g => {
       const p = g && g.results && g.results[0];
       if (!p) return null;
@@ -110,10 +125,11 @@ const fetchHourly = city =>
           return m;
         });
     });
+};
 // UMA geocodificação + UMA previsão por equipa, no máximo de hora a hora. Falha sempre em silêncio.
 const useForecast = (team, trainings) => {
   const city = ((team && team.city) || "").trim();
-  const key = city ? `${team.id}|${city}` : "";
+  const key = city ? `${team.id}|${city}|${team.country || ""}` : "";
   const [hourly, setHourly] = useState(null);
   useEffect(() => {
     if (!key) { setHourly(null); return; }
@@ -121,7 +137,7 @@ const useForecast = (team, trainings) => {
     let c = fcCache[key];
     if (c && !c.promise && Date.now() - c.at < FC_TTL) { setHourly(c.hourly); return; }
     if (!c || !c.promise) {
-      const p = Promise.resolve().then(() => fetchHourly(city)).catch(() => null);
+      const p = Promise.resolve().then(() => fetchHourly(city, team.country)).catch(() => null);
       c = fcCache[key] = { at: Date.now(), hourly: null, promise: p };
       p.then(m => { fcCache[key] = { at: Date.now(), hourly: m, promise: null }; });
     }
