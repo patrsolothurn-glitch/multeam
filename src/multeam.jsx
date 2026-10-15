@@ -46,6 +46,91 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 const isPast = d => new Date(d + "T23:59:59") < new Date();
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+
+// ── PREVISÃO DO TEMPO (Open-Meteo, sem chave; localização = cidade da equipa) ──
+const weatherEmoji = c => {
+  if (c === 0) return "☀️";
+  if (c === 1 || c === 2) return "🌤️";
+  if (c === 3) return "☁️";
+  if (c === 45 || c === 48) return "🌫️";
+  if (c >= 51 && c <= 57) return "🌦️";
+  if (c >= 61 && c <= 67) return "🌧️";
+  if (c >= 71 && c <= 77) return "❄️";
+  if (c >= 80 && c <= 82) return "🌧️";
+  if (c === 85 || c === 86) return "❄️";
+  if (c >= 95 && c <= 99) return "⛈️";
+  return "";
+};
+const localDateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+// Próxima ocorrência (data local YYYY-MM-DD) de um treino recorrente, dentro de 7 dias; senão "".
+const nextOccurrence = (days, time, now = new Date()) => {
+  if (!days || !days.length) return "";
+  const hh = parseInt((time || "").slice(0, 2), 10);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    if (!days.includes(d.getDay())) continue;
+    // hoje mas a hora já passou → não é a próxima
+    if (i === 0 && !isNaN(hh) && now.getHours() > hh) continue;
+    return localDateStr(d);
+  }
+  return "";
+};
+// hourly: { "YYYY-MM-DDTHH:00": {temp, code} } → { [idDoTreino]: {temp, code, emoji} }
+const matchForecast = (hourly, trainings, now = new Date()) => {
+  const out = {};
+  if (!hourly) return out;
+  (trainings || []).forEach(t => {
+    const date = t.type === "recorrente" ? nextOccurrence(t.days, t.time, now) : t.date;
+    const hh = (t.time || "").slice(0, 2);
+    if (!date || !/^\d\d$/.test(hh)) return;
+    const h = hourly[`${date}T${hh}:00`];
+    if (!h || h.temp == null) return;
+    const emoji = weatherEmoji(h.code);
+    if (!emoji) return;
+    out[t.id] = { temp: Math.round(h.temp), code: h.code, emoji };
+  });
+  return out;
+};
+const fcText = f => f ? ` · ${f.emoji} ${f.temp}°` : "";
+const FC_TTL = 60 * 60 * 1000;
+const fcCache = {}; // chave da equipa → { at, hourly, promise } — partilhada entre separadores
+const fetchHourly = city =>
+  fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=pt`)
+    .then(r => r.json())
+    .then(g => {
+      const p = g && g.results && g.results[0];
+      if (!p) return null;
+      return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}&hourly=temperature_2m,weather_code&timezone=auto&forecast_days=7`)
+        .then(r => r.json())
+        .then(w => {
+          const h = w && w.hourly;
+          if (!h || !h.time) return null;
+          const m = {};
+          h.time.forEach((k, i) => { m[k] = { temp: h.temperature_2m[i], code: h.weather_code[i] }; });
+          return m;
+        });
+    });
+// UMA geocodificação + UMA previsão por equipa, no máximo de hora a hora. Falha sempre em silêncio.
+const useForecast = (team, trainings) => {
+  const city = ((team && team.city) || "").trim();
+  const key = city ? `${team.id}|${city}` : "";
+  const [hourly, setHourly] = useState(null);
+  useEffect(() => {
+    if (!key) { setHourly(null); return; }
+    let alive = true;
+    let c = fcCache[key];
+    if (c && !c.promise && Date.now() - c.at < FC_TTL) { setHourly(c.hourly); return; }
+    if (!c || !c.promise) {
+      const p = Promise.resolve().then(() => fetchHourly(city)).catch(() => null);
+      c = fcCache[key] = { at: Date.now(), hourly: null, promise: p };
+      p.then(m => { fcCache[key] = { at: Date.now(), hourly: m, promise: null }; });
+    }
+    c.promise.then(m => { if (alive) setHourly(m); }).catch(() => {});
+    return () => { alive = false; };
+  }, [key]);
+  try { return matchForecast(hourly, trainings); } catch (e) { return {}; }
+};
+
 const cardCount = (cards, teamId, memberId) => {
   const mine = cards.filter(c => c.teamId===teamId && String(c.memberId)===String(memberId));
   return {
@@ -1146,6 +1231,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
 const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes }) => {
   const tf = fines.filter(f => f.teamId===team.id);
   const [showTabela, setShowTabela] = React.useState(false);
+  const fc = useForecast(team, trainings.filter(t=>t.teamId===team.id));
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const spent = expenses.filter(e=>e.teamId===team.id).reduce((s,e)=>s+Math.abs(e.amount),0);
@@ -1342,7 +1428,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:22 }}>🔄</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
-                <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
+                <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
               </div>
             </div>
           ))}
@@ -1354,7 +1440,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
               </div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}</p>
-                <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
+                <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
               </div>
             </div>
           ))}
@@ -1537,7 +1623,7 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
   );
 };
 
-const EventCard = ({ t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, setEditTarget, myMember, presences, onSetPresence }) => {
+const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, setEditTarget, myMember, presences, onSetPresence }) => {
   const past = isPast(t.date);
   const isJogo = t.type === "jogo";
   const dt = new Date(t.date+"T00:00:00");
@@ -1558,7 +1644,7 @@ const EventCard = ({ t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, s
               {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
             </div>
             <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}</p>
-            <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}</p>
+            <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc)}</p>
             {t.notes && <p style={{ margin:"4px 0 0", fontSize:13 }}>{t.notes}</p>}
             {isJogo && squadMembers.length>0 && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
@@ -1603,6 +1689,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
 
   const myMember = members.find(m => m.teamId === team.id && m.userId === myUserId);
   const tt = trainings.filter(t => t.teamId === team.id);
+  const fc = useForecast(team, tt);
   const recurring = tt.filter(t => t.type === "recorrente");
   const dated = tt.filter(t => t.type !== "recorrente").sort((a,b) => new Date(a.date)-new Date(b.date));
   let filtered = showPast ? dated : dated.filter(t => !isPast(t.date));
@@ -1657,7 +1744,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                   <div style={{ width:40, height:40, borderRadius:20, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🔄</div>
                   <div style={{ flex:1 }}>
                     <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
-                    <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}</p>
+                    <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
                     {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
                   </div>
                   {isAdmin&&<div style={{ display:"flex", gap:6, flexShrink:0 }}>
@@ -1689,7 +1776,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                 </div>
                 <span style={{ fontSize:16, color:T.sub }}>{isCollapsed ? "▶" : "▼"}</span>
               </button>
-              {!isCollapsed && evts.map(t => <EventCard key={t.id} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} />)}
+              {!isCollapsed && evts.map(t => <EventCard key={t.id} fc={fc[t.id]} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} />)}
             </div>
           );
         })}
