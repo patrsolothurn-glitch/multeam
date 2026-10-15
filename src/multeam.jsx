@@ -2464,8 +2464,46 @@ const TeamDataSection = ({ team, onSave }) => {
   );
 };
 
+const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
+  const [counts, setCounts] = useState(null); // null = a carregar; valor null = indisponível
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let alive = true;
+    const n = tbl => api.get(`${tbl}?team_id=eq.${team.id}&select=id`, token).then(r => r.length).catch(() => null);
+    Promise.all([n("team_members"), n("fines"), n("trainings"), n("cards"), n("expenses")]).then(c => { if (alive) setCounts(c); });
+    return () => { alive = false; };
+  }, [team.id]);
+  const v = i => counts === null ? "…" : (counts[i] === null ? "?" : counts[i]);
+  const match = text === team.name;
+  const go = async () => {
+    if (!match || busy) return;
+    setBusy(true); setErr("");
+    try { await onDelete(); }
+    catch(e) { setErr(e.message || "Erro ao apagar a equipa"); setBusy(false); }
+  };
+  return (
+    <Sheet title={`Apagar ${team.name}?`} onClose={busy ? ()=>{} : onClose}>
+      <div style={{ background:"#FFF5F5", border:"1px solid #FFD0D0", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+        <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>Perde-se tudo:</p>
+        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{v(0)} membros · {v(1)} multas · {v(2)} treinos · {v(3)} cartões · {v(4)} despesas</p>
+      </div>
+      <p style={{ margin:"0 0 12px", fontSize:14 }}>Isto não tem volta. Escreve o nome da equipa para confirmar.</p>
+      <FI value={text} onChange={e=>setText(e.target.value)} placeholder={team.name} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
+      {err && <p style={{ margin:"0 0 12px", fontSize:13, fontWeight:600, color:T.brand }}>{err}</p>}
+      <PrimaryBtn onClick={onClose} disabled={busy} color={team.color}>Cancelar</PrimaryBtn>
+      <button onClick={go} disabled={!match || busy} style={{ display:"block", width:"100%", marginTop:12, padding:"10px", background:"transparent", border:"none", color:T.brand, fontSize:13, fontWeight:600, cursor:match&&!busy?"pointer":"default", opacity:match&&!busy?1:0.35, fontFamily:"inherit" }}>
+        {busy ? "A apagar…" : "Apagar definitivamente"}
+      </button>
+    </Sheet>
+  );
+};
+
 const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
+  const [showDelete, setShowDelete] = useState(false);
+  const isCreator = team.createdBy === myUserId;
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
@@ -2608,15 +2646,17 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         <Sec label="Tipos de multa" />
         <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} onUpdated={(id, data) => setFineTypes(p=>p.map(x=>x.id===id?{...x,...(typeof data==="object"?data:{emoji:data})}:x))} token={token} />
 
-        {/* Danger zone */}
-        <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
+        {/* Danger zone — só o criador (política DELETE: created_by = auth.uid()) */}
+        {isCreator && <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
           <p style={{ margin:"0 0 4px", fontWeight:700, fontSize:14, color:T.brand }}>⚠️ Zona de perigo</p>
           <p style={{ margin:"0 0 12px", fontSize:13, color:T.sub }}>Apagar a equipa remove todos os dados permanentemente.</p>
-          <button onClick={onDeleteTeam} style={{ width:"100%", padding:"13px", borderRadius:12, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>
+          <button onClick={()=>setShowDelete(true)} style={{ width:"100%", padding:"13px", borderRadius:12, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>
             🗑️ Apagar equipa
           </button>
-        </div>
+        </div>}
       </div>
+
+      {showDelete && isCreator && <DeleteTeamModal team={team} token={token} onDelete={onDeleteTeam} onClose={()=>setShowDelete(false)} />}
 
       {/* Confirm remove dialog */}
       {confirmRemove && (
@@ -3438,8 +3478,12 @@ export default function App() {
     setTeams(p=>p.map(t=>t.id===id?{ ...t, ...aTeam(res[0]) }:t));
   };
   const deleteTeam = async (teamId) => {
+    // erros daqui sobem ao modal de confirmação
+    await api.del(`teams?id=eq.${teamId}`, token);
+    // DELETE bloqueado por RLS devolve sucesso sem apagar nada: confirmar que a equipa já não existe
+    const still = await api.get(`teams?id=eq.${teamId}&select=id`, token);
+    if (still.length) throw new Error("Não foi possível apagar (sem permissão?)");
     try {
-      await api.del(`teams?id=eq.${teamId}`, token);
       const remaining = teams.filter(t => t.id !== teamId);
       setTeams(remaining);
       setSub(null);
