@@ -575,6 +575,37 @@ var matchForecast = function matchForecast(hourly, trainings) {
   });
   return out;
 };
+var nextPresenceEvent = function nextPresenceEvent(trainings, teamId) {
+  var now = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : new Date();
+  var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var best = null;
+  (trainings || []).forEach(function (t) {
+    if (t.teamId !== teamId) return;
+    var date = t.type === "recorrente" ? nextOccurrence(t.days, t.time, now) : t.date;
+    var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(date || "");
+    if (!m) return;
+    var day = new Date(+m[1], +m[2] - 1, +m[3]);
+    var diff = Math.round((day - today) / 864e5);
+    if (diff < 0 || diff > 6) return;
+    var hh = parseInt((t.time || "").slice(0, 2), 10),
+      mm = parseInt((t.time || "").slice(3, 5), 10) || 0;
+    if (diff === 0 && !isNaN(hh) && now.getHours() > hh) return;
+    var key = day.getTime() + (isNaN(hh) ? 0 : hh * 36e5 + mm * 6e4);
+    if (!best || key < best.key) best = {
+      t: t,
+      day: day,
+      diff: diff,
+      key: key
+    };
+  });
+  return best;
+};
+var presenceTitle = function presenceTitle(ev) {
+  var when = ev.diff === 0 ? "hoje" : ev.diff === 1 ? "amanhã" : ev.day.toLocaleDateString("pt-PT", {
+    weekday: "long"
+  });
+  return "".concat(ev.t.type === "jogo" ? "Jogo" : "Treino", " ").concat(when).concat(ev.t.time ? " \xB7 ".concat(ev.t.time) : "");
+};
 var fcText = function fcText(f) {
   return f ? " \xB7 ".concat(f.emoji, " ").concat(f.temp, "\xB0") : "";
 };
@@ -4708,7 +4739,10 @@ var HomeTab = function HomeTab(_ref60) {
     isAdmin = _ref60.isAdmin,
     onAddFine = _ref60.onAddFine,
     onSelectMember = _ref60.onSelectMember,
-    fineTypes = _ref60.fineTypes;
+    fineTypes = _ref60.fineTypes,
+    presences = _ref60.presences,
+    myMember = _ref60.myMember,
+    onSetPresence = _ref60.onSetPresence;
   var tf = fines.filter(function (f) {
     return f.teamId === team.id;
   });
@@ -4830,7 +4864,63 @@ var HomeTab = function HomeTab(_ref60) {
         color: c
       }
     }, v));
-  }))), isAdmin && React.createElement("button", {
+  }))), function () {
+    if (!myMember || !onSetPresence) return null;
+    var ev = nextPresenceEvent(trainings, team.id);
+    if (!ev || presences && presences[ev.t.id] && presences[ev.t.id][myMember.id]) return null;
+    var btn = function btn(label, color, status) {
+      return React.createElement("button", {
+        onClick: function onClick() {
+          return onSetPresence(ev.t.id, myMember.id, status);
+        },
+        style: {
+          padding: "6px 14px",
+          borderRadius: 18,
+          border: "1.5px solid ".concat(color),
+          background: "transparent",
+          color: color,
+          fontSize: 12,
+          fontWeight: 700,
+          cursor: "pointer",
+          fontFamily: "inherit"
+        }
+      }, label);
+    };
+    return React.createElement("div", {
+      style: {
+        background: T.card,
+        border: "1px solid ".concat(T.border),
+        borderRadius: 14,
+        padding: "13px 14px",
+        marginBottom: 14
+      }
+    }, React.createElement("p", {
+      style: {
+        margin: 0,
+        fontWeight: 700,
+        fontSize: 15
+      }
+    }, presenceTitle(ev)), ev.t.location && React.createElement("p", {
+      style: {
+        margin: "1px 0 0",
+        fontSize: 13,
+        color: T.sub
+      }
+    }, "\uD83D\uDCCD ", ev.t.location), React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginTop: 10
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 14,
+        fontWeight: 600,
+        flex: 1
+      }
+    }, "Vais?"), btn("✓ Sim", T.green, "present"), btn("✗ Não", "#FF6B00", "absent")));
+  }(), isAdmin && React.createElement("button", {
     onClick: onAddFine,
     style: {
       width: "100%",
@@ -13701,7 +13791,12 @@ function App() {
         data: m
       });
     },
-    fineTypes: fineTypes
+    fineTypes: fineTypes,
+    presences: presences,
+    myMember: members.find(function (m) {
+      return m.teamId === teamId && m.userId === myUserId;
+    }),
+    onSetPresence: setPresence
   }), tab === "fines" && React.createElement(FinesTab, {
     team: team,
     fines: fines,
