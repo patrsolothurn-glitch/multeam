@@ -53,6 +53,8 @@ const solidForWhite = c => {
   const L = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
   return 1.05 / (L + 0.05) >= 3 ? c : T.navy;
 };
+// "YYYY-MM-DD" -> "DD/MM" (só texto, sem Date: sem fuso)
+const fmtDM = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? `${m[3]}/${m[2]}` : ""; };
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2581,7 +2583,7 @@ const UnavailableControl = ({ m, onSet }) => {
       </div>
       {m.unavailable && !editing && (
         <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {unavailText(m)}</p>
+          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {m.unavailableNote || "Sem nota"}</p>
           <button onClick={openEdit} disabled={busy} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"4px 8px", fontSize:12, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>✏️ Alterar</button>
         </div>
       )}
@@ -2644,8 +2646,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
               <RoleBadgeLight role={m.role} />
             </div>
-            <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}</p>
-            {m.unavailable && <p style={{ margin:"1px 0 0", fontSize:12, color:T.sub }}>{unavailText(m)}</p>}
+            <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}{m.unavailable && ` · Indisponível${fmtDM(m.unavailableSince) ? ` desde ${fmtDM(m.unavailableSince)}` : ""}`}</p>
           </div>
           <span style={{ color:T.sub, fontSize:18, transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
         </div>
@@ -2654,12 +2655,6 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         {expanded && (
           <div style={{ borderTop:`1px solid ${T.border}`, padding:"12px 14px" }}>
             <div style={{ marginBottom:12, display:"flex", flexDirection:"column", gap:6 }}>
-              {m.position && (
-                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                  <span style={{ fontSize:14, width:20 }}>⚽</span>
-                  <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Posição: </span><strong>{m.position}</strong></p>
-                </div>
-              )}
               {m.phone && (
                 <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                   <span style={{ fontSize:14, width:20 }}>📱</span>
@@ -2672,7 +2667,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                   <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Aniversário: </span><strong>{fmtDate(m.birthday)}</strong></p>
                 </div>
               )}
-              {!m.position && !m.phone && !m.birthday && (
+              {!m.phone && !m.birthday && (
                 <p style={{ margin:0, fontSize:13, color:T.sub, fontStyle:"italic" }}>Sem informações adicionais</p>
               )}
             </div>

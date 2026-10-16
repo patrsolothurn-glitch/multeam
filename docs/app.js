@@ -529,6 +529,10 @@ var solidForWhite = function solidForWhite(c) {
   var L = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
   return 1.05 / (L + 0.05) >= 3 ? c : T.navy;
 };
+var fmtDM = function fmtDM(d) {
+  var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || "");
+  return m ? "".concat(m[3], "/").concat(m[2]) : "";
+};
 var unavailText = function unavailText(m) {
   return "Indispon\xEDvel".concat(m.unavailableSince ? " desde ".concat(fmtDate(m.unavailableSince)) : "").concat(m.unavailableNote ? " \xB7 ".concat(m.unavailableNote) : "");
 };
@@ -9455,7 +9459,7 @@ var UnavailableControl = function UnavailableControl(_ref104) {
       fontSize: 12,
       color: T.sub
     }
-  }, m.unavailableEmoji || "🤕", " ", unavailText(m)), React.createElement("button", {
+  }, m.unavailableEmoji || "🤕", " ", m.unavailableNote || "Sem nota"), React.createElement("button", {
     onClick: openEdit,
     disabled: busy,
     style: {
@@ -9705,13 +9709,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
         fontSize: 13,
         color: T.sub
       }
-    }, m.position || "—"), m.unavailable && React.createElement("p", {
-      style: {
-        margin: "1px 0 0",
-        fontSize: 12,
-        color: T.sub
-      }
-    }, unavailText(m))), React.createElement("span", {
+    }, m.position || "—", m.unavailable && " \xB7 Indispon\xEDvel".concat(fmtDM(m.unavailableSince) ? " desde ".concat(fmtDM(m.unavailableSince)) : ""))), React.createElement("span", {
       style: {
         color: T.sub,
         fontSize: 18,
@@ -9731,27 +9729,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
         flexDirection: "column",
         gap: 6
       }
-    }, m.position && React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 8,
-        alignItems: "center"
-      }
-    }, React.createElement("span", {
-      style: {
-        fontSize: 14,
-        width: 20
-      }
-    }, "\u26BD"), React.createElement("p", {
-      style: {
-        margin: 0,
-        fontSize: 13
-      }
-    }, React.createElement("span", {
-      style: {
-        color: T.sub
-      }
-    }, "Posi\xE7\xE3o: "), React.createElement("strong", null, m.position))), m.phone && React.createElement("div", {
+    }, m.phone && React.createElement("div", {
       style: {
         display: "flex",
         gap: 8,
@@ -9791,7 +9769,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
       style: {
         color: T.sub
       }
-    }, "Anivers\xE1rio: "), React.createElement("strong", null, fmtDate(m.birthday)))), !m.position && !m.phone && !m.birthday && React.createElement("p", {
+    }, "Anivers\xE1rio: "), React.createElement("strong", null, fmtDate(m.birthday)))), !m.phone && !m.birthday && React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 13,
