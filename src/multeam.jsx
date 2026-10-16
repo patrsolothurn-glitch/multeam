@@ -29,7 +29,7 @@ const api = {
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
-const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null });
+const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
   return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||localDate };
@@ -44,6 +44,7 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
+const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
@@ -1305,7 +1306,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         </div>
       </div>
       {(() => {
-        if (!myMember || !onSetPresence) return null;
+        if (!myMember || myMember.unavailable || !onSetPresence) return null;
         const ev = nextPresenceEvent(trainings, team.id);
         if (!ev || (presences && presences[ev.t.id] && presences[ev.t.id][myMember.id])) return null;
         const btn = (label, color, status) => (
@@ -1647,7 +1648,8 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
   const tm = members.filter(m => m.teamId === team.id);
   const ok = Object.values(pres).filter(s=>s==="present").length;
   const no = Object.values(pres).filter(s=>s==="absent").length;
-  const pend = tm.length - ok - no;
+  const unav = tm.filter(m => m.unavailable && !pres[m.id]).length; // indisponíveis sem resposta gravada
+  const pend = tm.length - ok - no - unav;
   const me = pres[myMember?.id];
   return (
     <div style={{ paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
@@ -1655,6 +1657,7 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
         <PresCounter count={ok}   color={T.green} />
         <PresCounter count={no}   color="#FF6B00" />
         <PresCounter count={pend} color={T.sub} />
+        {unav > 0 && <div title="Indisponíveis" style={{ minWidth:26, height:26, padding:"0 6px", boxSizing:"border-box", borderRadius:7, background:"#7B6CD9", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:800, gap:3 }}>🤕 {unav}</div>}
         <button onClick={() => setExpanded(e=>!e)} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"3px 8px", fontSize:11, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>{expanded ? "▲" : "▼ Ver"}</button>
         {!isPast(t.date) && myMember && (
           <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
@@ -1667,12 +1670,13 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
         <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:5 }}>
           {tm.map(m => {
             const st = pres[m.id];
-            const color = st==="present" ? T.green : st==="absent" ? "#FF6B00" : T.sub;
-            const icon = st==="present" ? "✓" : st==="absent" ? "✗" : "?";
+            const isUnav = m.unavailable && !st;
+            const color = st==="present" ? T.green : st==="absent" ? "#FF6B00" : isUnav ? "#7B6CD9" : T.sub;
+            const icon = st==="present" ? "✓" : st==="absent" ? "✗" : isUnav ? "🤕" : "?";
             return (
               <div key={m.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:22, height:22, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:800, flexShrink:0 }}>{icon}</div>
-                <span style={{ fontSize:13, color:st ? T.text : T.sub, fontWeight:st ? 600 : 400 }}>{m.name}</span>
+                <span style={{ fontSize:13, color:st ? T.text : T.sub, fontWeight:st ? 600 : 400 }}>{m.name}{isUnav && " · indisponível"}</span>
               </div>
             );
           })}
@@ -2542,10 +2546,44 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
   );
 };
 
-const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, setFineTypes }) => {
+const UnavailableControl = ({ m, onSet }) => {
+  const [draft, setDraft] = useState(false);
+  const [note, setNote] = useState(m.unavailableNote || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const on = m.unavailable || draft;
+  const run = async (fn) => { setBusy(true); setErr(""); try { await fn(); } catch(e) { setErr(e.message || "Erro ao guardar"); } setBusy(false); };
+  const flip = () => {
+    if (busy) return;
+    if (m.unavailable) run(async () => { await onSet(m.id, false, ""); setNote(""); });
+    else setDraft(d => !d);
+  };
+  const save = () => run(async () => { await onSet(m.id, true, note); setDraft(false); });
+  return (
+    <div style={{ marginBottom:12 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <span style={{ fontSize:14, fontWeight:600 }}>🤕 Indisponível</span>
+        <button onClick={flip} disabled={busy} role="switch" aria-checked={on} style={{ width:46, height:26, borderRadius:13, border:"none", background:on?T.green:T.border, position:"relative", cursor:"pointer", padding:0 }}>
+          <span style={{ position:"absolute", top:3, left:on?23:3, width:20, height:20, borderRadius:10, background:"#fff", transition:"left 0.15s" }} />
+        </button>
+      </div>
+      {on && (
+        <div style={{ marginTop:10 }}>
+          <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="O que se passa? (ex: ligamentos, volta em novembro)" />
+          <button onClick={save} disabled={busy} style={{ width:"100%", padding:"10px", borderRadius:10, border:`1.5px solid ${T.green}`, background:`${T.green}12`, color:T.green, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{busy?"A guardar…":"Guardar"}</button>
+        </div>
+      )}
+      {err && <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:600, color:T.brand }}>{err}</p>}
+    </div>
+  );
+};
+
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, onSetUnavailable, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [showDelete, setShowDelete] = useState(false);
   const isCreator = team.createdBy === myUserId;
+  const myRoleHere = (tm.find(x=>x.userId===myUserId)||{}).role;
+  const canMarkUnavailable = !!onSetUnavailable && (myRoleHere==="admin" || myRoleHere==="treinador" || isCreator);
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
@@ -2567,11 +2605,12 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           <Avatar initials={m.initials} color={team.color} size={44} photo={m.avatarUrl} />
           <div style={{ flex:1 }}>
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}</p>
+              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}{m.unavailable && " 🤕"}</p>
               {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
               <RoleBadgeLight role={m.role} />
             </div>
             <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}</p>
+            {m.unavailable && <p style={{ margin:"1px 0 0", fontSize:12, color:T.sub }}>{unavailText(m)}</p>}
           </div>
           <span style={{ color:T.sub, fontSize:18, transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
         </div>
@@ -2602,6 +2641,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                 <p style={{ margin:0, fontSize:13, color:T.sub, fontStyle:"italic" }}>Sem informações adicionais</p>
               )}
             </div>
+            {canMarkUnavailable && <UnavailableControl m={m} onSet={onSetUnavailable} />}
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <button onClick={() => { setEditingMember(m); setExpandedMember(null); }} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 ✏️ Editar
@@ -2749,6 +2789,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         </div>
       </div>
       <div style={{ padding:"16px 16px 100px" }}>
+        {member.unavailable && <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"10px 12px", marginBottom:14, fontSize:13, color:T.sub }}>🤕 {unavailText(member)}</div>}
         <Sec label="Histórico de multas" />
         {pf.length===0 && <p style={{ textAlign:"center", color:T.sub, padding:32 }}>Sem multas 🎉</p>}
         {pf.map(f => (
@@ -3465,6 +3506,17 @@ export default function App() {
   const removeMember = async id => {
     try { await api.del(`team_members?id=eq.${id}`,token); setMembers(p=>p.filter(m=>m.id!==id)); } catch(e){console.error(e);}
   };
+  // id = id da linha de team_members (NUNCA o userId)
+  const setUnavailable = async (memberId, isUnavailable, note) => {
+    const m = members.find(x => x.id === memberId);
+    if (!m) throw new Error("Membro não encontrado");
+    const patch = isUnavailable
+      ? { unavailable:true, unavailable_note:(note||"").trim()||null, unavailable_since:(m.unavailable && m.unavailableSince) || todayLocal() }
+      : { unavailable:false, unavailable_note:null, unavailable_since:null };
+    const res = await api.patch(`team_members?id=eq.${memberId}`, patch, token);
+    if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
+    setMembers(p => p.map(x => x.id === memberId ? { ...x, unavailable:patch.unavailable, unavailableNote:patch.unavailable_note||'', unavailableSince:patch.unavailable_since||'' } : x));
+  };
   const editMember = async (id, data) => {
     try {
       const m = members.find(m => m.id === id);
@@ -3702,10 +3754,10 @@ export default function App() {
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
-  if (sub?.type==="member") return wrap(<MemberDetailScreen member={sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
+  if (sub?.type==="member") return wrap(<MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onSetUnavailable={setUnavailable} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
