@@ -29,7 +29,7 @@ const api = {
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
-const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'' });
+const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
   return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||localDate };
@@ -44,6 +44,7 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
+const UNAVAIL_EMOJIS = ["🤕","🩼","🩹","🧊","⚕️","🏥"];
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -1672,7 +1673,7 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
             const st = pres[m.id];
             const isUnav = m.unavailable && !st;
             const color = st==="present" ? T.green : st==="absent" ? "#FF6B00" : isUnav ? "#7B6CD9" : T.sub;
-            const icon = st==="present" ? "✓" : st==="absent" ? "✗" : isUnav ? "🤕" : "?";
+            const icon = st==="present" ? "✓" : st==="absent" ? "✗" : isUnav ? (m.unavailableEmoji||"🤕") : "?";
             return (
               <div key={m.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <div style={{ width:22, height:22, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:800, flexShrink:0 }}>{icon}</div>
@@ -2549,16 +2550,17 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
 const UnavailableControl = ({ m, onSet }) => {
   const [draft, setDraft] = useState(false);
   const [note, setNote] = useState(m.unavailableNote || "");
+  const [emoji, setEmoji] = useState(m.unavailableEmoji || "🤕");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const on = m.unavailable || draft;
   const run = async (fn) => { setBusy(true); setErr(""); try { await fn(); } catch(e) { setErr(e.message || "Erro ao guardar"); } setBusy(false); };
   const flip = () => {
     if (busy) return;
-    if (m.unavailable) run(async () => { await onSet(m.id, false, ""); setNote(""); });
+    if (m.unavailable) run(async () => { await onSet(m.id, false, "", ""); setNote(""); setEmoji("🤕"); });
     else setDraft(d => !d);
   };
-  const save = () => run(async () => { await onSet(m.id, true, note); setDraft(false); });
+  const save = () => run(async () => { await onSet(m.id, true, emoji, note); setDraft(false); });
   return (
     <div style={{ marginBottom:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -2569,6 +2571,11 @@ const UnavailableControl = ({ m, onSet }) => {
       </div>
       {on && (
         <div style={{ marginTop:10 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+            {UNAVAIL_EMOJIS.map(e => (
+              <button key={e} onClick={()=>setEmoji(e)} style={{ fontSize:18, width:34, height:34, borderRadius:8, border:`2px solid ${emoji===e?T.green:T.border}`, background:emoji===e?`${T.green}15`:"transparent", cursor:"pointer" }}>{e}</button>
+            ))}
+          </div>
           <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="O que se passa? (ex: ligamentos, volta em novembro)" />
           <button onClick={save} disabled={busy} style={{ width:"100%", padding:"10px", borderRadius:10, border:`1.5px solid ${T.green}`, background:`${T.green}12`, color:T.green, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{busy?"A guardar…":"Guardar"}</button>
         </div>
@@ -2583,7 +2590,8 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const [showDelete, setShowDelete] = useState(false);
   const isCreator = team.createdBy === myUserId;
   const myRoleHere = (tm.find(x=>x.userId===myUserId)||{}).role;
-  const canMarkUnavailable = !!onSetUnavailable && (myRoleHere==="admin" || myRoleHere==="treinador" || isCreator);
+  // só admin: a política de escrita de team_members é is_admin_of(team_id)
+  const canMarkUnavailable = !!onSetUnavailable && myRoleHere==="admin";
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
@@ -2605,7 +2613,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           <Avatar initials={m.initials} color={team.color} size={44} photo={m.avatarUrl} />
           <div style={{ flex:1 }}>
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}{m.unavailable && " 🤕"}</p>
+              <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</p>
               {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
               <RoleBadgeLight role={m.role} />
             </div>
@@ -2789,7 +2797,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         </div>
       </div>
       <div style={{ padding:"16px 16px 100px" }}>
-        {member.unavailable && <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"10px 12px", marginBottom:14, fontSize:13, color:T.sub }}>🤕 {unavailText(member)}</div>}
+        {member.unavailable && <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"10px 12px", marginBottom:14, fontSize:13, color:T.sub }}>{member.unavailableEmoji||"🤕"} {unavailText(member)}</div>}
         <Sec label="Histórico de multas" />
         {pf.length===0 && <p style={{ textAlign:"center", color:T.sub, padding:32 }}>Sem multas 🎉</p>}
         {pf.map(f => (
@@ -3507,15 +3515,15 @@ export default function App() {
     try { await api.del(`team_members?id=eq.${id}`,token); setMembers(p=>p.filter(m=>m.id!==id)); } catch(e){console.error(e);}
   };
   // id = id da linha de team_members (NUNCA o userId)
-  const setUnavailable = async (memberId, isUnavailable, note) => {
+  const setUnavailable = async (memberId, isUnavailable, emoji, note) => {
     const m = members.find(x => x.id === memberId);
     if (!m) throw new Error("Membro não encontrado");
     const patch = isUnavailable
-      ? { unavailable:true, unavailable_note:(note||"").trim()||null, unavailable_since:(m.unavailable && m.unavailableSince) || todayLocal() }
-      : { unavailable:false, unavailable_note:null, unavailable_since:null };
+      ? { unavailable:true, unavailable_emoji:emoji||'🤕', unavailable_note:(note||"").trim()||null, unavailable_since:(m.unavailable && m.unavailableSince) || todayLocal() }
+      : { unavailable:false, unavailable_emoji:null, unavailable_note:null, unavailable_since:null };
     const res = await api.patch(`team_members?id=eq.${memberId}`, patch, token);
     if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
-    setMembers(p => p.map(x => x.id === memberId ? { ...x, unavailable:patch.unavailable, unavailableNote:patch.unavailable_note||'', unavailableSince:patch.unavailable_since||'' } : x));
+    setMembers(p => p.map(x => x.id === memberId ? { ...x, unavailable:patch.unavailable, unavailableEmoji:patch.unavailable_emoji||'🤕', unavailableNote:patch.unavailable_note||'', unavailableSince:patch.unavailable_since||'' } : x));
   };
   const editMember = async (id, data) => {
     try {
