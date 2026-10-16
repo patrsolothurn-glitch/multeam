@@ -2613,8 +2613,20 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const canMarkUnavailable = !!onSetUnavailable && myRoleHere==="admin";
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
-  const players = tm.filter(m=>m.role==="player");
-  const unavPlayers = players.filter(m=>m.unavailable).length;
+  // um grupo por papel; membros com um papel desconhecido ficam em "Jogadores" para nunca desaparecerem
+  const KNOWN_ROLES = ["admin","treinador","diretor","player"];
+  const groups = [
+    { role:"admin",     title:"Administradores", color:"#1D3557", list:admins },
+    { role:"treinador", title:"Treinadores",     color:"#2E7D32", list:tm.filter(m=>m.role==="treinador") },
+    { role:"diretor",   title:"Diretores",       color:"#7B1FA2", list:tm.filter(m=>m.role==="diretor") },
+    { role:"player",    title:"Jogadores",       color:T.sub,     list:tm.filter(m=>m.role==="player" || !KNOWN_ROLES.includes(m.role)) },
+  ].filter(g => g.list.length > 0);
+  const [roleErr, setRoleErr] = useState(null); // { id, msg }
+  const changeRole = async (m, r) => {
+    setRoleErr(null);
+    try { await onToggleRole(m.id, r); }
+    catch(e) { setRoleErr({ id:m.id, msg:e.message || "Erro ao alterar o papel" }); }
+  };
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [removeErr, setRemoveErr] = useState("");
@@ -2683,11 +2695,12 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                 <>
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                     {[["admin","🛡 Admin","#1D3557"],["treinador","🎽 Treinador","#2E7D32"],["diretor","📋 Diretor","#7B1FA2"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
-                      <button key={r} onClick={() => m.role!==r && onToggleRole(m.id, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
+                      <button key={r} onClick={() => m.role!==r && changeRole(m, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
                     ))}
                   </div>
+                  {roleErr && roleErr.id===m.id && <p style={{ width:"100%", margin:"2px 0 0", fontSize:12, fontWeight:600, color:T.brand }}>{roleErr.msg}</p>}
                   <button onClick={() => setConfirmRemove(m)} style={{ width:"100%", padding:"9px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:18 }}>
                     🗑 Remover membro
                   </button>
@@ -2744,18 +2757,17 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 
         <button onClick={onAddMember} style={{ width:"100%", background:team.color, color:"#fff", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:800, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}>➕ Adicionar membro</button>
 
-        {admins.length>0 && (
-          <>
-            <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:"#1D3557", textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}><ShieldIcon size={11} color="#1D3557" /> Administradores ({admins.length})</p>
-            {admins.map(m=><Row key={m.id} m={m}/>)}
-          </>
-        )}
-        {players.length>0 && (
-          <>
-            <p style={{ margin:"16px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}><PersonIcon size={11} color={T.sub} /> Jogadores ({players.length}){unavPlayers>0 && ` · ${unavPlayers} ${unavPlayers===1?"indisponível":"indisponíveis"}`}</p>
-            {players.map(m=><Row key={m.id} m={m}/>)}
-          </>
-        )}
+        {groups.map((g, gi) => {
+          const unav = g.list.filter(m => m.unavailable).length;
+          return (
+            <React.Fragment key={g.role}>
+              <p style={{ margin:gi===0?"0 0 8px":"16px 0 8px", fontSize:11, fontWeight:700, color:g.color, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}>
+                {g.role==="admin" ? <ShieldIcon size={11} color={g.color} /> : <PersonIcon size={11} color={g.color} />} {g.title} ({g.list.length}){unav>0 && ` · ${unav} ${unav===1?"indisponível":"indisponíveis"}`}
+              </p>
+              {g.list.map(m=><Row key={m.id} m={m}/>)}
+            </React.Fragment>
+          );
+        })}
 
         {/* Fine Types Management */}
         <Sec label="Tipos de multa" />
@@ -3532,13 +3544,22 @@ export default function App() {
       if (remaining.length > 0) await switchTeam(remaining[0].id);
     } catch(e) { console.error(e); alert("Erro ao sair da equipa"); }
   };
+  const ROLE_LABEL = { admin:"administrador", treinador:"treinador", diretor:"diretor", player:"jogador" };
+  const adminCount = teamId => members.filter(x => x.teamId === teamId && x.role === "admin").length;
   const toggleRole = async (id, newRole) => {
-    const m=members.find(m=>m.id===id); if(!m)return;
+    const m=members.find(m=>m.id===id); if(!m) throw new Error("Membro não encontrado");
     const nr = newRole || (m.role==='admin'?'player':'admin');
-    try { await api.patch(`team_members?id=eq.${id}`,{role:nr},token); setMembers(p=>p.map(m=>m.id===id?{...m,role:nr}:m)); } catch(e){console.error(e);}
+    // a equipa nunca fica sem administrador
+    if (m.role === "admin" && nr !== "admin" && adminCount(m.teamId) <= 1) throw new Error("A equipa tem de ter pelo menos um administrador.");
+    const res = await api.patch(`team_members?id=eq.${id}`,{role:nr},token);
+    // UPDATE bloqueado por RLS devolve sucesso sem alterar nada: só é sucesso se voltou uma linha
+    if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível alterar o papel (sem permissão?)");
+    setMembers(p=>p.map(x=>x.id===id?{...x,role:nr}:x));
+    showToast(`${m.name} agora é ${ROLE_LABEL[nr] || nr}`, T.navy);
   };
   const removeMember = async id => {
     const m = members.find(x => x.id === id);
+    if (m && m.role === "admin" && adminCount(m.teamId) <= 1) throw new Error("A equipa tem de ter pelo menos um administrador.");
     await api.del(`team_members?id=eq.${id}`, token);
     // DELETE bloqueado por RLS devolve sucesso sem apagar nada: confirmar que a linha já não existe
     const still = await api.get(`team_members?id=eq.${id}&select=id`, token);
