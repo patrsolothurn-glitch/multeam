@@ -2499,7 +2499,9 @@ var AddMatchModal = function AddMatchModal(_ref31) {
     _useState78 = _slicedToArray(_useState77, 2),
     notes = _useState78[0],
     setNotes = _useState78[1];
-  var _useState79 = useState(tm.map(function (m) {
+  var _useState79 = useState(tm.filter(function (m) {
+      return !m.unavailable;
+    }).map(function (m) {
       return m.id;
     })),
     _useState80 = _slicedToArray(_useState79, 2),
@@ -2601,7 +2603,8 @@ var AddMatchModal = function AddMatchModal(_ref31) {
         border: "2px solid ".concat(squad.includes(m.id) ? team.color : T.border),
         background: squad.includes(m.id) ? "".concat(team.color, "15") : T.inputBg,
         cursor: "pointer",
-        fontFamily: "inherit"
+        fontFamily: "inherit",
+        opacity: m.unavailable ? 0.55 : 1
       }
     }, React.createElement("div", {
       style: {
@@ -2621,7 +2624,7 @@ var AddMatchModal = function AddMatchModal(_ref31) {
         fontSize: 13,
         fontWeight: 600
       }
-    }, m.name.split(" ")[0]));
+    }, m.name.split(" ")[0], m.unavailable && " ".concat(m.unavailableEmoji || "🤕")));
   })), err && React.createElement("p", {
     style: {
       color: "#c0392b",
@@ -2806,7 +2809,9 @@ var EditMatchModal = function EditMatchModal(_ref37) {
     _useState104 = _slicedToArray(_useState103, 2),
     notes = _useState104[0],
     setNotes = _useState104[1];
-  var _useState105 = useState(training.squad || tm.map(function (m) {
+  var _useState105 = useState(training.squad || tm.filter(function (m) {
+      return !m.unavailable;
+    }).map(function (m) {
       return m.id;
     })),
     _useState106 = _slicedToArray(_useState105, 2),
@@ -2908,7 +2913,8 @@ var EditMatchModal = function EditMatchModal(_ref37) {
         border: "2px solid ".concat(squad.includes(m.id) ? team.color : T.border),
         background: squad.includes(m.id) ? "".concat(team.color, "15") : T.inputBg,
         cursor: "pointer",
-        fontFamily: "inherit"
+        fontFamily: "inherit",
+        opacity: m.unavailable ? 0.55 : 1
       }
     }, React.createElement("div", {
       style: {
@@ -2928,7 +2934,7 @@ var EditMatchModal = function EditMatchModal(_ref37) {
         fontSize: 13,
         fontWeight: 600
       }
-    }, m.name.split(" ")[0]));
+    }, m.name.split(" ")[0], m.unavailable && " ".concat(m.unavailableEmoji || "🤕")));
   })), err && React.createElement("p", {
     style: {
       color: "#c0392b",

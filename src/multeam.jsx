@@ -664,7 +664,7 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [opponent, setOpponent] = useState(""); const [date, setDate] = useState(""); const [time, setTime] = useState("15:00");
   const [loc, setLoc] = useState(""); const [homeAway, setHomeAway] = useState("casa"); const [notes, setNotes] = useState("");
-  const [squad, setSquad] = useState(tm.map(m=>m.id)); // all selected by default
+  const [squad, setSquad] = useState(tm.filter(m=>!m.unavailable).map(m=>m.id)); // todos selecionados por omissão, menos os indisponíveis (podem ser escolhidos à mão)
   const [err, setErr] = useState("");
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
@@ -688,10 +688,10 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
             display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10,
             border:`2px solid ${squad.includes(m.id)?team.color:T.border}`,
             background:squad.includes(m.id)?`${team.color}15`:T.inputBg,
-            cursor:"pointer", fontFamily:"inherit",
+            cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1,
           }}>
             <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
-            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
+            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
           </button>
         ))}
       </div>
@@ -734,7 +734,7 @@ const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
   const [loc, setLoc] = useState(training.location);
   const [homeAway, setHomeAway] = useState(training.homeAway||"casa");
   const [notes, setNotes] = useState(training.notes);
-  const [squad, setSquad] = useState(training.squad||tm.map(m=>m.id));
+  const [squad, setSquad] = useState(training.squad||tm.filter(m=>!m.unavailable).map(m=>m.id));
   const [err, setErr] = useState("");
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
@@ -754,9 +754,9 @@ const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
       <FL>Convocatória ({squad.length}/{tm.length})</FL>
       <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
         {tm.map(m => (
-          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10, border:`2px solid ${squad.includes(m.id)?team.color:T.border}`, background:squad.includes(m.id)?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit" }}>
+          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10, border:`2px solid ${squad.includes(m.id)?team.color:T.border}`, background:squad.includes(m.id)?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1 }}>
             <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
-            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
+            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
           </button>
         ))}
       </div>
