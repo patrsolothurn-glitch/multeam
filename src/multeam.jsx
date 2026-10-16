@@ -664,7 +664,7 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [opponent, setOpponent] = useState(""); const [date, setDate] = useState(""); const [time, setTime] = useState("15:00");
   const [loc, setLoc] = useState(""); const [homeAway, setHomeAway] = useState("casa"); const [notes, setNotes] = useState("");
-  const [squad, setSquad] = useState(tm.map(m=>m.id)); // all selected by default
+  const [squad, setSquad] = useState(tm.filter(m=>!m.unavailable).map(m=>m.id)); // todos selecionados por omissão, menos os indisponíveis (podem ser escolhidos à mão)
   const [err, setErr] = useState("");
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
@@ -688,10 +688,10 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
             display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10,
             border:`2px solid ${squad.includes(m.id)?team.color:T.border}`,
             background:squad.includes(m.id)?`${team.color}15`:T.inputBg,
-            cursor:"pointer", fontFamily:"inherit",
+            cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1,
           }}>
             <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
-            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
+            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
           </button>
         ))}
       </div>
@@ -734,7 +734,7 @@ const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
   const [loc, setLoc] = useState(training.location);
   const [homeAway, setHomeAway] = useState(training.homeAway||"casa");
   const [notes, setNotes] = useState(training.notes);
-  const [squad, setSquad] = useState(training.squad||tm.map(m=>m.id));
+  const [squad, setSquad] = useState(training.squad||tm.filter(m=>!m.unavailable).map(m=>m.id));
   const [err, setErr] = useState("");
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
@@ -754,9 +754,9 @@ const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
       <FL>Convocatória ({squad.length}/{tm.length})</FL>
       <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
         {tm.map(m => (
-          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10, border:`2px solid ${squad.includes(m.id)?team.color:T.border}`, background:squad.includes(m.id)?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit" }}>
+          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10, border:`2px solid ${squad.includes(m.id)?team.color:T.border}`, background:squad.includes(m.id)?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1 }}>
             <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
-            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}</span>
+            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
           </button>
         ))}
       </div>
@@ -2548,19 +2548,21 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
 };
 
 const UnavailableControl = ({ m, onSet }) => {
-  const [draft, setDraft] = useState(false);
+  const [editing, setEditing] = useState(false); // zona de edição aberta (ícones, nota, Guardar)
   const [note, setNote] = useState(m.unavailableNote || "");
   const [emoji, setEmoji] = useState(m.unavailableEmoji || "🤕");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const on = m.unavailable || draft;
+  const on = m.unavailable || editing;
   const run = async (fn) => { setBusy(true); setErr(""); try { await fn(); } catch(e) { setErr(e.message || "Erro ao guardar"); } setBusy(false); };
   const flip = () => {
     if (busy) return;
     if (m.unavailable) run(async () => { await onSet(m.id, false, "", ""); setNote(""); setEmoji("🤕"); });
-    else setDraft(d => !d);
+    else setEditing(d => !d);
   };
-  const save = () => run(async () => { await onSet(m.id, true, emoji, note); setDraft(false); });
+  const openEdit = () => { setNote(m.unavailableNote || ""); setEmoji(m.unavailableEmoji || "🤕"); setErr(""); setEditing(true); };
+  // só fecha se a gravação correr bem; se falhar, a zona fica aberta com o texto como está
+  const save = () => run(async () => { await onSet(m.id, true, emoji, note); setEditing(false); });
   return (
     <div style={{ marginBottom:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -2569,7 +2571,13 @@ const UnavailableControl = ({ m, onSet }) => {
           <span style={{ position:"absolute", top:3, left:on?23:3, width:20, height:20, borderRadius:10, background:"#fff", transition:"left 0.15s" }} />
         </button>
       </div>
-      {on && (
+      {m.unavailable && !editing && (
+        <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
+          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {unavailText(m)}</p>
+          <button onClick={openEdit} disabled={busy} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"4px 8px", fontSize:12, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>✏️ Alterar</button>
+        </div>
+      )}
+      {editing && (
         <div style={{ marginTop:10 }}>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
             {UNAVAIL_EMOJIS.map(e => (
@@ -2578,6 +2586,7 @@ const UnavailableControl = ({ m, onSet }) => {
           </div>
           <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="O que se passa? (ex: ligamentos, volta em novembro)" />
           <button onClick={save} disabled={busy} style={{ width:"100%", padding:"10px", borderRadius:10, border:`1.5px solid ${T.green}`, background:`${T.green}12`, color:T.green, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{busy?"A guardar…":"Guardar"}</button>
+          {m.unavailable && <button onClick={()=>{ setEditing(false); setErr(""); }} disabled={busy} style={{ display:"block", width:"100%", marginTop:6, padding:"8px", background:"transparent", border:"none", color:T.sub, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>}
         </div>
       )}
       {err && <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:600, color:T.brand }}>{err}</p>}
@@ -3524,6 +3533,7 @@ export default function App() {
     const res = await api.patch(`team_members?id=eq.${memberId}`, patch, token);
     if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
     setMembers(p => p.map(x => x.id === memberId ? { ...x, unavailable:patch.unavailable, unavailableEmoji:patch.unavailable_emoji||'🤕', unavailableNote:patch.unavailable_note||'', unavailableSince:patch.unavailable_since||'' } : x));
+    if (isUnavailable) showToast(`${m.name} marcado como indisponível`, T.navy);
   };
   const editMember = async (id, data) => {
     try {
@@ -3742,6 +3752,7 @@ export default function App() {
 
   const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
+  const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
   const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{ch}</div>;
 
   if (!team) return (
@@ -3765,13 +3776,13 @@ export default function App() {
   if (sub?.type==="member") return wrap(<MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onSetUnavailable={setUnavailable} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onSetUnavailable={setUnavailable} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
-      {toast && <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div>}
+      {toastBox}
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}dd)`, color:"#fff", padding:"52px 16px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
