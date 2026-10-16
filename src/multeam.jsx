@@ -2614,6 +2614,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
+  const unavPlayers = players.filter(m=>m.unavailable).length;
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const [removeErr, setRemoveErr] = useState("");
@@ -2648,7 +2649,9 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
             </div>
             <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}{m.unavailable && ` · Indisponível${fmtDM(m.unavailableSince) ? ` desde ${fmtDM(m.unavailableSince)}` : ""}`}</p>
           </div>
-          <span style={{ color:T.sub, fontSize:18, transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
+          <span style={{ width:44, height:44, margin:"-6px -8px -6px 0", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:T.sub, fontSize:18 }}>
+            <span style={{ transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
+          </span>
         </div>
 
         {/* Expanded details + actions */}
@@ -2749,7 +2752,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         )}
         {players.length>0 && (
           <>
-            <p style={{ margin:"16px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}><PersonIcon size={11} color={T.sub} /> Jogadores ({players.length})</p>
+            <p style={{ margin:"16px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}><PersonIcon size={11} color={T.sub} /> Jogadores ({players.length}){unavPlayers>0 && ` · ${unavPlayers} ${unavPlayers===1?"indisponível":"indisponíveis"}`}</p>
             {players.map(m=><Row key={m.id} m={m}/>)}
           </>
         )}

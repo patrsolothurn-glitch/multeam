@@ -9585,6 +9585,9 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
   var players = tm.filter(function (m) {
     return m.role === "player";
   });
+  var unavPlayers = players.filter(function (m) {
+    return m.unavailable;
+  }).length;
   var _useState267 = useState(null),
     _useState268 = _slicedToArray(_useState267, 2),
     confirmRemove = _useState268[0],
@@ -9711,13 +9714,23 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
       }
     }, m.position || "—", m.unavailable && " \xB7 Indispon\xEDvel".concat(fmtDM(m.unavailableSince) ? " desde ".concat(fmtDM(m.unavailableSince)) : ""))), React.createElement("span", {
       style: {
+        width: 44,
+        height: 44,
+        margin: "-6px -8px -6px 0",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         color: T.sub,
-        fontSize: 18,
+        fontSize: 18
+      }
+    }, React.createElement("span", {
+      style: {
         transition: "transform 0.2s",
         display: "inline-block",
         transform: expanded ? "rotate(180deg)" : "rotate(0deg)"
       }
-    }, "\u2304")), expanded && React.createElement("div", {
+    }, "\u2304"))), expanded && React.createElement("div", {
       style: {
         borderTop: "1px solid ".concat(T.border),
         padding: "12px 14px"
@@ -10061,7 +10074,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
   }, React.createElement(PersonIcon, {
     size: 11,
     color: T.sub
-  }), " Jogadores (", players.length, ")"), players.map(function (m) {
+  }), " Jogadores (", players.length, ")", unavPlayers > 0 && " \xB7 ".concat(unavPlayers, " ").concat(unavPlayers === 1 ? "indisponível" : "indisponíveis")), players.map(function (m) {
     return React.createElement(Row, {
       key: m.id,
       m: m
