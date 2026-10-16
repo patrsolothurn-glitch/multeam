@@ -9582,32 +9582,17 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
   var admins = tm.filter(function (m) {
     return m.role === "admin";
   });
-  var KNOWN_ROLES = ["admin", "treinador", "diretor", "player"];
   var groups = [{
     role: "admin",
     title: "Administradores",
     color: "#1D3557",
     list: admins
   }, {
-    role: "treinador",
-    title: "Treinadores",
-    color: "#2E7D32",
-    list: tm.filter(function (m) {
-      return m.role === "treinador";
-    })
-  }, {
-    role: "diretor",
-    title: "Diretores",
-    color: "#7B1FA2",
-    list: tm.filter(function (m) {
-      return m.role === "diretor";
-    })
-  }, {
     role: "player",
     title: "Jogadores",
     color: T.sub,
     list: tm.filter(function (m) {
-      return m.role === "player" || !KNOWN_ROLES.includes(m.role);
+      return m.role !== "admin";
     })
   }].filter(function (g) {
     return g.list.length > 0;
@@ -9878,7 +9863,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
         gap: 4,
         flexWrap: "wrap"
       }
-    }, [["admin", "🛡 Admin", "#1D3557"], ["treinador", "🎽 Treinador", "#2E7D32"], ["diretor", "📋 Diretor", "#7B1FA2"], ["player", "👤 Jogador", "#86868B"]].map(function (_ref112) {
+    }, [["admin", "🛡 Admin", "#1D3557"], ["player", "👤 Jogador", "#86868B"]].map(function (_ref112) {
       var _ref113 = _slicedToArray(_ref112, 3),
         r = _ref113[0],
         l = _ref113[1],
@@ -11905,7 +11890,7 @@ var CardsTab = function CardsTab(_ref132) {
       color: T.sub,
       textAlign: "center"
     }
-  }, "S\xF3 o admin, o treinador ou o diretor podem lan\xE7ar cart\xF5es."));
+  }, "S\xF3 o admin pode lan\xE7ar cart\xF5es."));
 };
 function App() {
   var _members$find, _members$find3;
