@@ -45,6 +45,16 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
 const UNAVAIL_EMOJIS = ["🤕","🩼","🩹","🧊","⚕️","🏥"];
+// Cor sólida para texto branco: usa a cor dada se tiver contraste >= 3 com o branco, senão o azul-escuro.
+const solidForWhite = c => {
+  const m = /^#([0-9a-f]{6})$/i.exec(c || "");
+  if (!m) return T.navy;
+  const ch = i => { const v = parseInt(m[1].slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
+  return 1.05 / (L + 0.05) >= 3 ? c : T.navy;
+};
+// "YYYY-MM-DD" -> "DD/MM" (só texto, sem Date: sem fuso)
+const fmtDM = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? `${m[3]}/${m[2]}` : ""; };
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2566,14 +2576,14 @@ const UnavailableControl = ({ m, onSet }) => {
   return (
     <div style={{ marginBottom:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ fontSize:14, fontWeight:600 }}>🤕 Indisponível</span>
+        <span style={{ fontSize:14, fontWeight:600 }}>{m.unavailableEmoji||"🤕"} Indisponível</span>
         <button onClick={flip} disabled={busy} role="switch" aria-checked={on} style={{ width:46, height:26, borderRadius:13, border:"none", background:on?T.green:T.border, position:"relative", cursor:"pointer", padding:0 }}>
           <span style={{ position:"absolute", top:3, left:on?23:3, width:20, height:20, borderRadius:10, background:"#fff", transition:"left 0.15s" }} />
         </button>
       </div>
       {m.unavailable && !editing && (
         <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {unavailText(m)}</p>
+          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {m.unavailableNote || "Sem nota"}</p>
           <button onClick={openEdit} disabled={busy} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"4px 8px", fontSize:12, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>✏️ Alterar</button>
         </div>
       )}
@@ -2604,7 +2614,18 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
+  const unavPlayers = players.filter(m=>m.unavailable).length;
   const [confirmRemove, setConfirmRemove] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeErr, setRemoveErr] = useState("");
+  const closeRemove = () => { setConfirmRemove(null); setRemoveErr(""); };
+  const doRemove = async () => {
+    if (removeBusy) return;
+    setRemoveBusy(true); setRemoveErr("");
+    try { await onRemoveMember(confirmRemove.id); closeRemove(); }
+    catch(e) { setRemoveErr(e.message || "Erro ao remover"); }
+    setRemoveBusy(false);
+  };
   const [editingMember, setEditingMember] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -2626,22 +2647,17 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
               <RoleBadgeLight role={m.role} />
             </div>
-            <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}</p>
-            {m.unavailable && <p style={{ margin:"1px 0 0", fontSize:12, color:T.sub }}>{unavailText(m)}</p>}
+            <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}{m.unavailable && ` · Indisponível${fmtDM(m.unavailableSince) ? ` desde ${fmtDM(m.unavailableSince)}` : ""}`}</p>
           </div>
-          <span style={{ color:T.sub, fontSize:18, transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
+          <span style={{ width:44, height:44, margin:"-6px -8px -6px 0", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:T.sub, fontSize:18 }}>
+            <span style={{ transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>
+          </span>
         </div>
 
         {/* Expanded details + actions */}
         {expanded && (
           <div style={{ borderTop:`1px solid ${T.border}`, padding:"12px 14px" }}>
             <div style={{ marginBottom:12, display:"flex", flexDirection:"column", gap:6 }}>
-              {m.position && (
-                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                  <span style={{ fontSize:14, width:20 }}>⚽</span>
-                  <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Posição: </span><strong>{m.position}</strong></p>
-                </div>
-              )}
               {m.phone && (
                 <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                   <span style={{ fontSize:14, width:20 }}>📱</span>
@@ -2654,7 +2670,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                   <p style={{ margin:0, fontSize:13 }}><span style={{ color:T.sub }}>Aniversário: </span><strong>{fmtDate(m.birthday)}</strong></p>
                 </div>
               )}
-              {!m.position && !m.phone && !m.birthday && (
+              {!m.phone && !m.birthday && (
                 <p style={{ margin:0, fontSize:13, color:T.sub, fontStyle:"italic" }}>Sem informações adicionais</p>
               )}
             </div>
@@ -2667,12 +2683,12 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                 <>
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                     {[["admin","🛡 Admin","#1D3557"],["treinador","🎽 Treinador","#2E7D32"],["diretor","📋 Diretor","#7B1FA2"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
-                      <button key={r} onClick={() => m.role!==r && onToggleRole(m.id, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?c:T.border}`, background:m.role===r?`${c}15`:"transparent", color:m.role===r?c:T.sub, fontSize:12, fontWeight:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
+                      <button key={r} onClick={() => m.role!==r && onToggleRole(m.id, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setConfirmRemove(m)} style={{ width:"100%", padding:"9px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>
+                  <button onClick={() => setConfirmRemove(m)} style={{ width:"100%", padding:"9px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:18 }}>
                     🗑 Remover membro
                   </button>
                 </>
@@ -2736,7 +2752,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         )}
         {players.length>0 && (
           <>
-            <p style={{ margin:"16px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}><PersonIcon size={11} color={T.sub} /> Jogadores ({players.length})</p>
+            <p style={{ margin:"16px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}><PersonIcon size={11} color={T.sub} /> Jogadores ({players.length}){unavPlayers>0 && ` · ${unavPlayers} ${unavPlayers===1?"indisponível":"indisponíveis"}`}</p>
             {players.map(m=><Row key={m.id} m={m}/>)}
           </>
         )}
@@ -2764,9 +2780,10 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
             <p style={{ fontSize:36, textAlign:"center", margin:"0 0 10px" }}>⚠️</p>
             <p style={{ fontWeight:800, fontSize:18, textAlign:"center", margin:"0 0 8px" }}>Remover {confirmRemove.name}?</p>
             <p style={{ color:T.sub, fontSize:14, textAlign:"center", margin:"0 0 24px" }}>Este jogador perderá o acesso à equipa. Podes adicioná-lo novamente com um novo convite.</p>
+            {removeErr && <p style={{ margin:"-12px 0 16px", fontSize:13, fontWeight:600, color:T.brand, textAlign:"center" }}>{removeErr}</p>}
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setConfirmRemove(null)} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Cancelar</button>
-              <button onClick={()=>{ onRemoveMember(confirmRemove.id); setConfirmRemove(null); }} style={{ flex:1, padding:"13px", borderRadius:12, border:"none", background:T.brand, color:"#fff", fontWeight:800, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Remover</button>
+              <button onClick={closeRemove} disabled={removeBusy} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Cancelar</button>
+              <button onClick={doRemove} disabled={removeBusy} style={{ flex:1, padding:"13px", borderRadius:12, border:"none", background:T.brand, color:"#fff", fontWeight:800, cursor:removeBusy?"default":"pointer", opacity:removeBusy?0.6:1, fontFamily:"inherit", fontSize:15 }}>{removeBusy?"A remover…":"Remover"}</button>
             </div>
           </div>
         </div>
@@ -3521,7 +3538,13 @@ export default function App() {
     try { await api.patch(`team_members?id=eq.${id}`,{role:nr},token); setMembers(p=>p.map(m=>m.id===id?{...m,role:nr}:m)); } catch(e){console.error(e);}
   };
   const removeMember = async id => {
-    try { await api.del(`team_members?id=eq.${id}`,token); setMembers(p=>p.filter(m=>m.id!==id)); } catch(e){console.error(e);}
+    const m = members.find(x => x.id === id);
+    await api.del(`team_members?id=eq.${id}`, token);
+    // DELETE bloqueado por RLS devolve sucesso sem apagar nada: confirmar que a linha já não existe
+    const still = await api.get(`team_members?id=eq.${id}&select=id`, token);
+    if (still.length) throw new Error("Não foi possível remover (sem permissão?)");
+    setMembers(p => p.filter(x => x.id !== id));
+    showToast(`${m ? m.name : "Membro"} removido da equipa`, T.navy);
   };
   // id = id da linha de team_members (NUNCA o userId)
   const setUnavailable = async (memberId, isUnavailable, emoji, note) => {
