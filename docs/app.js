@@ -9296,8 +9296,8 @@ var UnavailableControl = function UnavailableControl(_ref104) {
     onSet = _ref104.onSet;
   var _useState255 = useState(false),
     _useState256 = _slicedToArray(_useState255, 2),
-    draft = _useState256[0],
-    setDraft = _useState256[1];
+    editing = _useState256[0],
+    setEditing = _useState256[1];
   var _useState257 = useState(m.unavailableNote || ""),
     _useState258 = _slicedToArray(_useState257, 2),
     note = _useState258[0],
@@ -9314,7 +9314,7 @@ var UnavailableControl = function UnavailableControl(_ref104) {
     _useState264 = _slicedToArray(_useState263, 2),
     err = _useState264[0],
     setErr = _useState264[1];
-  var on = m.unavailable || draft;
+  var on = m.unavailable || editing;
   var run = function () {
     var _ref105 = _asyncToGenerator(_regenerator().m(function _callee34(fn) {
       var _t42;
@@ -9359,9 +9359,15 @@ var UnavailableControl = function UnavailableControl(_ref104) {
             return _context35.a(2);
         }
       }, _callee35);
-    })));else setDraft(function (d) {
+    })));else setEditing(function (d) {
       return !d;
     });
+  };
+  var openEdit = function openEdit() {
+    setNote(m.unavailableNote || "");
+    setEmoji(m.unavailableEmoji || "🤕");
+    setErr("");
+    setEditing(true);
   };
   var save = function save() {
     return run(_asyncToGenerator(_regenerator().m(function _callee36() {
@@ -9371,7 +9377,7 @@ var UnavailableControl = function UnavailableControl(_ref104) {
             _context36.n = 1;
             return onSet(m.id, true, emoji, note);
           case 1:
-            setDraft(false);
+            setEditing(false);
           case 2:
             return _context36.a(2);
         }
@@ -9419,7 +9425,35 @@ var UnavailableControl = function UnavailableControl(_ref104) {
       background: "#fff",
       transition: "left 0.15s"
     }
-  }))), on && React.createElement("div", {
+  }))), m.unavailable && !editing && React.createElement("div", {
+    style: {
+      marginTop: 8,
+      display: "flex",
+      alignItems: "center",
+      gap: 8
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: 0,
+      flex: 1,
+      fontSize: 12,
+      color: T.sub
+    }
+  }, m.unavailableEmoji || "🤕", " ", unavailText(m)), React.createElement("button", {
+    onClick: openEdit,
+    disabled: busy,
+    style: {
+      background: "none",
+      border: "1px solid ".concat(T.border),
+      borderRadius: 8,
+      padding: "4px 8px",
+      fontSize: 12,
+      color: T.sub,
+      cursor: "pointer",
+      fontFamily: "inherit",
+      flexShrink: 0
+    }
+  }, "\u270F\uFE0F Alterar")), editing && React.createElement("div", {
     style: {
       marginTop: 10
     }
@@ -9467,7 +9501,25 @@ var UnavailableControl = function UnavailableControl(_ref104) {
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, busy ? "A guardar…" : "Guardar")), err && React.createElement("p", {
+  }, busy ? "A guardar…" : "Guardar"), m.unavailable && React.createElement("button", {
+    onClick: function onClick() {
+      setEditing(false);
+      setErr("");
+    },
+    disabled: busy,
+    style: {
+      display: "block",
+      width: "100%",
+      marginTop: 6,
+      padding: "8px",
+      background: "transparent",
+      border: "none",
+      color: T.sub,
+      fontSize: 12,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Cancelar")), err && React.createElement("p", {
     style: {
       margin: "8px 0 0",
       fontSize: 12,
@@ -13125,6 +13177,7 @@ function App() {
                 }) : x;
               });
             });
+            if (isUnavailable) showToast("".concat(m.name, " marcado como indispon\xEDvel"), T.navy);
           case 4:
             return _context66.a(2);
         }
@@ -13764,6 +13817,24 @@ function App() {
   var atRiskCount = canManageTrainings ? members.filter(function (m) {
     return m.teamId === teamId && cardCount(cards, teamId, m.id).yellows >= 4;
   }).length : 0;
+  var toastBox = toast ? React.createElement("div", {
+    style: {
+      position: "fixed",
+      top: 16,
+      left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: 9999,
+      background: toast.color,
+      color: "#fff",
+      borderRadius: 20,
+      padding: "10px 20px",
+      fontSize: 14,
+      fontWeight: 700,
+      boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+      whiteSpace: "nowrap",
+      pointerEvents: "none"
+    }
+  }, toast.msg) : null;
   var wrap = function wrap(ch) {
     return React.createElement("div", {
       style: {
@@ -13942,7 +14013,7 @@ function App() {
         return deleteTeam(mt.id);
       },
       onEditTeam: editTeam
-    }), modal === "member" && React.createElement(AddMemberModal, {
+    }), toastBox, modal === "member" && React.createElement(AddMemberModal, {
       team: mt,
       onAdd: addMember,
       onClose: function onClose() {
@@ -13989,24 +14060,7 @@ function App() {
       display: "inline-block",
       animation: "spin 0.8s linear infinite"
     }
-  }, "\u27F3"), " A atualizar...")), toast && React.createElement("div", {
-    style: {
-      position: "fixed",
-      top: 16,
-      left: "50%",
-      transform: "translateX(-50%)",
-      zIndex: 9999,
-      background: toast.color,
-      color: "#fff",
-      borderRadius: 20,
-      padding: "10px 20px",
-      fontSize: 14,
-      fontWeight: 700,
-      boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-      whiteSpace: "nowrap",
-      pointerEvents: "none"
-    }
-  }, toast.msg), React.createElement("style", null, "@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }"), React.createElement("div", {
+  }, "\u27F3"), " A atualizar...")), toastBox, React.createElement("style", null, "@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }"), React.createElement("div", {
     style: {
       background: "linear-gradient(135deg, ".concat(team.color, ", ").concat(team.color, "dd)"),
       color: "#fff",
