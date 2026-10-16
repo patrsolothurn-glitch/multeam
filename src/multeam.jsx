@@ -2605,6 +2605,16 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const admins = tm.filter(m=>m.role==="admin");
   const players = tm.filter(m=>m.role==="player");
   const [confirmRemove, setConfirmRemove] = useState(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeErr, setRemoveErr] = useState("");
+  const closeRemove = () => { setConfirmRemove(null); setRemoveErr(""); };
+  const doRemove = async () => {
+    if (removeBusy) return;
+    setRemoveBusy(true); setRemoveErr("");
+    try { await onRemoveMember(confirmRemove.id); closeRemove(); }
+    catch(e) { setRemoveErr(e.message || "Erro ao remover"); }
+    setRemoveBusy(false);
+  };
   const [editingMember, setEditingMember] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -2672,7 +2682,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                       </button>
                     ))}
                   </div>
-                  <button onClick={() => setConfirmRemove(m)} style={{ width:"100%", padding:"9px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>
+                  <button onClick={() => setConfirmRemove(m)} style={{ width:"100%", padding:"9px", borderRadius:10, border:`1.5px solid ${T.brand}`, background:"transparent", color:T.brand, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginTop:18 }}>
                     🗑 Remover membro
                   </button>
                 </>
@@ -2764,9 +2774,10 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
             <p style={{ fontSize:36, textAlign:"center", margin:"0 0 10px" }}>⚠️</p>
             <p style={{ fontWeight:800, fontSize:18, textAlign:"center", margin:"0 0 8px" }}>Remover {confirmRemove.name}?</p>
             <p style={{ color:T.sub, fontSize:14, textAlign:"center", margin:"0 0 24px" }}>Este jogador perderá o acesso à equipa. Podes adicioná-lo novamente com um novo convite.</p>
+            {removeErr && <p style={{ margin:"-12px 0 16px", fontSize:13, fontWeight:600, color:T.brand, textAlign:"center" }}>{removeErr}</p>}
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setConfirmRemove(null)} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Cancelar</button>
-              <button onClick={()=>{ onRemoveMember(confirmRemove.id); setConfirmRemove(null); }} style={{ flex:1, padding:"13px", borderRadius:12, border:"none", background:T.brand, color:"#fff", fontWeight:800, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Remover</button>
+              <button onClick={closeRemove} disabled={removeBusy} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Cancelar</button>
+              <button onClick={doRemove} disabled={removeBusy} style={{ flex:1, padding:"13px", borderRadius:12, border:"none", background:T.brand, color:"#fff", fontWeight:800, cursor:removeBusy?"default":"pointer", opacity:removeBusy?0.6:1, fontFamily:"inherit", fontSize:15 }}>{removeBusy?"A remover…":"Remover"}</button>
             </div>
           </div>
         </div>
@@ -3521,7 +3532,13 @@ export default function App() {
     try { await api.patch(`team_members?id=eq.${id}`,{role:nr},token); setMembers(p=>p.map(m=>m.id===id?{...m,role:nr}:m)); } catch(e){console.error(e);}
   };
   const removeMember = async id => {
-    try { await api.del(`team_members?id=eq.${id}`,token); setMembers(p=>p.filter(m=>m.id!==id)); } catch(e){console.error(e);}
+    const m = members.find(x => x.id === id);
+    await api.del(`team_members?id=eq.${id}`, token);
+    // DELETE bloqueado por RLS devolve sucesso sem apagar nada: confirmar que a linha já não existe
+    const still = await api.get(`team_members?id=eq.${id}&select=id`, token);
+    if (still.length) throw new Error("Não foi possível remover (sem permissão?)");
+    setMembers(p => p.filter(x => x.id !== id));
+    showToast(`${m ? m.name : "Membro"} removido da equipa`, T.navy);
   };
   // id = id da linha de team_members (NUNCA o userId)
   const setUnavailable = async (memberId, isUnavailable, emoji, note) => {
