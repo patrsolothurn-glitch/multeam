@@ -91,6 +91,29 @@ const matchForecast = (hourly, trainings, now = new Date()) => {
   });
   return out;
 };
+// Próximo treino/jogo (com data) ou recorrente, nos próximos 7 dias, para pedir confirmação de presença.
+const nextPresenceEvent = (trainings, teamId, now = new Date()) => {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let best = null;
+  (trainings || []).forEach(t => {
+    if (t.teamId !== teamId) return;
+    const date = t.type === "recorrente" ? nextOccurrence(t.days, t.time, now) : t.date;
+    const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(date || "");
+    if (!m) return;
+    const day = new Date(+m[1], +m[2] - 1, +m[3]);
+    const diff = Math.round((day - today) / 864e5);
+    if (diff < 0 || diff > 6) return;
+    const hh = parseInt((t.time || "").slice(0, 2), 10), mm = parseInt((t.time || "").slice(3, 5), 10) || 0;
+    if (diff === 0 && !isNaN(hh) && now.getHours() > hh) return; // hoje mas a hora já passou
+    const key = day.getTime() + (isNaN(hh) ? 0 : hh * 36e5 + mm * 6e4);
+    if (!best || key < best.key) best = { t, day, diff, key };
+  });
+  return best;
+};
+const presenceTitle = ev => {
+  const when = ev.diff === 0 ? "hoje" : ev.diff === 1 ? "amanhã" : ev.day.toLocaleDateString("pt-PT", { weekday:"long" });
+  return `${ev.t.type === "jogo" ? "Jogo" : "Treino"} ${when}${ev.t.time ? ` · ${ev.t.time}` : ""}`;
+};
 const fcText = f => f ? ` · ${f.emoji} ${f.temp}°` : "";
 const FC_TTL = 60 * 60 * 1000;
 const fcCache = {}; // chave da equipa → { at, hourly, promise } — partilhada entre separadores
@@ -1245,7 +1268,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
   );
 };
 
-const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes }) => {
+const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
   const tf = fines.filter(f => f.teamId===team.id);
   const [showTabela, setShowTabela] = React.useState(false);
   const fc = useForecast(team, trainings.filter(t=>t.teamId===team.id));
@@ -1281,6 +1304,25 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
           ))}
         </div>
       </div>
+      {(() => {
+        if (!myMember || !onSetPresence) return null;
+        const ev = nextPresenceEvent(trainings, team.id);
+        if (!ev || (presences && presences[ev.t.id] && presences[ev.t.id][myMember.id])) return null;
+        const btn = (label, color, status) => (
+          <button onClick={() => onSetPresence(ev.t.id, myMember.id, status)} style={{ padding:"6px 14px", borderRadius:18, border:`1.5px solid ${color}`, background:"transparent", color, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+        );
+        return (
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"13px 14px", marginBottom:14 }}>
+            <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{presenceTitle(ev)}</p>
+            {ev.t.location && <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {ev.t.location}</p>}
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:10 }}>
+              <span style={{ fontSize:14, fontWeight:600, flex:1 }}>Vais?</span>
+              {btn("✓ Sim", T.green, "present")}
+              {btn("✗ Não", "#FF6B00", "absent")}
+            </div>
+          </div>
+        );
+      })()}
       {isAdmin && (
         <button onClick={onAddFine} style={{ width:"100%", background:T.brand, color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
       )}
@@ -3683,7 +3725,7 @@ export default function App() {
         </div>
       </div>
 
-      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} />}
+      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={setPresence} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
