@@ -2613,13 +2613,11 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const canMarkUnavailable = !!onSetUnavailable && myRoleHere==="admin";
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
-  // um grupo por papel; membros com um papel desconhecido ficam em "Jogadores" para nunca desaparecerem
-  const KNOWN_ROLES = ["admin","treinador","diretor","player"];
+  // a regra team_members_role_check da base de dados só aceita 'admin' e 'player':
+  // qualquer outro papel (desconhecido) fica em "Jogadores" para nunca desaparecer
   const groups = [
-    { role:"admin",     title:"Administradores", color:"#1D3557", list:admins },
-    { role:"treinador", title:"Treinadores",     color:"#2E7D32", list:tm.filter(m=>m.role==="treinador") },
-    { role:"diretor",   title:"Diretores",       color:"#7B1FA2", list:tm.filter(m=>m.role==="diretor") },
-    { role:"player",    title:"Jogadores",       color:T.sub,     list:tm.filter(m=>m.role==="player" || !KNOWN_ROLES.includes(m.role)) },
+    { role:"admin",  title:"Administradores", color:"#1D3557", list:admins },
+    { role:"player", title:"Jogadores",       color:T.sub,     list:tm.filter(m=>m.role!=="admin") },
   ].filter(g => g.list.length > 0);
   const [roleErr, setRoleErr] = useState(null); // { id, msg }
   const changeRole = async (m, r) => {
@@ -2694,7 +2692,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {m.userId !== myUserId && (
                 <>
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                    {[["admin","🛡 Admin","#1D3557"],["treinador","🎽 Treinador","#2E7D32"],["diretor","📋 Diretor","#7B1FA2"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
+                    {[["admin","🛡 Admin","#1D3557"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
                       <button key={r} onClick={() => m.role!==r && changeRole(m, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
@@ -3207,7 +3205,7 @@ const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDe
           {showNone && noCards.map(renderRow)}
         </>
       )}
-      {!canManage && <p style={{ margin:"14px 0 0", fontSize:12, color:T.sub, textAlign:"center" }}>Só o admin, o treinador ou o diretor podem lançar cartões.</p>}
+      {!canManage && <p style={{ margin:"14px 0 0", fontSize:12, color:T.sub, textAlign:"center" }}>Só o admin pode lançar cartões.</p>}
     </div>
   );
 };
