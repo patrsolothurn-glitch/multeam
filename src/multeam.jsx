@@ -2566,7 +2566,7 @@ const UnavailableControl = ({ m, onSet }) => {
   return (
     <div style={{ marginBottom:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ fontSize:14, fontWeight:600 }}>🤕 Indisponível</span>
+        <span style={{ fontSize:14, fontWeight:600 }}>{m.unavailableEmoji||"🤕"} Indisponível</span>
         <button onClick={flip} disabled={busy} role="switch" aria-checked={on} style={{ width:46, height:26, borderRadius:13, border:"none", background:on?T.green:T.border, position:"relative", cursor:"pointer", padding:0 }}>
           <span style={{ position:"absolute", top:3, left:on?23:3, width:20, height:20, borderRadius:10, background:"#fff", transition:"left 0.15s" }} />
         </button>

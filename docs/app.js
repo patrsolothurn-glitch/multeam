@@ -9405,7 +9405,7 @@ var UnavailableControl = function UnavailableControl(_ref104) {
       fontSize: 14,
       fontWeight: 600
     }
-  }, "\uD83E\uDD15 Indispon\xEDvel"), React.createElement("button", {
+  }, m.unavailableEmoji || "🤕", " Indispon\xEDvel"), React.createElement("button", {
     onClick: flip,
     disabled: busy,
     role: "switch",
