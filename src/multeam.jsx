@@ -45,6 +45,14 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
 const UNAVAIL_EMOJIS = ["🤕","🩼","🩹","🧊","⚕️","🏥"];
+// Cor sólida para texto branco: usa a cor dada se tiver contraste >= 3 com o branco, senão o azul-escuro.
+const solidForWhite = c => {
+  const m = /^#([0-9a-f]{6})$/i.exec(c || "");
+  if (!m) return T.navy;
+  const ch = i => { const v = parseInt(m[1].slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
+  return 1.05 / (L + 0.05) >= 3 ? c : T.navy;
+};
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2677,7 +2685,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                 <>
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                     {[["admin","🛡 Admin","#1D3557"],["treinador","🎽 Treinador","#2E7D32"],["diretor","📋 Diretor","#7B1FA2"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
-                      <button key={r} onClick={() => m.role!==r && onToggleRole(m.id, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?c:T.border}`, background:m.role===r?`${c}15`:"transparent", color:m.role===r?c:T.sub, fontSize:12, fontWeight:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
+                      <button key={r} onClick={() => m.role!==r && onToggleRole(m.id, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
                     ))}

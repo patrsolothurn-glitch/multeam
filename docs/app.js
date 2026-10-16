@@ -519,6 +519,16 @@ var isPast = function isPast(d) {
   return new Date(d + "T23:59:59") < new Date();
 };
 var UNAVAIL_EMOJIS = ["🤕", "🩼", "🩹", "🧊", "⚕️", "🏥"];
+var solidForWhite = function solidForWhite(c) {
+  var m = /^#([0-9a-f]{6})$/i.exec(c || "");
+  if (!m) return T.navy;
+  var ch = function ch(i) {
+    var v = parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  var L = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
+  return 1.05 / (L + 0.05) >= 3 ? c : T.navy;
+};
 var unavailText = function unavailText(m) {
   return "Indispon\xEDvel".concat(m.unavailableSince ? " desde ".concat(fmtDate(m.unavailableSince)) : "").concat(m.unavailableNote ? " \xB7 ".concat(m.unavailableNote) : "");
 };
@@ -9833,11 +9843,11 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
         style: {
           padding: "7px 10px",
           borderRadius: 10,
-          border: "1.5px solid ".concat(m.role === r ? c : T.border),
-          background: m.role === r ? "".concat(c, "15") : "transparent",
-          color: m.role === r ? c : T.sub,
+          border: "1.5px solid ".concat(m.role === r ? solidForWhite(team.color) : T.border),
+          background: m.role === r ? solidForWhite(team.color) : "transparent",
+          color: m.role === r ? "#fff" : T.sub,
           fontSize: 12,
-          fontWeight: 700,
+          fontWeight: m.role === r ? 800 : 700,
           cursor: m.role === r ? "default" : "pointer",
           fontFamily: "inherit"
         }
