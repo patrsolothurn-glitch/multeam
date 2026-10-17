@@ -9208,6 +9208,9 @@ var DeleteTeamModal = function DeleteTeamModal(_ref102) {
   var v = function v(i) {
     return counts === null ? "…" : counts[i] === null ? "?" : counts[i];
   };
+  var q = function q(i, one, many) {
+    return "".concat(v(i), " ").concat(v(i) === 1 ? one : many);
+  };
   var match = text === team.name;
   var go = function () {
     var _ref103 = _asyncToGenerator(_regenerator().m(function _callee33() {
@@ -9267,7 +9270,7 @@ var DeleteTeamModal = function DeleteTeamModal(_ref102) {
       fontWeight: 700,
       color: T.brand
     }
-  }, v(0), " membros \xB7 ", v(1), " multas \xB7 ", v(2), " treinos \xB7 ", v(3), " cart\xF5es \xB7 ", v(4), " despesas")), React.createElement("p", {
+  }, q(0, "membro", "membros"), " \xB7 ", q(1, "multa", "multas"), " \xB7 ", q(2, "treino", "treinos"), " \xB7 ", q(3, "cartão", "cartões"), " \xB7 ", q(4, "despesa", "despesas"))), React.createElement("p", {
     style: {
       margin: "0 0 12px",
       fontSize: 14
