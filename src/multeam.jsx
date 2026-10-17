@@ -57,6 +57,8 @@ const solidForWhite = c => {
 const fmtDM = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? `${m[3]}/${m[2]}` : ""; };
 // "Jogador" é o texto de reserva do aMember (e o valor predefinido ao adicionar): não é uma posição a mostrar
 const realPosition = p => { const t = (p || "").trim(); return t && t.toLowerCase() !== "jogador" ? t : ""; };
+// "1 membro" / "2 membros" (0 fica no plural)
+const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -1987,7 +1989,7 @@ const AppAdminTab = ({ token, onBack }) => {
             <span style={{ fontSize:32 }}>{selectedTeam.emoji}</span>
             <div>
               <h2 style={{ margin:0, color:"#fff", fontSize:20, fontWeight:900 }}>{selectedTeam.name}</h2>
-              <p style={{ margin:0, fontSize:13, color:"rgba(255,255,255,0.5)" }}>{selectedTeam.season} · {selectedTeam.members_count} membros</p>
+              <p style={{ margin:0, fontSize:13, color:"rgba(255,255,255,0.5)" }}>{selectedTeam.season} · {plural(selectedTeam.members_count,"membro","membros")}</p>
             </div>
           </div>
         </div>
@@ -2115,13 +2117,13 @@ const AppAdminTab = ({ token, onBack }) => {
                   <span style={{ color:T.sub, fontSize:18 }}>›</span>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
-                  {[["👥",t.members_count,"membros"],["🟥",t.fines_count,"multas"],["💸",`${t.unpaid_total}€`,"por pagar"],["📅",t.trainings_count,"treinos"]].map(([icon,val,label]) => (
-                    <div key={label} style={{ flex:1, background:T.bg, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
+                  {[["👥",t.members_count,"membro","membros"],["🟥",t.fines_count,"multa","multas"],["💸",`${t.unpaid_total}€`,"por pagar","por pagar"],["📅",t.trainings_count,"treino","treinos"]].map(([icon,val,one,many]) => { const label = Number(val) === 1 ? one : many; return (
+                    <div key={many} style={{ flex:1, background:T.bg, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
                       <p style={{ margin:0, fontSize:10, color:T.sub }}>{icon}</p>
                       <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{val}</p>
                       <p style={{ margin:0, fontSize:9, color:T.sub }}>{label}</p>
                     </div>
-                  ))}
+                  ); })}
                 </div>
               </div>
             ))}
@@ -2722,7 +2724,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}cc)`, padding:"52px 16px 20px", color:"#fff" }}>
         <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit", marginBottom:12 }}>← Voltar</button>
         <h2 style={{ margin:0, fontSize:24, fontWeight:900 }}>Gerir {team.name}</h2>
-        <p style={{ margin:"4px 0 0", opacity:0.7, fontSize:14 }}>{tm.length} membros · {admins.length} admin{admins.length!==1?"s":""}</p>
+        <p style={{ margin:"4px 0 0", opacity:0.7, fontSize:14 }}>{plural(tm.length,"membro","membros")} · {admins.length} admin{admins.length!==1?"s":""}</p>
       </div>
 
       <div style={{ padding:"16px 16px 100px" }}>

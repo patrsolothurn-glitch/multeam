@@ -537,6 +537,9 @@ var realPosition = function realPosition(p) {
   var t = (p || "").trim();
   return t && t.toLowerCase() !== "jogador" ? t : "";
 };
+var plural = function plural(n, one, many) {
+  return "".concat(n, " ").concat(Number(n) === 1 ? one : many);
+};
 var unavailText = function unavailText(m) {
   return "Indispon\xEDvel".concat(m.unavailableSince ? " desde ".concat(fmtDate(m.unavailableSince)) : "").concat(m.unavailableNote ? " \xB7 ".concat(m.unavailableNote) : "");
 };
@@ -7404,7 +7407,7 @@ var AppAdminTab = function AppAdminTab(_ref82) {
         fontSize: 13,
         color: "rgba(255,255,255,0.5)"
       }
-    }, selectedTeam.season, " \xB7 ", selectedTeam.members_count, " membros")))), React.createElement("div", {
+    }, selectedTeam.season, " \xB7 ", plural(selectedTeam.members_count, "membro", "membros"))))), React.createElement("div", {
       style: {
         padding: "16px"
       }
@@ -7775,13 +7778,15 @@ var AppAdminTab = function AppAdminTab(_ref82) {
         display: "flex",
         gap: 6
       }
-    }, [["👥", t.members_count, "membros"], ["🟥", t.fines_count, "multas"], ["💸", "".concat(t.unpaid_total, "\u20AC"), "por pagar"], ["📅", t.trainings_count, "treinos"]].map(function (_ref88) {
-      var _ref89 = _slicedToArray(_ref88, 3),
+    }, [["👥", t.members_count, "membro", "membros"], ["🟥", t.fines_count, "multa", "multas"], ["💸", "".concat(t.unpaid_total, "\u20AC"), "por pagar", "por pagar"], ["📅", t.trainings_count, "treino", "treinos"]].map(function (_ref88) {
+      var _ref89 = _slicedToArray(_ref88, 4),
         icon = _ref89[0],
         val = _ref89[1],
-        label = _ref89[2];
+        one = _ref89[2],
+        many = _ref89[3];
+      var label = Number(val) === 1 ? one : many;
       return React.createElement("div", {
-        key: label,
+        key: many,
         style: {
           flex: 1,
           background: T.bg,
@@ -9957,7 +9962,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
       opacity: 0.7,
       fontSize: 14
     }
-  }, tm.length, " membros \xB7 ", admins.length, " admin", admins.length !== 1 ? "s" : "")), React.createElement("div", {
+  }, plural(tm.length, "membro", "membros"), " \xB7 ", admins.length, " admin", admins.length !== 1 ? "s" : "")), React.createElement("div", {
     style: {
       padding: "16px 16px 100px"
     }
