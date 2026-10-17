@@ -488,13 +488,15 @@ var aCard = function aCard(c) {
   };
 };
 var aExpense = function aExpense(e) {
-  var _e$created_at;
   return {
     id: e.id,
     teamId: e.team_id,
     description: e.description,
     amount: Number(e.amount),
-    date: ((_e$created_at = e.created_at) === null || _e$created_at === void 0 ? void 0 : _e$created_at.split('T')[0]) || ''
+    date: function () {
+      var d = e.created_at ? new Date(e.created_at) : null;
+      return d && !isNaN(d) ? localDateStr(d) : '';
+    }()
   };
 };
 var aTraining = function aTraining(t) {
@@ -1996,15 +1998,11 @@ var LogSessionModal = function LogSessionModal(_ref24) {
     onLog = _ref24.onLog,
     onClose = _ref24.onClose;
   var getLastOccurrences = function getLastOccurrences() {
-    var today = new Date();
+    var now = new Date();
     var results = [];
     for (var i = 1; i <= 42 && results.length < 6; i++) {
-      var d = new Date(today);
-      d.setDate(today.getDate() - i);
-      if ((training.days || []).includes(d.getDay())) {
-        var dateStr = d.toISOString().split("T")[0];
-        results.push(dateStr);
-      }
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      if ((training.days || []).includes(d.getDay())) results.push(localDateStr(d));
     }
     return results;
   };
@@ -2122,7 +2120,7 @@ var AddExpenseModal = function AddExpenseModal(_ref25) {
         teamId: team.id,
         description: desc,
         amount: Math.abs(val),
-        date: new Date().toISOString().split("T")[0]
+        date: todayLocal()
       });
       onClose();
     },
