@@ -2533,6 +2533,8 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
     return () => { alive = false; };
   }, [team.id]);
   const v = i => counts === null ? "…" : (counts[i] === null ? "?" : counts[i]);
+  // "1 membro", "0 membros"; enquanto carrega ("…") ou se falhar ("?") fica no plural
+  const q = (i, one, many) => `${v(i)} ${v(i) === 1 ? one : many}`;
   const match = text === team.name;
   const go = async () => {
     if (!match || busy) return;
@@ -2544,7 +2546,7 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
     <Sheet title={`Apagar ${team.name}?`} onClose={busy ? ()=>{} : onClose}>
       <div style={{ background:"#FFF5F5", border:"1px solid #FFD0D0", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
         <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>Perde-se tudo:</p>
-        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{v(0)} membros · {v(1)} multas · {v(2)} treinos · {v(3)} cartões · {v(4)} despesas</p>
+        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{q(0,"membro","membros")} · {q(1,"multa","multas")} · {q(2,"treino","treinos")} · {q(3,"cartão","cartões")} · {q(4,"despesa","despesas")}</p>
       </div>
       <p style={{ margin:"0 0 12px", fontSize:14 }}>Isto não tem volta. Escreve o nome da equipa para confirmar.</p>
       <FI value={text} onChange={e=>setText(e.target.value)} placeholder={team.name} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
