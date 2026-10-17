@@ -55,6 +55,8 @@ const solidForWhite = c => {
 };
 // "YYYY-MM-DD" -> "DD/MM" (só texto, sem Date: sem fuso)
 const fmtDM = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? `${m[3]}/${m[2]}` : ""; };
+// "Jogador" é o texto de reserva do aMember (e o valor predefinido ao adicionar): não é uma posição a mostrar
+const realPosition = p => { const t = (p || "").trim(); return t && t.toLowerCase() !== "jogador" ? t : ""; };
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2647,6 +2649,8 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 
   const Row = ({ m }) => {
     const expanded = expandedMember === m.id;
+    // linha por baixo do nome: "Posição · Indisponível desde DD/MM"; sem nada para mostrar, a linha não existe
+    const subLine = [realPosition(m.position), m.unavailable ? `Indisponível${fmtDM(m.unavailableSince) ? ` desde ${fmtDM(m.unavailableSince)}` : ""}` : ""].filter(Boolean).join(" · ");
     return (
       <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden" }}>
         {/* Collapsed header - always visible */}
@@ -2659,7 +2663,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
               <RoleBadgeLight role={m.role} />
             </div>
-            <p style={{ margin:0, fontSize:13, color:T.sub }}>{m.position||"—"}{m.unavailable && ` · Indisponível${fmtDM(m.unavailableSince) ? ` desde ${fmtDM(m.unavailableSince)}` : ""}`}</p>
+            {subLine && <p style={{ margin:0, fontSize:13, color:T.sub }}>{subLine}</p>}
           </div>
           <span style={{ width:44, height:44, margin:"-6px -8px -6px 0", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:T.sub, fontSize:18 }}>
             <span style={{ transition:"transform 0.2s", display:"inline-block", transform:expanded?"rotate(180deg)":"rotate(0deg)" }}>⌄</span>

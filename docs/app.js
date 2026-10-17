@@ -533,6 +533,10 @@ var fmtDM = function fmtDM(d) {
   var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || "");
   return m ? "".concat(m[3], "/").concat(m[2]) : "";
 };
+var realPosition = function realPosition(p) {
+  var t = (p || "").trim();
+  return t && t.toLowerCase() !== "jogador" ? t : "";
+};
 var unavailText = function unavailText(m) {
   return "Indispon\xEDvel".concat(m.unavailableSince ? " desde ".concat(fmtDate(m.unavailableSince)) : "").concat(m.unavailableNote ? " \xB7 ".concat(m.unavailableNote) : "");
 };
@@ -9706,6 +9710,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
   var Row = function Row(_ref111) {
     var m = _ref111.m;
     var expanded = expandedMember === m.id;
+    var subLine = [realPosition(m.position), m.unavailable ? "Indispon\xEDvel".concat(fmtDM(m.unavailableSince) ? " desde ".concat(fmtDM(m.unavailableSince)) : "") : ""].filter(Boolean).join(" · ");
     return React.createElement("div", {
       style: {
         background: T.card,
@@ -9751,13 +9756,13 @@ var ManageTeamScreen = function ManageTeamScreen(_ref108) {
       color: team.color
     }), React.createElement(RoleBadgeLight, {
       role: m.role
-    })), React.createElement("p", {
+    })), subLine && React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 13,
         color: T.sub
       }
-    }, m.position || "—", m.unavailable && " \xB7 Indispon\xEDvel".concat(fmtDM(m.unavailableSince) ? " desde ".concat(fmtDM(m.unavailableSince)) : ""))), React.createElement("span", {
+    }, subLine)), React.createElement("span", {
       style: {
         width: 44,
         height: 44,
