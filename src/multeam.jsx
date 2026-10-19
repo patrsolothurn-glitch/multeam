@@ -71,6 +71,8 @@ const rpcCall = async (fn, body, tok) => {
   if (!r.ok) throw new Error((j && j.message) || `Erro ${r.status}`);
   return j;
 };
+// uma escrita bloqueada por RLS responde com sucesso mas sem linhas: tratar como erro
+const needRows = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
 // "YYYY-MM-DD" -> dias do calendário (UTC só como contador, sem fuso)
 const dayNum = s => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(s || ""); return m ? Date.UTC(+m[1], +m[2]-1, +m[3]) / 86400000 : NaN; };
 // duração em dias, contando o primeiro e o último; em curso conta até hoje; nunca menos de 1
@@ -360,8 +362,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     if (!editName.trim() || !editAmount) return;
     setSavingEdit(true);
     try {
-      const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-      await fetch(`${SB_URL}/rest/v1/fine_types?id=eq.${editingFt.id}`, { method:'PATCH', headers: H, body: JSON.stringify({ name: editName.trim(), amount: Number(editAmount), emoji: editEmoji }) });
+      needRows(await api.patch(`fine_types?id=eq.${editingFt.id}`, { name: editName.trim(), amount: Number(editAmount), emoji: editEmoji }, token));
       setTft(p => p.map(x => x.id===editingFt.id ? {...x, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji} : x));
       if (sft?.id===editingFt.id) setSft(f => ({...f, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji}));
       setEditingFt(null);
@@ -373,8 +374,9 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     e.stopPropagation();
     if (!window.confirm(`Apagar "${ft.name}"?`)) return;
     try {
-      const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
-      await fetch(`${SB_URL}/rest/v1/fine_types?id=eq.${ft.id}`, { method:'DELETE', headers: H });
+      await api.del(`fine_types?id=eq.${ft.id}`, token);
+      const still = await api.get(`fine_types?id=eq.${ft.id}&select=id`, token);
+      if (still.length) throw new Error("sem permissão (o registo continua a existir)");
       setTft(p => p.filter(x => x.id !== ft.id));
       if (sft?.id===ft.id) setSft(null);
     } catch(e) { setErr(e.message); }
@@ -403,7 +405,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
           (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
         }
       }
-      setTm((Array.isArray(mRaw) ? mRaw : []).map(m => ({
+      setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(m => ({
         id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
         name: profMap[m.user_id]?.name || 'Utilizador',
         phone: profMap[m.user_id]?.phone || '',
@@ -411,7 +413,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         position: m.position || profMap[m.user_id]?.position || 'Jogador',
         avatarUrl: profMap[m.user_id]?.avatar_url || null,
         initials: (profMap[m.user_id]?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
-      })));
+      }))));
       setTft((Array.isArray(ftRaw) ? ftRaw : []).map(ft => ({
         id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥'
       })));
@@ -423,9 +425,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     if (!newName.trim() || !newAmount) return;
     setSavingType(true);
     try {
-      const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
-      const r = await fetch(`${SB_URL}/rest/v1/fine_types`, { method:'POST', headers: H, body: JSON.stringify({ team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: newEmoji }) });
-      const data = await r.json();
+      const data = needRows(await api.post('fine_types', { team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: newEmoji }, token));
       const ft = Array.isArray(data) ? data[0] : data;
       if (ft?.id) {
         const newFt = { id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥' };
@@ -725,7 +725,7 @@ const AddRecurringModal = ({ team, onAdd, onClose }) => {
 
 // ── CRIAR JOGO ────────────────────────────────────────────────
 const AddMatchModal = ({ team, members, onAdd, onClose }) => {
-  const tm = members.filter(m=>m.teamId===team.id);
+  const tm = sortMembers(members.filter(m=>m.teamId===team.id), true);
   const [opponent, setOpponent] = useState(""); const [date, setDate] = useState(""); const [time, setTime] = useState("15:00");
   const [loc, setLoc] = useState(""); const [homeAway, setHomeAway] = useState("casa"); const [notes, setNotes] = useState("");
   const [squad, setSquad] = useState(tm.filter(m=>!m.unavailable).map(m=>m.id)); // todos selecionados por omissão, menos os indisponíveis (podem ser escolhidos à mão)
@@ -791,7 +791,7 @@ const EditSingleTrainingModal = ({ team, training, onEdit, onClose }) => {
 
 // ── EDITAR JOGO ────────────────────────────────────────────────
 const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
-  const tm = members.filter(m=>m.teamId===team.id);
+  const tm = sortMembers(members.filter(m=>m.teamId===team.id), true);
   const [opponent, setOpponent] = useState(training.opponent||"");
   const [date, setDate] = useState(training.date);
   const [time, setTime] = useState(training.time||"15:00");
@@ -889,8 +889,9 @@ const POSITION_ORDER = new Map([...STAFF_POSITIONS, ...FIELD_POSITIONS].map((p, 
 const isStaffPosition = pos => { const i = POSITION_ORDER.get(normTxt(pos)); return i !== undefined && i < STAFF_POSITIONS.length; };
 const positionRank = pos => { const i = POSITION_ORDER.get(normTxt(pos)); return i === undefined ? POSITION_ORDER.size : i; };
 // por posição e, dentro da mesma, por nome (sem distinguir maiúsculas nem acentos); estável em nomes iguais
-const sortMembers = list => list.map((m, i) => ({ m, i }))
-  .sort((a, b) => positionRank(a.m.position) - positionRank(b.m.position) || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i)
+// staffLast: a equipa técnica fica depois dos jogadores (convocatória e presenças)
+const sortMembers = (list, staffLast = false) => list.map((m, i) => ({ m, i, r: positionRank(m.position) + (staffLast && isStaffPosition(m.position) ? 1000 : 0) }))
+  .sort((a, b) => a.r - b.r || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i)
   .map(x => x.m);
 
 // placeholder: opção inicial vazia e desativada ("Escolhe a posição…"); um valor antigo fora da lista continua a aparecer
@@ -1740,7 +1741,7 @@ const PresCounter = ({ count, color }) => (
 const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
   const [expanded, setExpanded] = React.useState(false);
   const pres = presences[t.id] || {};
-  const tm = members.filter(m => m.teamId === team.id);
+  const tm = sortMembers(members.filter(m => m.teamId === team.id), true);
   const ok = Object.values(pres).filter(s=>s==="present").length;
   const no = Object.values(pres).filter(s=>s==="absent").length;
   const unav = tm.filter(m => m.unavailable && !pres[m.id]).length; // indisponíveis sem resposta gravada
@@ -1787,7 +1788,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
   const dt = new Date(t.date+"T00:00:00");
   const dayNum = dt.getDate();
   const weekday = dt.toLocaleDateString("pt-PT",{weekday:"long"});
-  const squadMembers = isJogo ? (t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean) : [];
+  const squadMembers = isJogo ? sortMembers((t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean), true) : [];
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden", borderLeft:`3px solid ${past?T.sub:isJogo?T.brand:team.color}`, opacity:past?0.65:1 }}>
       <div style={{ padding:"14px 14px 0" }}>
@@ -1825,7 +1826,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
         <div style={{ background:T.bg, borderTop:`1px solid ${T.border}` }}>
           {[
             ["✏️ Modificar evento", () => { setEditTarget(t); setCtxMenu(null); }],
-            ["🗑️ Eliminar evento",  () => { onDelete(t.id); setCtxMenu(null); }],
+            ["🗑️ Eliminar evento",  () => { setCtxMenu(null); if (window.confirm(`Eliminar ${t.type==="jogo" ? "este jogo" : "este treino"}? Não tem volta.`)) onDelete(t.id); }],
           ].map(([label,action]) => (
             <button key={label} onClick={action} style={{ display:"block", width:"100%", padding:"13px 16px", background:"transparent", border:"none", textAlign:"left", fontSize:15, cursor:"pointer", fontFamily:"inherit", color:label.includes("Eliminar")?T.brand:T.text, borderBottom:`1px solid ${T.border}` }}>{label}</button>
           ))}
@@ -1907,7 +1908,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                   </div>
                   {isAdmin&&<div style={{ display:"flex", gap:6, flexShrink:0 }}>
                     <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
-                    <button onClick={()=>onDelete(t.id)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
+                    <button onClick={()=>{ if (window.confirm("Eliminar este treino? Não tem volta.")) onDelete(t.id); }} aria-label="Eliminar" style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
                   </div>}
                 </div>
                 {isAdmin && onLogSession && (
@@ -2327,7 +2328,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
 
   if (showMembers) {
     const t = teams.find(x=>x.id===showMembers);
-    const tm = teamMembers;
+    const tm = sortMembers(teamMembers);
     return (
       <div style={{ padding:"16px 16px 100px" }}>
         <button onClick={()=>setShowMembers(null)} style={{ background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
@@ -2472,9 +2473,8 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
     if (!name.trim() || !amount) return;
     setSaving(true); setErr("");
     try {
-      const res = await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji }, token);
-      const ft = Array.isArray(res) ? res[0] : res;
-      if (ft) onAdded(ft);
+      const ft = needRows(await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji }, token))[0];
+      onAdded(ft);
       setName(""); setAmount(""); setEmoji("🟥"); setAdding(false);
     } catch(e) { setErr(e.message); }
     setSaving(false);
@@ -2488,7 +2488,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
     if (!editName.trim() || !editAmount) return;
     setSaving(true);
     try {
-      await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) }, token);
+      needRows(await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) }, token));
       onUpdated(id, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) });
       setEditingId(null);
     } catch(e) { setErr(e.message); }
@@ -2496,7 +2496,12 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
   };
 
   const del = async id => {
-    try { await api.del(`fine_types?id=eq.${id}`, token); onDeleted(id); } catch(e) { setErr(e.message); }
+    try {
+      await api.del(`fine_types?id=eq.${id}`, token);
+      const still = await api.get(`fine_types?id=eq.${id}&select=id`, token);
+      if (still.length) throw new Error("sem permissão (o registo continua a existir)");
+      onDeleted(id);
+    } catch(e) { setErr(e.message); }
   };
 
   return (
@@ -3283,7 +3288,7 @@ const KindPicker = ({ value, onChange }) => (
 );
 
 const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
-  const tm = members.filter(m => m.teamId===team.id);
+  const tm = sortMembers(members.filter(m => m.teamId===team.id));
   const [mid, setMid] = useState("");
   const [kind, setKind] = useState("amarelo");
   const [date, setDate] = useState(todayLocal());
@@ -3352,8 +3357,9 @@ const EditCardModal = ({ card, onSave, onClose }) => {
   const save = async () => {
     if (!date || saving) return;
     setSaving(true);
-    await onSave(card.id, { kind, date, opponent:opponent.trim(), note:note.trim() });
-    onClose();
+    const done = await onSave(card.id, { kind, date, opponent:opponent.trim(), note:note.trim() });
+    if (done !== false) onClose(); // só fecha com a escrita confirmada
+    else setSaving(false);
   };
   return (
     <Sheet onClose={onClose} title="Editar cartão">
@@ -3695,7 +3701,7 @@ export default function App() {
       const uid = d.user?.id;
       if (tok && uid) {
         // Update profile with the provided name
-        try { await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok); } catch(e) {}
+        try { await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok); } catch(e) { console.warn('profile name update failed:', e); }
         setToken(tok); setMyUserId(uid); await initApp(tok, uid);
       } else if (uid) {
         try {
@@ -3715,7 +3721,7 @@ export default function App() {
 
   // Data actions
   const addFine = async d => {
-    const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token);
+    const [f]=needRows(await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token));
     setFines(p=>[aFine(f),...p]);
   };
   // Escritas verificadas: um UPDATE/DELETE bloqueado por RLS responde com sucesso sem alterar nada,
@@ -3745,37 +3751,44 @@ export default function App() {
     } catch(e){ writeFailed("guardar a multa", e); }
   };
   const addCard = async d => {
-    const [c] = await api.post('cards', { team_id:d.teamId, member_id:d.memberId, kind:d.kind,
+    const [c] = needRows(await api.post('cards', { team_id:d.teamId, member_id:d.memberId, kind:d.kind,
       match_date:d.date, opponent:d.opponent||null, note:d.note||null, consumed:false,
-      created_by:myUserId }, token);
+      created_by:myUserId }, token));
     setCards(p => [aCard(c), ...p]);
     return aCard(c);
   };
-  const editCard = async (id, d) => {
+  // Escritas de cartões verificadas (UPDATE/DELETE bloqueado por RLS responde com sucesso sem alterar nada); toque repetido ignorado
+  const editCard = (id, d) => guarded(`card:${id}`, async () => {
     try {
-      await api.patch(`cards?id=eq.${id}`, { kind:d.kind, match_date:d.date,
-        opponent:d.opponent||null, note:d.note||null }, token);
+      needRows(await api.patch(`cards?id=eq.${id}`, { kind:d.kind, match_date:d.date, opponent:d.opponent||null, note:d.note||null }, token));
       setCards(p => p.map(c => c.id===id ? {...c, ...d} : c));
-    } catch(e){ console.error(e); }
-  };
-  const delCard = async id => {
-    try { await api.del(`cards?id=eq.${id}`, token); setCards(p => p.filter(c=>c.id!==id)); }
-    catch(e){ console.error(e); }
-  };
+      return true;
+    } catch(e){ writeFailed("guardar o cartão", e); return false; }
+  });
+  const delCard = id => guarded(`card:${id}`, async () => {
+    try {
+      await api.del(`cards?id=eq.${id}`, token);
+      await confirmGone(`cards?id=eq.${id}&select=id`);
+      setCards(p => p.filter(c=>c.id!==id));
+      return true;
+    } catch(e){ writeFailed("apagar o cartão", e); return false; }
+  });
   // Castigo cumprido: marca os 5 amarelos mais antigos ainda em vigor
-  const serveSuspension = async memberId => {
+  const serveSuspension = memberId => guarded(`susp:${memberId}`, async () => {
     const ids = cards
       .filter(c => c.teamId===teamId && String(c.memberId)===String(memberId)
                    && c.kind==='amarelo' && !c.consumed)
-      .sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.id-b.id))
+      .sort((a,b) => (a.date||'').localeCompare(b.date||'') || String(a.id).localeCompare(String(b.id)))
       .slice(0,5).map(c=>c.id);
-    if (ids.length < 5) return;
+    if (ids.length < 5) return false;
     try {
-      await api.patch(`cards?id=in.(${ids.join(',')})`, { consumed:true }, token);
-      setCards(p => p.map(c => ids.includes(c.id) ? {...c, consumed:true} : c));
+      const done = needRows(await api.patch(`cards?id=in.(${ids.join(',')})`, { consumed:true }, token)).map(r => r.id);
+      setCards(p => p.map(c => done.includes(c.id) ? {...c, consumed:true} : c));
+      if (done.length < ids.length) throw new Error(`só ${done.length} de ${ids.length} cartões foram atualizados`);
       showToast(`Contador de ${members.find(m => String(m.id)===String(memberId))?.name || "jogador"} reposto a 0`, T.navy);
-    } catch(e){ console.error(e); }
-  };
+      return true;
+    } catch(e){ writeFailed("repor o contador", e); return false; }
+  });
   // Despesas: editar e apagar (só admin), com escritas verificadas; valor tem de ser > 0 (uma despesa negativa estragava o saldo)
   const editExpense = (id, d) => guarded(`exp:${id}`, async () => {
     try {
@@ -3806,21 +3819,22 @@ export default function App() {
     const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===date && t.location===recurring.location && t.time===recurring.time);
     if (alreadyLogged) { alert("Sessão já foi registada!"); return; }
     try {
-      const res = await api.post("trainings", { team_id:recurring.teamId, type:"treino", date, time:recurring.time, location:recurring.location, notes:recurring.notes||null, recurring:false, created_by:myUserId }, token);
-      const newT = Array.isArray(res) ? res[0] : res;
-      if (!newT) return;
+      const newT = needRows(await api.post("trainings", { team_id:recurring.teamId, type:"treino", date, time:recurring.time, location:recurring.location, notes:recurring.notes||null, recurring:false, created_by:myUserId }, token))[0];
       setTrainings(p => [...p, aTraining(newT)]);
       const presArr = Object.entries(currentPresences||{}).filter(([,s])=>s);
       if (presArr.length > 0) {
-        await Promise.all(presArr.map(([mid, status]) =>
-          api.upsert("presences", { training_id:newT.id, member_id:mid, status }, token).catch(()=>{})
+        // cada presença só conta se a escrita devolver a linha; as que falharem ficam de fora e avisa-se
+        const saved = await Promise.all(presArr.map(([mid, status]) =>
+          api.upsert("presences", { training_id:newT.id, member_id:mid, status }, token).then(r => Array.isArray(r) && r.length > 0).catch(() => false)
         ));
-        setPresences(p => ({ ...p, [newT.id]: Object.fromEntries(presArr) }));
+        const okArr = presArr.filter((_, i) => saved[i]);
+        setPresences(p => ({ ...p, [newT.id]: Object.fromEntries(okArr) }));
+        if (okArr.length < presArr.length) writeFailed("guardar todas as presenças da sessão", new Error(`${presArr.length - okArr.length} de ${presArr.length} não foram guardadas`));
       }
-    } catch(e) { console.error(e); }
+    } catch(e) { writeFailed("registar a sessão", e); }
   };
   const addTraining = async d => {
-    const res = await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token);
+    const res = needRows(await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,created_by:myUserId},token));
     const t = Array.isArray(res) ? res[0] : res;
     if(t) {
       setTrainings(p=>[...p,aTraining(t)]);
@@ -3832,14 +3846,15 @@ export default function App() {
       sendPushToTeam(d.teamId, tm, title, body).catch(()=>{});
     }
   };
-  const delTraining = async id => {
+  const delTraining = id => guarded(`tr:${id}`, async () => {
     try {
       await api.del(`trainings?id=eq.${id}`,token);
       await confirmGone(`trainings?id=eq.${id}&select=id`);
       setTrainings(p=>p.filter(t=>t.id!==id));
-    } catch(e){ writeFailed("apagar o treino", e); }
-  };
-  const editTraining = async (id, d) => {
+      return true;
+    } catch(e){ writeFailed("apagar o treino", e); return false; }
+  });
+  const editTraining = (id, d) => guarded(`tr:${id}`, async () => {
     const patch = {};
     if(d.date      !== undefined) patch.date      = d.date||null;
     if(d.time      !== undefined) patch.time      = d.time||null;
@@ -3849,16 +3864,25 @@ export default function App() {
     if(d.opponent  !== undefined) patch.opponent  = d.opponent||null;
     if(d.homeAway  !== undefined) patch.home_away = d.homeAway;
     if(d.squad     !== undefined) patch.squad     = d.squad;
-    const res = await api.patch(`trainings?id=eq.${id}`,patch,token);
-    const t = Array.isArray(res) ? res[0] : res;
-    if(t) setTrainings(p=>p.map(x=>x.id===id?aTraining(t):x));
-  };
-  const setPresence = async (tid,mid,status) => {
     try {
-      if(!status){ await api.del(`presences?training_id=eq.${tid}&member_id=eq.${mid}`,token); setPresences(p=>{const t={...(p[tid]||{})};delete t[mid];return{...p,[tid]:t};}); }
-      else { await api.upsert('presences',{training_id:tid,member_id:mid,status},token); setPresences(p=>({...p,[tid]:{...(p[tid]||{}),[mid]:status}})); }
-    } catch(e){console.error(e);}
-  };
+      const t = needRows(await api.patch(`trainings?id=eq.${id}`,patch,token))[0];
+      setTrainings(p=>p.map(x=>x.id===id?aTraining(t):x));
+      return true;
+    } catch(e){ writeFailed("guardar o treino", e); throw e; } // o modal mostra o erro e fica aberto
+  });
+  const setPresence = (tid,mid,status) => guarded(`pres:${tid}:${mid}`, async () => {
+    try {
+      if(!status){
+        await api.del(`presences?training_id=eq.${tid}&member_id=eq.${mid}`,token);
+        await confirmGone(`presences?training_id=eq.${tid}&member_id=eq.${mid}&select=training_id`);
+        setPresences(p=>{const t={...(p[tid]||{})};delete t[mid];return{...p,[tid]:t};});
+      } else {
+        needRows(await api.upsert('presences',{training_id:tid,member_id:mid,status},token));
+        setPresences(p=>({...p,[tid]:{...(p[tid]||{}),[mid]:status}}));
+      }
+      return true;
+    } catch(e){ writeFailed("guardar a presença", e); return false; }
+  });
   const addMember = async d => {
     if (!isAdmin) { writeFailed("adicionar o membro", new Error("só os administradores podem adicionar membros")); return false; }
     try {
@@ -3881,12 +3905,13 @@ export default function App() {
     if (!m) return;
     try {
       await api.del(`team_members?id=eq.${m.id}`, token);
+      await confirmGone(`team_members?id=eq.${m.id}&select=id`);
       setTeams(p=>p.filter(t=>t.id!==tid));
       setMembers(p=>p.filter(m=>m.teamId!==tid));
       // Mudar para outra equipa se disponível
       const remaining = teams.filter(t=>t.id!==tid);
       if (remaining.length > 0) await switchTeam(remaining[0].id);
-    } catch(e) { console.error(e); alert("Erro ao sair da equipa"); }
+    } catch(e) { writeFailed("sair da equipa", e); }
   };
   const ROLE_LABEL = { admin:"administrador", treinador:"treinador", diretor:"diretor", player:"jogador" };
   const adminCount = teamId => members.filter(x => x.teamId === teamId && x.role === "admin").length;
@@ -4008,29 +4033,34 @@ export default function App() {
     } catch(e) { writeFailed(closeAfter && opened ? "fechar o registo (a nota ficou guardada, tenta fechar outra vez)" : "guardar o registo", e); return false; }
   });
   const absHandlers = { open:absOpen, close:absClose, update:absUpdate, del:absDelete, addPast:absAddPast, legacy:absLegacy };
-  const editMember = async (id, data) => {
+  // Guardar o perfil de um membro (RPC update_team_member_profile): depois da RPC lê-se o que ficou gravado
+  // (get_team_profiles + team_members.position) e o ecrã mostra o que a base de dados tem; se diferir do enviado, toast vermelho.
+  const editMember = (id, data) => guarded(`mem:${id}`, async () => {
+    const m = members.find(m => m.id === id);
     try {
-      const m = members.find(m => m.id === id);
-      // Use RPC to allow admin to update any member's profile (bypasses RLS)
-      const r = await fetch(`${SB_URL}/rest/v1/rpc/update_team_member_profile`, {
-        method: 'POST',
-        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          p_member_id: m?.userId,
-          p_team_id: m?.teamId,
-          p_name: data.name || '',
-          p_phone: data.phone || '',
-          p_birthday: data.birthday || null,
-          p_position: data.position || '',
-          p_avatar_url: data.avatarUrl !== undefined ? (data.avatarUrl || null) : undefined
-        })
-      });
-      if (!r.ok) { const e = await r.json(); throw new Error(e.message || 'Erro ao guardar'); }
-      setMembers(p => p.map(m => m.id === id ? { ...m, ...data, avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : m.avatarUrl } : m));
-      // Update own profile state too
-      if (m?.userId === myUserId) setProfile(p => ({ ...p, ...data }));
-    } catch(e) { console.error(e); alert('Erro: ' + e.message); }
-  };
+      if (!m) throw new Error("membro não encontrado");
+      await rpcCall('update_team_member_profile', {
+        p_member_id: m.userId,
+        p_team_id: m.teamId,
+        p_name: data.name || '',
+        p_phone: data.phone || '',
+        p_birthday: data.birthday || null,
+        p_position: data.position || '',
+        p_avatar_url: data.avatarUrl !== undefined ? (data.avatarUrl || null) : undefined
+      }, token);
+      const profs = await rpcCall('get_team_profiles', { p_team_id: m.teamId }, token);
+      const prof = (Array.isArray(profs) ? profs : []).find(x => x.id === m.userId);
+      const tmr = await api.get(`team_members?id=eq.${id}&select=position`, token);
+      if (!prof || !Array.isArray(tmr) || !tmr.length) throw new Error("não foi possível confirmar o que ficou gravado");
+      const saved = { name: prof.name || '', phone: prof.phone || '', birthday: prof.birthday || '', position: tmr[0].position || '', avatarUrl: prof.avatar_url || null };
+      setMembers(p => p.map(x => x.id === id ? { ...x, ...saved, position: saved.position || x.position, initials: mk(saved.name || x.name) } : x));
+      if (m.userId === myUserId) setProfile(p => ({ ...p, ...saved }));
+      const same = (a, b) => String(a == null ? "" : a).trim() === String(b == null ? "" : b).trim();
+      const diff = [["nome", data.name, saved.name], ["telefone", data.phone, saved.phone], ["aniversário", data.birthday, saved.birthday], ["posição", data.position, saved.position]].filter(([, sent, got]) => !same(sent, got)).map(([n]) => n);
+      if (diff.length) throw new Error(`a base de dados não guardou: ${diff.join(", ")}`);
+      return true;
+    } catch(e) { writeFailed("guardar o perfil do membro", e); return false; }
+  });
   const [teamError, setTeamError] = useState(null);
 
   const createTeam = async d => {
@@ -4294,9 +4324,10 @@ export default function App() {
       {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
-        try { await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token); } catch(e){console.error(e);}
-        await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
+        try { needRows(await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token)); }
+        catch(e){ writeFailed("guardar o perfil", e); return; }
         setProfile(p=>({...p,...u}));
+        await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
       }} onClose={()=>setModal(null)} />}
       {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
