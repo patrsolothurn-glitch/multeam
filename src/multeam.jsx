@@ -405,7 +405,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
           (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
         }
       }
-      setTm((Array.isArray(mRaw) ? mRaw : []).map(m => ({
+      setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(m => ({
         id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
         name: profMap[m.user_id]?.name || 'Utilizador',
         phone: profMap[m.user_id]?.phone || '',
@@ -413,7 +413,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         position: m.position || profMap[m.user_id]?.position || 'Jogador',
         avatarUrl: profMap[m.user_id]?.avatar_url || null,
         initials: (profMap[m.user_id]?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
-      })));
+      }))));
       setTft((Array.isArray(ftRaw) ? ftRaw : []).map(ft => ({
         id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥'
       })));
@@ -711,7 +711,7 @@ const AddRecurringModal = ({ team, onAdd, onClose }) => {
 
 // ── CRIAR JOGO ────────────────────────────────────────────────
 const AddMatchModal = ({ team, members, onAdd, onClose }) => {
-  const tm = members.filter(m=>m.teamId===team.id);
+  const tm = sortMembers(members.filter(m=>m.teamId===team.id), true);
   const [opponent, setOpponent] = useState(""); const [date, setDate] = useState(""); const [time, setTime] = useState("15:00");
   const [loc, setLoc] = useState(""); const [homeAway, setHomeAway] = useState("casa"); const [notes, setNotes] = useState("");
   const [squad, setSquad] = useState(tm.filter(m=>!m.unavailable).map(m=>m.id)); // todos selecionados por omissão, menos os indisponíveis (podem ser escolhidos à mão)
@@ -777,7 +777,7 @@ const EditSingleTrainingModal = ({ team, training, onEdit, onClose }) => {
 
 // ── EDITAR JOGO ────────────────────────────────────────────────
 const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
-  const tm = members.filter(m=>m.teamId===team.id);
+  const tm = sortMembers(members.filter(m=>m.teamId===team.id), true);
   const [opponent, setOpponent] = useState(training.opponent||"");
   const [date, setDate] = useState(training.date);
   const [time, setTime] = useState(training.time||"15:00");
@@ -875,8 +875,9 @@ const POSITION_ORDER = new Map([...STAFF_POSITIONS, ...FIELD_POSITIONS].map((p, 
 const isStaffPosition = pos => { const i = POSITION_ORDER.get(normTxt(pos)); return i !== undefined && i < STAFF_POSITIONS.length; };
 const positionRank = pos => { const i = POSITION_ORDER.get(normTxt(pos)); return i === undefined ? POSITION_ORDER.size : i; };
 // por posição e, dentro da mesma, por nome (sem distinguir maiúsculas nem acentos); estável em nomes iguais
-const sortMembers = list => list.map((m, i) => ({ m, i }))
-  .sort((a, b) => positionRank(a.m.position) - positionRank(b.m.position) || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i)
+// staffLast: a equipa técnica fica depois dos jogadores (convocatória e presenças)
+const sortMembers = (list, staffLast = false) => list.map((m, i) => ({ m, i, r: positionRank(m.position) + (staffLast && isStaffPosition(m.position) ? 1000 : 0) }))
+  .sort((a, b) => a.r - b.r || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i)
   .map(x => x.m);
 
 // placeholder: opção inicial vazia e desativada ("Escolhe a posição…"); um valor antigo fora da lista continua a aparecer
@@ -1726,7 +1727,7 @@ const PresCounter = ({ count, color }) => (
 const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
   const [expanded, setExpanded] = React.useState(false);
   const pres = presences[t.id] || {};
-  const tm = members.filter(m => m.teamId === team.id);
+  const tm = sortMembers(members.filter(m => m.teamId === team.id), true);
   const ok = Object.values(pres).filter(s=>s==="present").length;
   const no = Object.values(pres).filter(s=>s==="absent").length;
   const unav = tm.filter(m => m.unavailable && !pres[m.id]).length; // indisponíveis sem resposta gravada
@@ -1773,7 +1774,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
   const dt = new Date(t.date+"T00:00:00");
   const dayNum = dt.getDate();
   const weekday = dt.toLocaleDateString("pt-PT",{weekday:"long"});
-  const squadMembers = isJogo ? (t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean) : [];
+  const squadMembers = isJogo ? sortMembers((t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean), true) : [];
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden", borderLeft:`3px solid ${past?T.sub:isJogo?T.brand:team.color}`, opacity:past?0.65:1 }}>
       <div style={{ padding:"14px 14px 0" }}>
@@ -2304,7 +2305,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
 
   if (showMembers) {
     const t = teams.find(x=>x.id===showMembers);
-    const tm = teamMembers;
+    const tm = sortMembers(teamMembers);
     return (
       <div style={{ padding:"16px 16px 100px" }}>
         <button onClick={()=>setShowMembers(null)} style={{ background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
@@ -3264,7 +3265,7 @@ const KindPicker = ({ value, onChange }) => (
 );
 
 const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
-  const tm = members.filter(m => m.teamId===team.id);
+  const tm = sortMembers(members.filter(m => m.teamId===team.id));
   const [mid, setMid] = useState("");
   const [kind, setKind] = useState("amarelo");
   const [date, setDate] = useState(todayLocal());
