@@ -616,16 +616,30 @@ const LogSessionModal = ({ training, existingDates, onLog, onClose }) => {
   );
 };
 
-const AddExpenseModal = ({ team, onAdd, onClose }) => {
-  const [desc, setDesc] = useState(""); const [amount, setAmount] = useState("");
+// Nova despesa; com `expense` (e onSave) edita a despesa: só fecha depois de a escrita ser confirmada
+const AddExpenseModal = ({ team, onAdd, onClose, expense, onSave }) => {
+  const editing = !!expense;
+  const [desc, setDesc] = useState(editing ? expense.description : ""); const [amount, setAmount] = useState(editing ? String(Math.abs(expense.amount)) : "");
+  const [busy, setBusy] = useState(false);
+  const lock = React.useRef(false);
   const val = Number(amount);
   const valid = amount !== "" && Number.isFinite(val) && val > 0;
+  const ok = desc.trim() !== "" && valid;
+  const submit = async () => {
+    if (!ok || lock.current) return;
+    if (!editing) { onAdd({ teamId:team.id, description:desc.trim(), amount:Math.abs(val), date:todayLocal() }); onClose(); return; }
+    lock.current = true; setBusy(true);
+    let done = false;
+    try { done = await onSave(expense.id, { description:desc.trim(), amount:val }); }
+    finally { lock.current = false; setBusy(false); }
+    if (done) onClose();
+  };
   return (
-    <Sheet title="💸 Nova despesa" onClose={onClose}>
+    <Sheet title={editing ? "✏️ Editar despesa" : "💸 Nova despesa"} onClose={busy ? ()=>{} : onClose}>
       <FL>Descrição</FL><FI type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Ex: Jantar de equipa..." />
       <FL>Valor (€)</FL><FI type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
       {amount !== "" && !valid && <p style={{ color:T.brand, fontSize:13, fontWeight:700, margin:"-6px 0 10px" }}>O valor tem de ser maior que zero.</p>}
-      <PrimaryBtn onClick={() => { if(!desc||!valid) return; onAdd({ teamId:team.id, description:desc, amount:Math.abs(val), date:todayLocal() }); onClose(); }} disabled={!desc||!valid} color={T.navy}>Registar despesa</PrimaryBtn>
+      <PrimaryBtn onClick={submit} disabled={!ok || busy} color={T.navy}>{busy ? "A guardar…" : editing ? "Guardar" : "Registar despesa"}</PrimaryBtn>
     </Sheet>
   );
 };
@@ -1966,7 +1980,7 @@ const toCents = x => Math.round(Number(x) * 100);
 const eurC = c => { const a = Math.abs(c); return `${a % 100 === 0 ? a / 100 : (a / 100).toFixed(2)}€`; };
 const sgnEurC = c => `${c < 0 ? "-" : "+"}${eurC(c)}`;
 
-const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) => {
+const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, onEditExpense, onDeleteExpense }) => {
   const tf = fines.filter(f=>f.teamId===team.id&&f.paid);
   const te = expenses.filter(e=>e.teamId===team.id);
   const income = tf.reduce((s,f)=>s+f.amount,0);
@@ -1988,6 +2002,8 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
   // mês atual aberto, os outros (e os futuros) fechados; a escolha do utilizador fica guardada por mês e não muda com os dados
   const currentKey = todayLocal().slice(0, 7);
   const [monthOpen, setMonthOpen] = useState({});
+  const [editingExp, setEditingExp] = useState(null);
+  const canEditExp = isAdmin && !!onEditExpense && !!onDeleteExpense;
   const isOpen = key => (key in monthOpen) ? monthOpen[key] : (key !== "" && key === currentKey);
   const monthTitle = key => key ? `${MESES_PT[+key.slice(5, 7) - 1]} ${key.slice(0, 4)}` : "Sem data";
   return (
@@ -2020,18 +2036,25 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
               <span style={{ fontWeight:800, fontSize:15, color:net>=0?T.green:T.brand, flexShrink:0 }}>{sgnEurC(net)}</span>
             </button>
             {open && g.txs.map((tx,i) => (
-              <div key={i} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:7, display:"flex", alignItems:"center", gap:12 }}>
+              <div key={`${tx.type}-${tx.id ?? i}`} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:7, display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:38, height:38, borderRadius:19, background:tx.type==="in"?`${T.green}18`:`${T.brand}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{tx.type==="in"?"⬆️":"⬇️"}</div>
                 <div style={{ flex:1 }}>
                   <p style={{ margin:0, fontWeight:600, fontSize:14 }}>{tx.label}</p>
                   <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(tx.day)}</p>
                 </div>
                 <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{Math.abs(tx.amount)}€</p>
+                {canEditExp && tx.type==="out" && (
+                  <div style={{ display:"flex", flexShrink:0 }}>
+                    <button onClick={() => setEditingExp(tx)} aria-label="Editar despesa" style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:16, cursor:"pointer" }}>✏️</button>
+                    <button onClick={() => { if (window.confirm(`Apagar a despesa "${tx.label}" (${Math.abs(tx.amount)}€)? Não tem volta.`)) onDeleteExpense(tx.id); }} aria-label="Apagar despesa" style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:16, cursor:"pointer" }}>🗑️</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         );
       })}
+      {editingExp && canEditExp && <AddExpenseModal team={team} expense={editingExp} onSave={onEditExpense} onClose={()=>setEditingExp(null)} />}
     </div>
   );
 };
@@ -3766,6 +3789,26 @@ export default function App() {
       return true;
     } catch(e){ writeFailed("repor o contador", e); return false; }
   });
+  // Despesas: editar e apagar (só admin), com escritas verificadas; valor tem de ser > 0 (uma despesa negativa estragava o saldo)
+  const editExpense = (id, d) => guarded(`exp:${id}`, async () => {
+    try {
+      const desc = String(d.description || "").trim(), amt = Number(d.amount);
+      if (!desc) throw new Error("a descrição é obrigatória");
+      if (!Number.isFinite(amt) || amt <= 0) throw new Error("o valor tem de ser maior que zero");
+      const [e] = updated(await api.patch(`expenses?id=eq.${id}`, { description:desc, amount:amt }, token));
+      setExpenses(p => p.map(x => x.id === id ? aExpense(e) : x));
+      return true;
+    } catch(e) { writeFailed("guardar a despesa", e); return false; }
+  });
+  const deleteExpense = id => guarded(`exp:${id}`, async () => {
+    try {
+      await api.del(`expenses?id=eq.${id}`, token);
+      await confirmGone(`expenses?id=eq.${id}&select=id`);
+      setExpenses(p => p.filter(x => x.id !== id));
+      showToast("Despesa apagada", T.navy);
+      return true;
+    } catch(e) { writeFailed("apagar a despesa", e); return false; }
+  });
   const addExpense = async d => {
     try {
       const [e]=updated(await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token));
@@ -4260,7 +4303,7 @@ export default function App() {
       {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={setPresence} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
-      {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} />}
+      {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
 
