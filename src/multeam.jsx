@@ -37,7 +37,7 @@ const aFine = f => {
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
 const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
   date:c.match_date||'', opponent:c.opponent||'', note:c.note||'', consumed:!!c.consumed });
-const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:e.created_at?.split('T')[0]||'' });
+const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:(() => { const d = e.created_at ? new Date(e.created_at) : null; return d && !isNaN(d) ? localDateStr(d) : ''; })() });
 const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], createdBy:t.created_by });
 
 const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
@@ -546,15 +546,12 @@ const EditFineModal = ({ fine, onSave, onClose }) => {
 const LogSessionModal = ({ training, existingDates, onLog, onClose }) => {
   // Calculate last 6 real occurrences based on training days
   const getLastOccurrences = () => {
-    const today = new Date();
+    const now = new Date();
     const results = [];
     for (let i = 1; i <= 42 && results.length < 6; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      if ((training.days||[]).includes(d.getDay())) {
-        const dateStr = d.toISOString().split("T")[0];
-        results.push(dateStr);
-      }
+      // dia civil local (ano, mês, dia): converter para ISO/UTC dá a data errada perto da meia-noite
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      if ((training.days||[]).includes(d.getDay())) results.push(localDateStr(d));
     }
     return results;
   };
@@ -589,7 +586,7 @@ const AddExpenseModal = ({ team, onAdd, onClose }) => {
       <FL>Descrição</FL><FI type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Ex: Jantar de equipa..." />
       <FL>Valor (€)</FL><FI type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
       {amount !== "" && !valid && <p style={{ color:T.brand, fontSize:13, fontWeight:700, margin:"-6px 0 10px" }}>O valor tem de ser maior que zero.</p>}
-      <PrimaryBtn onClick={() => { if(!desc||!valid) return; onAdd({ teamId:team.id, description:desc, amount:Math.abs(val), date:new Date().toISOString().split("T")[0] }); onClose(); }} disabled={!desc||!valid} color={T.navy}>Registar despesa</PrimaryBtn>
+      <PrimaryBtn onClick={() => { if(!desc||!valid) return; onAdd({ teamId:team.id, description:desc, amount:Math.abs(val), date:todayLocal() }); onClose(); }} disabled={!desc||!valid} color={T.navy}>Registar despesa</PrimaryBtn>
     </Sheet>
   );
 };
