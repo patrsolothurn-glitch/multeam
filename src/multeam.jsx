@@ -304,7 +304,7 @@ const Sheet = ({ onClose, title, children }) => (
   </div>
 );
 const FL = ({ children }) => <p style={{ margin:"0 0 6px", fontWeight:700, fontSize:12, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{children}</p>;
-const FI = (props) => <input style={{ width:"100%", padding:"12px 14px", borderRadius:12, border:`1.5px solid ${T.border}`, fontSize:15, background:T.inputBg, boxSizing:"border-box", outline:"none", fontFamily:"inherit", marginBottom:14 }} {...props} />;
+const FI = ({ style, ...props }) => <input style={{ width:"100%", padding:"12px 14px", borderRadius:12, border:`1.5px solid ${T.border}`, fontSize:15, background:T.inputBg, boxSizing:"border-box", outline:"none", fontFamily:"inherit", marginBottom:14, ...style }} {...props} />;
 const FSel = ({ value, onChange, children }) => (
   <select value={value} onChange={onChange} style={{ width:"100%", padding:"12px 14px", borderRadius:12, border:`1.5px solid ${T.border}`, fontSize:15, background:T.inputBg, boxSizing:"border-box", outline:"none", fontFamily:"inherit", marginBottom:14 }}>
     {children}
@@ -844,25 +844,33 @@ const POSITIONS_GROUPED = {
   "· Outro":                ["Outro"],
 };
 
-const PositionSelect = ({ value, onChange }) => (
-  <FSel value={value} onChange={onChange}>
-    {Object.entries(POSITIONS_GROUPED).map(([group, opts]) => (
-      <optgroup key={group} label={group}>
-        {opts.map(p => <option key={p} value={p}>{p}</option>)}
-      </optgroup>
-    ))}
-  </FSel>
-);
+// placeholder: opção inicial vazia e desativada ("Escolhe a posição…"); um valor antigo fora da lista continua a aparecer
+const PositionSelect = ({ value, onChange, placeholder }) => {
+  const known = Object.values(POSITIONS_GROUPED).some(opts => opts.includes(value));
+  return (
+    <FSel value={value} onChange={onChange}>
+      {placeholder && <option value="" disabled>{placeholder}</option>}
+      {value && !known && <option value={value}>{value}</option>}
+      {Object.entries(POSITIONS_GROUPED).map(([group, opts]) => (
+        <optgroup key={group} label={group}>
+          {opts.map(p => <option key={p} value={p}>{p}</option>)}
+        </optgroup>
+      ))}
+    </FSel>
+  );
+};
 
 const AddMemberModal = ({ team, onAdd, onClose }) => {
-  const [name, setName] = useState(""); const [pos, setPos] = useState("Jogador"); const [phone, setPhone] = useState(""); const [bday, setBday] = useState(""); const [role, setRole] = useState("player");
-  const ok = name.trim().length > 1;
+  const [name, setName] = useState(""); const [pos, setPos] = useState(""); const [phone, setPhone] = useState(""); const [bday, setBday] = useState(""); const [role, setRole] = useState("player");
+  const [busy, setBusy] = useState(false);
+  const lock = React.useRef(false);
+  const ok = name.trim().length > 1 && !!pos; // a posição tem de ser escolhida (quem não tem posição escolhe "Outro")
   const initials = name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   return (
     <Sheet title="➕ Adicionar membro" onClose={onClose}>
       <FL>Nome</FL><FI value={name} onChange={e=>setName(e.target.value)} placeholder="Nome completo" />
       <FL>Posição</FL>
-      <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} />
+      <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} placeholder="Escolhe a posição…" />
       <FL>Telefone</FL><FI type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+351 / +41..." />
       <FL>Aniversário</FL><FI type="date" value={bday} onChange={e=>setBday(e.target.value)} />
       <FL>Função na equipa</FL>
@@ -871,8 +879,15 @@ const AddMemberModal = ({ team, onAdd, onClose }) => {
           <button key={v} onClick={() => setRole(v)} style={{ flex:1, padding:"12px", borderRadius:12, border:`2px solid ${role===v?(v==="admin"?T.yellow:team.color):T.border}`, background:role===v?(v==="admin"?`${T.yellow}18`:`${team.color}15`):T.inputBg, cursor:"pointer", fontWeight:700, fontSize:14, fontFamily:"inherit" }}>{l}</button>
         ))}
       </div>
-      <PrimaryBtn onClick={() => { if(!ok) return; onAdd({ teamId:team.id, userId:Date.now(), name:name.trim(), initials:initials||name[0].toUpperCase(), position:pos, phone, birthday:bday, role }); onClose(); }} disabled={!ok} color={team.color}>
-        Adicionar {role==="admin"?"administrador":"jogador"}
+      <PrimaryBtn onClick={async () => {
+        if (!ok || lock.current) return;
+        lock.current = true; setBusy(true);
+        let done = false;
+        try { done = await onAdd({ teamId:team.id, userId:Date.now(), name:name.trim(), initials:initials||name[0].toUpperCase(), position:pos, phone, birthday:bday, role }); }
+        finally { lock.current = false; setBusy(false); }
+        if (done) onClose(); // só fecha com a escrita confirmada; se falhar, fica aberto com o que escreveste
+      }} disabled={!ok || busy} color={team.color}>
+        {busy ? "A adicionar…" : `Adicionar ${role==="admin"?"administrador":"jogador"}`}
       </PrimaryBtn>
     </Sheet>
   );
@@ -3724,17 +3739,21 @@ export default function App() {
     } catch(e){console.error(e);}
   };
   const addMember = async d => {
+    if (!isAdmin) { writeFailed("adicionar o membro", new Error("só os administradores podem adicionar membros")); return false; }
     try {
       const r = await fetch(`${SB_URL}/rest/v1/rpc/add_member_to_team`,{
         method:'POST',
         headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-        body:JSON.stringify({p_team_id:d.teamId,p_name:d.name,p_position:d.position||'Jogador',p_phone:d.phone||'',p_birthday:d.birthday||null,p_role:d.role||'player'})
+        body:JSON.stringify({p_team_id:d.teamId,p_name:d.name,p_position:d.position,p_phone:d.phone||'',p_birthday:d.birthday||null,p_role:d.role||'player'})
       });
-      const m = await r.json();
-      if (m?.id) {
-        setMembers(p=>[...p,{id:m.id,teamId:d.teamId,userId:m.user_id,role:m.role,name:m.name,initials:mk(m.name),position:m.position||d.position,phone:m.phone||d.phone||'',birthday:d.birthday||''}]);
-      }
-    } catch(e){console.error(e);}
+      let j = null;
+      try { j = await r.json(); } catch(e) { j = null; }
+      if (!r.ok) throw new Error((j && j.message) || `Erro ${r.status}`);
+      const m = Array.isArray(j) ? j[0] : j;
+      if (!m || !m.id) throw new Error("sem permissão, ou resposta vazia");
+      setMembers(p=>[...p,{id:m.id,teamId:d.teamId,userId:m.user_id,role:m.role,name:m.name,initials:mk(m.name),position:m.position||d.position,phone:m.phone||d.phone||'',birthday:d.birthday||''}]);
+      return true;
+    } catch(e){ writeFailed("adicionar o membro", e); return false; }
   };
   const leaveTeam = async (tid) => {
     const m = members.find(m=>m.teamId===tid&&m.userId===myUserId);
