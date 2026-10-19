@@ -864,6 +864,21 @@ const POSITIONS_GROUPED = {
   "· Outro":                ["Outro"],
 };
 
+// Ordem dos membros: equipa técnica (ordem do select) e depois posições de campo; posição vazia, "Jogador", "Outro" ou desconhecida no fim.
+// Construída a partir de POSITIONS_GROUPED (sem repetir listas); só apresentação.
+const normTxt = s => String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const STAFF_POSITIONS = [...POSITIONS_GROUPED["🎽 Equipa Técnica"], ...POSITIONS_GROUPED["🏛 Direção / Gestão"]];
+const DEFENSE_FIRST = ["Lateral Direito", "Defesa Central", "Lateral Esquerdo"];
+const FIELD_POSITIONS = [...POSITIONS_GROUPED["🥅 Guarda-redes"], ...DEFENSE_FIRST, ...POSITIONS_GROUPED["🛡 Defesa"].filter(p => !DEFENSE_FIRST.includes(p)),
+  ...POSITIONS_GROUPED["⚙️ Médio"], ...POSITIONS_GROUPED["⚡ Atacante"], ...POSITIONS_GROUPED["🏟 Futsal / Praia"]];
+const POSITION_ORDER = new Map([...STAFF_POSITIONS, ...FIELD_POSITIONS].map((p, i) => [normTxt(p), i]));
+const isStaffPosition = pos => { const i = POSITION_ORDER.get(normTxt(pos)); return i !== undefined && i < STAFF_POSITIONS.length; };
+const positionRank = pos => { const i = POSITION_ORDER.get(normTxt(pos)); return i === undefined ? POSITION_ORDER.size : i; };
+// por posição e, dentro da mesma, por nome (sem distinguir maiúsculas nem acentos); estável em nomes iguais
+const sortMembers = list => list.map((m, i) => ({ m, i }))
+  .sort((a, b) => positionRank(a.m.position) - positionRank(b.m.position) || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i)
+  .map(x => x.m);
+
 // placeholder: opção inicial vazia e desativada ("Escolhe a posição…"); um valor antigo fora da lista continua a aparecer
 const PositionSelect = ({ value, onChange, placeholder }) => {
   const known = Object.values(POSITIONS_GROUPED).some(opts => opts.includes(value));
@@ -2795,9 +2810,14 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const admins = tm.filter(m=>m.role==="admin");
   // a regra team_members_role_check da base de dados só aceita 'admin' e 'player':
   // qualquer outro papel (desconhecido) fica em "Jogadores" para nunca desaparecer
+  // admins ficam só em Administradores (mesmo que a posição seja Treinador); os outros dividem-se em equipa técnica e jogadores
+  const nonAdmin = tm.filter(m=>m.role!=="admin");
+  const staff = sortMembers(nonAdmin.filter(m => isStaffPosition(m.position)));
+  const players = sortMembers(nonAdmin.filter(m => !isStaffPosition(m.position)));
   const groups = [
-    { role:"admin",  title:"Administradores", color:"#1D3557", list:admins },
-    { role:"player", title:"Jogadores",       color:T.sub,     list:tm.filter(m=>m.role!=="admin") },
+    { role:"admin",  title:admins.length===1?"Administrador":"Administradores", color:"#1D3557", list:admins },
+    { role:"staff",  title:"Equipa técnica",                                   color:"#2E7D32", list:staff },
+    { role:"player", title:players.length===1?"Jogador":"Jogadores",           color:T.sub,     list:players },
   ].filter(g => g.list.length > 0);
   const [roleErr, setRoleErr] = useState(null); // { id, msg }
   const changeRole = async (m, r) => {
