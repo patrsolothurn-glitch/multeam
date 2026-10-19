@@ -77,7 +77,27 @@ const dayNum = s => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(s || ""); return m
 const absDays = a => { const n = dayNum(a.end || todayLocal()) - dayNum(a.start) + 1; return isNaN(n) ? 0 : Math.max(1, n); };
 // época de 1 de julho a 30 de junho, a partir da data de início: "2025/26"
 const absSeason = start => { const m = /^(\d{4})-(\d\d)/.exec(start || ""); if (!m) return ""; const y = +m[1], mo = +m[2], s = mo >= 7 ? y : y - 1; return `${s}/${String((s + 1) % 100).padStart(2, "0")}`; };
-const fmtDMY = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : "—"; };
+// Dia LOCAL em "AAAA-MM-DD" a partir de "AAAA-MM-DD" ou de um timestamp completo ("…T21:24:58.631954+00:00", "… 21:24:58+00", "…Z");
+// "" se vazio ou inválido. Texto simples: sem Date. Timestamp: getFullYear/getMonth/getDate (nunca slice(0,10) nem toISOString).
+const daysIn = (y, m) => [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
+const validYMD = s => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s); return !!m && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= daysIn(+m[1], +m[2]); };
+const localDay = v => {
+  if (v instanceof Date) return isNaN(v) ? "" : localDateStr(v);
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return "";
+  if (validYMD(s)) return s;
+  const m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d)?)(?:[.,](\d+))?\s*(Z|[+-]\d\d(?::?\d\d)?)?$/i.exec(s);
+  if (!m || !validYMD(m[1])) return "";
+  const tz = !m[4] ? "" : /^z$/i.test(m[4]) ? "Z" : m[4].length === 3 ? `${m[4]}:00` : m[4].includes(":") ? m[4] : `${m[4].slice(0, 3)}:${m[4].slice(3)}`;
+  const d = new Date(`${m[1]}T${m[2]}${m[3] ? "." + m[3].slice(0, 3).padEnd(3, "0") : ""}${tz}`);
+  return isNaN(d) ? "" : localDateStr(d);
+};
+// "DD/MM/AAAA" no dia local; vazio ou inválido: "Sem data"
+const fmtDay = v => { const d = localDay(v); return d ? `${d.slice(8)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "Sem data"; };
+const fmtDMY = fmtDay;
+// mais recente primeiro; sem data (ou inválida) no fim
+const byDayDesc = (a, b) => localDay(b.date).localeCompare(localDay(a.date));
+const MESES_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -1185,7 +1205,7 @@ const FineGroup = ({ group, color }) => {
           <span style={{ fontSize:18, flexShrink:0 }}>{f.emoji||"🟥"}</span>
           <div style={{ flex:1, minWidth:0 }}>
             <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason||"—"}</p>
-            <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date}</p>
+            <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
           </div>
           <span style={{ fontSize:13, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{Number(f.amount).toFixed(1)}€</span>
         </div>
@@ -1222,7 +1242,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
               <span style={{ fontSize:18 }}>{f.emoji}</span>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontSize:13, fontWeight:600, color:isTop?"rgba(255,255,255,0.9)":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
-                <p style={{ margin:0, fontSize:11, color:isTop?"rgba(255,255,255,0.55)":T.sub }}>{f.date}</p>
+                <p style={{ margin:0, fontSize:11, color:isTop?"rgba(255,255,255,0.55)":T.sub }}>{fmtDay(f.date)}</p>
               </div>
               <span style={{ fontSize:14, fontWeight:800, color:isTop?"#fff":T.brand, flexShrink:0 }}>{f.amount}€</span>
             </div>
@@ -1254,7 +1274,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
                 <span style={{ fontSize:20, flexShrink:0 }}>{f.emoji}</span>
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
-                  <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date?.slice?.(5)}</p>
+                  <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
                 </div>
                 <span style={{ fontSize:14, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{f.amount}€</span>
               </div>
@@ -1332,7 +1352,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
   const recent = [...tf].sort((a,b)=>{
     const rankDiff = (memberRank[a.memberId]??99) - (memberRank[b.memberId]??99);
     if (rankDiff !== 0) return rankDiff;
-    return new Date(b.date)-new Date(a.date);
+    return byDayDesc(a, b);
   });
   const upcoming = trainings.filter(t=>t.teamId===team.id&&t.type!=="recorrente"&&!isPast(t.date)).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,2);
   const recurring = trainings.filter(t=>t.teamId===team.id&&t.type==="recorrente");
@@ -1587,7 +1607,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
         <span onClick={() => m && onSelectMember(m)} style={{ fontSize:24, flexShrink:0, cursor:"pointer" }}>{f.emoji}</span>
         <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => m && onSelectMember(m)}>
           <p style={{ margin:0, fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
-          <p style={{ margin:0, fontSize:11, color:T.sub }}>{f.date}</p>
+          <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
           <p style={{ margin:0, fontWeight:900, fontSize:16, color:f.paid?T.green:T.brand }}>{f.amount}€</p>
@@ -1602,9 +1622,9 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
   if (filter === "month") {
     // Vista por mês
     const byMonth = {};
-    [...tf].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(f => {
-      const d = new Date(f.date+"T00:00:00");
-      const key = d.toLocaleDateString("pt-PT",{month:"long",year:"numeric"}).replace(/^\w/,c=>c.toUpperCase());
+    [...tf].sort(byDayDesc).forEach(f => {
+      const day = localDay(f.date); // timestamp completo cai no mês do dia local; sem data (ou inválida) fica no fim
+      const key = day ? `${MESES_PT[+day.slice(5, 7) - 1]} de ${day.slice(0, 4)}` : "Sem data";
       if (!byMonth[key]) byMonth[key] = [];
       byMonth[key].push(f);
     });
@@ -1654,7 +1674,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
   }
 
   // Vista por membro (default)
-  const filtered = tf.filter(f=>filter==="all"||(filter==="unpaid"?!f.paid:f.paid)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const filtered = tf.filter(f=>filter==="all"||(filter==="unpaid"?!f.paid:f.paid)).sort(byDayDesc);
   const grouped = {};
   filtered.forEach(f => {
     const m = gm(f.memberId);
@@ -1932,7 +1952,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
   const spent = te.reduce((s,e)=>s+Math.abs(e.amount),0);
   const balance = income - spent;
   const gm = id => members.find(m=>m.id===id);
-  const allTx = [...tf.map(f=>({...f,type:"in",label:`Multa — ${gm(f.memberId)?.name}`})),...te.map(e=>({...e,type:"out",label:e.description}))].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const allTx = [...tf.map(f=>({...f,type:"in",label:`Multa — ${gm(f.memberId)?.name}`})),...te.map(e=>({...e,type:"out",label:e.description}))].sort(byDayDesc);
   return (
     <div style={{ padding:"14px 16px 100px" }}>
       <div style={{ background:T.card, borderRadius:20, padding:"20px 20px 16px", marginBottom:14 }}>
@@ -1953,7 +1973,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
           <div style={{ width:38, height:38, borderRadius:19, background:tx.type==="in"?`${T.green}18`:`${T.brand}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{tx.type==="in"?"⬆️":"⬇️"}</div>
           <div style={{ flex:1 }}>
             <p style={{ margin:0, fontWeight:600, fontSize:14 }}>{tx.label}</p>
-            <p style={{ margin:0, fontSize:12, color:T.sub }}>{tx.date}</p>
+            <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(tx.date)}</p>
           </div>
           <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{Math.abs(tx.amount)}€</p>
         </div>
@@ -2984,7 +3004,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
   const [adding, setAdding] = useState(false);
   const showHist = isAdmin && !!absHandlers;
   const mine = (absences || []).filter(a => a.memberId === member.id);
-  const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort(byDayDesc);
   const unpaid = pf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const paid = pf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   return (
@@ -3036,7 +3056,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
             <span style={{ fontSize:24 }}>{f.emoji}</span>
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontSize:14, fontWeight:600 }}>{f.reason}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub }}>{f.date}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(f.date)}</p>
             </div>
             <div style={{ textAlign:"right" }}>
               <p style={{ margin:0, fontWeight:800, fontSize:16, color:f.paid?T.green:T.brand }}>{f.amount}€</p>

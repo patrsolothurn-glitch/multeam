@@ -627,10 +627,33 @@ var absSeason = function absSeason(start) {
     s = mo >= 7 ? y : y - 1;
   return "".concat(s, "/").concat(String((s + 1) % 100).padStart(2, "0"));
 };
-var fmtDMY = function fmtDMY(d) {
-  var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || "");
-  return m ? "".concat(m[3], "/").concat(m[2], "/").concat(m[1]) : "—";
+var daysIn = function daysIn(y, m) {
+  return [31, y % 4 === 0 && y % 100 !== 0 || y % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
 };
+var validYMD = function validYMD(s) {
+  var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s);
+  return !!m && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= daysIn(+m[1], +m[2]);
+};
+var localDay = function localDay(v) {
+  if (v instanceof Date) return isNaN(v) ? "" : localDateStr(v);
+  var s = String(v == null ? "" : v).trim();
+  if (!s) return "";
+  if (validYMD(s)) return s;
+  var m = /^(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d)?)(?:[.,](\d+))?\s*(Z|[+-]\d\d(?::?\d\d)?)?$/i.exec(s);
+  if (!m || !validYMD(m[1])) return "";
+  var tz = !m[4] ? "" : /^z$/i.test(m[4]) ? "Z" : m[4].length === 3 ? "".concat(m[4], ":00") : m[4].includes(":") ? m[4] : "".concat(m[4].slice(0, 3), ":").concat(m[4].slice(3));
+  var d = new Date("".concat(m[1], "T").concat(m[2]).concat(m[3] ? "." + m[3].slice(0, 3).padEnd(3, "0") : "").concat(tz));
+  return isNaN(d) ? "" : localDateStr(d);
+};
+var fmtDay = function fmtDay(v) {
+  var d = localDay(v);
+  return d ? "".concat(d.slice(8), "/").concat(d.slice(5, 7), "/").concat(d.slice(0, 4)) : "Sem data";
+};
+var fmtDMY = fmtDay;
+var byDayDesc = function byDayDesc(a, b) {
+  return localDay(b.date).localeCompare(localDay(a.date));
+};
+var MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 var unavailText = function unavailText(m) {
   return "Indispon\xEDvel".concat(m.unavailableSince ? " desde ".concat(fmtDate(m.unavailableSince)) : "").concat(m.unavailableNote ? " \xB7 ".concat(m.unavailableNote) : "");
 };
@@ -4454,7 +4477,7 @@ var FineGroup = function FineGroup(_ref59) {
         fontSize: 11,
         color: T.sub
       }
-    }, f.date)), React.createElement("span", {
+    }, fmtDay(f.date))), React.createElement("span", {
       style: {
         fontSize: 13,
         fontWeight: 800,
@@ -4607,7 +4630,7 @@ var DevedorCard = function DevedorCard(_ref60) {
         fontSize: 11,
         color: isTop ? "rgba(255,255,255,0.55)" : T.sub
       }
-    }, f.date)), React.createElement("span", {
+    }, fmtDay(f.date))), React.createElement("span", {
       style: {
         fontSize: 14,
         fontWeight: 800,
@@ -4690,7 +4713,6 @@ var FineGroupHome = function FineGroupHome(_ref61) {
   }, renderFine ? group.fines.map(function (f) {
     return renderFine(f);
   }) : group.fines.map(function (f, i) {
-    var _f$date, _f$date$slice;
     return React.createElement("div", {
       key: i,
       style: {
@@ -4724,7 +4746,7 @@ var FineGroupHome = function FineGroupHome(_ref61) {
         fontSize: 11,
         color: T.sub
       }
-    }, (_f$date = f.date) === null || _f$date === void 0 || (_f$date$slice = _f$date.slice) === null || _f$date$slice === void 0 ? void 0 : _f$date$slice.call(_f$date, 5))), React.createElement("span", {
+    }, fmtDay(f.date))), React.createElement("span", {
       style: {
         fontSize: 14,
         fontWeight: 800,
@@ -4954,7 +4976,7 @@ var HomeTab = function HomeTab(_ref63) {
     var _memberRank$a$memberI, _memberRank$b$memberI;
     var rankDiff = ((_memberRank$a$memberI = memberRank[a.memberId]) !== null && _memberRank$a$memberI !== void 0 ? _memberRank$a$memberI : 99) - ((_memberRank$b$memberI = memberRank[b.memberId]) !== null && _memberRank$b$memberI !== void 0 ? _memberRank$b$memberI : 99);
     if (rankDiff !== 0) return rankDiff;
-    return new Date(b.date) - new Date(a.date);
+    return byDayDesc(a, b);
   });
   var upcoming = trainings.filter(function (t) {
     return t.teamId === team.id && t.type !== "recorrente" && !isPast(t.date);
@@ -5805,7 +5827,7 @@ var FinesTab = function FinesTab(_ref67) {
         fontSize: 11,
         color: T.sub
       }
-    }, f.date)), React.createElement("div", {
+    }, fmtDay(f.date))), React.createElement("div", {
       style: {
         display: "flex",
         flexDirection: "column",
@@ -5867,16 +5889,9 @@ var FinesTab = function FinesTab(_ref67) {
   };
   if (filter === "month") {
     var byMonth = {};
-    _toConsumableArray(tf).sort(function (a, b) {
-      return new Date(b.date) - new Date(a.date);
-    }).forEach(function (f) {
-      var d = new Date(f.date + "T00:00:00");
-      var key = d.toLocaleDateString("pt-PT", {
-        month: "long",
-        year: "numeric"
-      }).replace(/^\w/, function (c) {
-        return c.toUpperCase();
-      });
+    _toConsumableArray(tf).sort(byDayDesc).forEach(function (f) {
+      var day = localDay(f.date);
+      var key = day ? "".concat(MESES_PT[+day.slice(5, 7) - 1], " de ").concat(day.slice(0, 4)) : "Sem data";
       if (!byMonth[key]) byMonth[key] = [];
       byMonth[key].push(f);
     });
@@ -6040,9 +6055,7 @@ var FinesTab = function FinesTab(_ref67) {
   }
   var filtered = tf.filter(function (f) {
     return filter === "all" || (filter === "unpaid" ? !f.paid : f.paid);
-  }).sort(function (a, b) {
-    return new Date(b.date) - new Date(a.date);
-  });
+  }).sort(byDayDesc);
   var grouped = {};
   filtered.forEach(function (f) {
     var m = gm(f.memberId);
@@ -7155,9 +7168,7 @@ var TreasuryTab = function TreasuryTab(_ref84) {
       type: "out",
       label: e.description
     });
-  }))).sort(function (a, b) {
-    return new Date(b.date) - new Date(a.date);
-  });
+  }))).sort(byDayDesc);
   return React.createElement("div", {
     style: {
       padding: "14px 16px 100px"
@@ -7289,7 +7300,7 @@ var TreasuryTab = function TreasuryTab(_ref84) {
         fontSize: 12,
         color: T.sub
       }
-    }, tx.date)), React.createElement("p", {
+    }, fmtDay(tx.date))), React.createElement("p", {
       style: {
         margin: 0,
         fontWeight: 800,
@@ -10905,9 +10916,7 @@ var MemberDetailScreen = function MemberDetailScreen(_ref126) {
   });
   var pf = fines.filter(function (f) {
     return f.teamId === team.id && f.memberId === member.id;
-  }).sort(function (a, b) {
-    return new Date(b.date) - new Date(a.date);
-  });
+  }).sort(byDayDesc);
   var unpaid = pf.filter(function (f) {
     return !f.paid;
   }).reduce(function (s, f) {
@@ -11166,7 +11175,7 @@ var MemberDetailScreen = function MemberDetailScreen(_ref126) {
         fontSize: 12,
         color: T.sub
       }
-    }, f.date)), React.createElement("div", {
+    }, fmtDay(f.date))), React.createElement("div", {
       style: {
         textAlign: "right"
       }
