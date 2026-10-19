@@ -32,7 +32,7 @@ const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color|
 const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
-  return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, date:f.date||localDate };
+  return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, paidAt:f.paid_at||null, date:f.date||localDate };
 };
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:ft.emoji||'🟥' });
 const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
@@ -1960,6 +1960,11 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
   );
 };
 
+// valores em cêntimos inteiros nos totais por mês (sem erros de vírgula flutuante)
+const toCents = x => Math.round(Number(x) * 100);
+const eurC = c => { const a = Math.abs(c); return `${a % 100 === 0 ? a / 100 : (a / 100).toFixed(2)}€`; };
+const sgnEurC = c => `${c < 0 ? "-" : "+"}${eurC(c)}`;
+
 const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) => {
   const tf = fines.filter(f=>f.teamId===team.id&&f.paid);
   const te = expenses.filter(e=>e.teamId===team.id);
@@ -1967,7 +1972,23 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
   const spent = te.reduce((s,e)=>s+Math.abs(e.amount),0);
   const balance = income - spent;
   const gm = id => members.find(m=>m.id===id);
-  const allTx = [...tf.map(f=>({...f,type:"in",label:`Multa — ${gm(f.memberId)?.name}`})),...te.map(e=>({...e,type:"out",label:e.description}))].sort(byDayDesc);
+  // data do movimento: multas pagas pela data do pagamento (paid_at, dia local), com a data da multa como recurso; despesas pelo dia local
+  const allTx = [...tf.map(f=>({...f,type:"in",label:`Multa — ${gm(f.memberId)?.name}`,day:localDay(f.paidAt)||localDay(f.date)})),...te.map(e=>({...e,type:"out",label:e.description,day:localDay(e.date)}))].sort((a,b)=>b.day.localeCompare(a.day));
+  // agrupar por mês (AAAA-MM); sem data (ou inválida) fica num grupo à parte, no fim
+  const months = [];
+  const at = {};
+  allTx.forEach(tx => {
+    const key = tx.day ? tx.day.slice(0, 7) : "";
+    if (!(key in at)) { at[key] = months.length; months.push({ key, txs:[], inC:0, outC:0 }); }
+    const g = months[at[key]];
+    g.txs.push(tx);
+    if (tx.type === "in") g.inC += toCents(tx.amount); else g.outC += toCents(Math.abs(tx.amount));
+  });
+  // mês atual aberto, os outros (e os futuros) fechados; a escolha do utilizador fica guardada por mês e não muda com os dados
+  const currentKey = todayLocal().slice(0, 7);
+  const [monthOpen, setMonthOpen] = useState({});
+  const isOpen = key => (key in monthOpen) ? monthOpen[key] : (key !== "" && key === currentKey);
+  const monthTitle = key => key ? `${MESES_PT[+key.slice(5, 7) - 1]} ${key.slice(0, 4)}` : "Sem data";
   return (
     <div style={{ padding:"14px 16px 100px" }}>
       <div style={{ background:T.card, borderRadius:20, padding:"20px 20px 16px", marginBottom:14 }}>
@@ -1983,16 +2004,33 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense }) 
         <button onClick={onAddExpense} style={{ width:"100%", background:T.navy, color:"#fff", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:800, cursor:"pointer", marginBottom:20, fontFamily:"inherit" }}>+ Registar despesa</button>
       )}
       <Sec label={`Movimentos (${allTx.length})`} />
-      {allTx.map((tx,i) => (
-        <div key={i} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:7, display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:38, height:38, borderRadius:19, background:tx.type==="in"?`${T.green}18`:`${T.brand}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{tx.type==="in"?"⬆️":"⬇️"}</div>
-          <div style={{ flex:1 }}>
-            <p style={{ margin:0, fontWeight:600, fontSize:14 }}>{tx.label}</p>
-            <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(tx.date)}</p>
+      {months.map(g => {
+        const open = isOpen(g.key);
+        const net = g.inC - g.outC;
+        return (
+          <div key={g.key || "none"} data-month={g.key || "none"} style={{ marginBottom:10 }}>
+            <button onClick={() => setMonthOpen(p => ({ ...p, [g.key]: !open }))} aria-expanded={open}
+              style={{ display:"flex", alignItems:"center", gap:10, width:"100%", minHeight:44, padding:"8px 12px", background:T.card, border:"none", borderRadius:12, cursor:"pointer", fontFamily:"inherit", textAlign:"left", marginBottom:open?7:0 }}>
+              <span aria-hidden="true" style={{ fontSize:12, color:T.sub, width:14, flexShrink:0 }}>{open ? "▼" : "▶"}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:0, fontWeight:800, fontSize:15 }}>{monthTitle(g.key)}</p>
+                <p style={{ margin:0, fontSize:12, color:T.sub }}>{plural(g.txs.length, "movimento", "movimentos")} · <span style={{ color:T.green }}>{sgnEurC(g.inC)}</span> · <span style={{ color:T.brand }}>{sgnEurC(-g.outC)}</span></p>
+              </div>
+              <span style={{ fontWeight:800, fontSize:15, color:net>=0?T.green:T.brand, flexShrink:0 }}>{sgnEurC(net)}</span>
+            </button>
+            {open && g.txs.map((tx,i) => (
+              <div key={i} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:7, display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:38, height:38, borderRadius:19, background:tx.type==="in"?`${T.green}18`:`${T.brand}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{tx.type==="in"?"⬆️":"⬇️"}</div>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:0, fontWeight:600, fontSize:14 }}>{tx.label}</p>
+                  <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(tx.day)}</p>
+                </div>
+                <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{Math.abs(tx.amount)}€</p>
+              </div>
+            ))}
           </div>
-          <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{Math.abs(tx.amount)}€</p>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
