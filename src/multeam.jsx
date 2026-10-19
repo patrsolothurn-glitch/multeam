@@ -40,6 +40,8 @@ const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.ki
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:(() => { const d = e.created_at ? new Date(e.created_at) : null; return d && !isNaN(d) ? localDateStr(d) : ''; })() });
 const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], createdBy:t.created_by });
 
+const aAbsence = a => ({ id:a.id, teamId:a.team_id, memberId:a.member_id||null, memberName:a.member_name||'Jogador', kind:a.kind==='ausencia'?'ausencia':'lesao', emoji:a.emoji||'🤕', note:a.note||'', start:a.start_date||'', end:a.end_date||null });
+
 const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -59,6 +61,23 @@ const fmtDM = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m 
 const realPosition = p => { const t = (p || "").trim(); return t && t.toLowerCase() !== "jogador" ? t : ""; };
 // "1 membro" / "2 membros" (0 fica no plural)
 const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
+// ── LESÕES E AUSÊNCIAS (tabela member_absences; escritas só pelas funções absence_*) ──
+const ABS_KINDS = { lesao:{ one:"lesão", many:"lesões", label:"Lesão" }, ausencia:{ one:"ausência", many:"ausências", label:"Ausência" } };
+// chamada a uma função SQL; devolve o JSON ou lança com a mensagem da base de dados
+const rpcCall = async (fn, body, tok) => {
+  const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method:'POST', headers:api.h(tok), body:JSON.stringify(body) });
+  let j = null;
+  try { j = await r.json(); } catch(e) { j = null; }
+  if (!r.ok) throw new Error((j && j.message) || `Erro ${r.status}`);
+  return j;
+};
+// "YYYY-MM-DD" -> dias do calendário (UTC só como contador, sem fuso)
+const dayNum = s => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(s || ""); return m ? Date.UTC(+m[1], +m[2]-1, +m[3]) / 86400000 : NaN; };
+// duração em dias, contando o primeiro e o último; em curso conta até hoje; nunca menos de 1
+const absDays = a => { const n = dayNum(a.end || todayLocal()) - dayNum(a.start) + 1; return isNaN(n) ? 0 : Math.max(1, n); };
+// época de 1 de julho a 30 de junho, a partir da data de início: "2025/26"
+const absSeason = start => { const m = /^(\d{4})-(\d\d)/.exec(start || ""); if (!m) return ""; const y = +m[1], mo = +m[2], s = mo >= 7 ? y : y - 1; return `${s}/${String((s + 1) % 100).padStart(2, "0")}`; };
+const fmtDMY = d => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(d || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : "—"; };
 const unavailText = m => `Indisponível${m.unavailableSince ? ` desde ${fmtDate(m.unavailableSince)}` : ""}${m.unavailableNote ? ` · ${m.unavailableNote}` : ""}`;
 const fmtDate = d => { if (!d) return "—"; const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("pt-PT", { day:"2-digit", month:"long", year:"numeric" }); };
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2522,6 +2541,140 @@ const TeamDataSection = ({ team, onSave }) => {
   );
 };
 
+// Caixa para criar/editar um registo. A nota (sem espaços nas pontas) é obrigatória: sem ela Guardar fica desativado e nada é escrito.
+// onSave devolve true se a escrita foi confirmada; só então a caixa fecha (se falhar, fica aberta com o que foi escrito).
+const AbsenceForm = ({ title, initial, withEnd, saveLabel, onSave, onClose, color }) => {
+  const [kind, setKind] = useState(initial.kind || "lesao");
+  const [emoji, setEmoji] = useState(initial.emoji || "🤕");
+  const [note, setNote] = useState(initial.note || "");
+  const [start, setStart] = useState(initial.start || todayLocal());
+  const [end, setEnd] = useState(initial.end || "");
+  const [busy, setBusy] = useState(false);
+  const lock = React.useRef(false);
+  const noteOk = note.trim() !== "";
+  const datesOk = !!start && (!withEnd || (!!end && end >= start));
+  const save = async () => {
+    if (lock.current || !noteOk || !datesOk) return;
+    lock.current = true; setBusy(true);
+    let ok = false;
+    try { ok = await onSave({ kind, emoji, note: note.trim(), start, end: withEnd ? end : null }); }
+    finally { lock.current = false; setBusy(false); }
+    if (ok) onClose();
+  };
+  return (
+    <Sheet title={title} onClose={busy ? ()=>{} : onClose}>
+      <FL>Tipo</FL>
+      <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+        {Object.entries(ABS_KINDS).map(([k, v]) => (
+          <button key={k} onClick={()=>setKind(k)} aria-pressed={kind===k} style={{ flex:1, padding:"10px", borderRadius:10, border:`2px solid ${kind===k?T.green:T.border}`, background:kind===k?`${T.green}15`:"transparent", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>{v.label}</button>
+        ))}
+      </div>
+      <FL>Ícone</FL>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
+        {UNAVAIL_EMOJIS.map(e => (
+          <button key={e} onClick={()=>setEmoji(e)} aria-label={`Ícone ${e}`} style={{ fontSize:18, width:34, height:34, borderRadius:8, border:`2px solid ${emoji===e?T.green:T.border}`, background:emoji===e?`${T.green}15`:"transparent", cursor:"pointer" }}>{e}</button>
+        ))}
+      </div>
+      <FL>Nota (obrigatória)</FL>
+      <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="O que se passa? (ex: ligamentos, volta em novembro)" style={{ marginBottom:noteOk?14:4 }} />
+      {!noteOk && <p style={{ margin:"0 0 14px", fontSize:12, color:T.brand }}>Escreve uma nota para poder guardar.</p>}
+      <FL>Desde</FL>
+      <FI type="date" value={start} onChange={e=>setStart(e.target.value)} />
+      {withEnd && <>
+        <FL>Até</FL>
+        <FI type="date" value={end} onChange={e=>setEnd(e.target.value)} />
+        {end && start && end < start && <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.brand }}>A data de fim não pode ser anterior ao início.</p>}
+      </>}
+      <PrimaryBtn onClick={save} disabled={!noteOk || !datesOk || busy} color={color || T.green}>{busy ? "A guardar…" : (saveLabel || "Guardar")}</PrimaryBtn>
+      <button onClick={onClose} disabled={busy} style={{ display:"block", width:"100%", marginTop:10, padding:"10px", background:"transparent", border:"none", color:T.sub, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+    </Sheet>
+  );
+};
+
+// "Fechar a lesão de Rui?" — só fecha (com data de fim = hoje) depois de confirmar
+const CloseAbsenceSheet = ({ name, kind, onConfirm, onCancel }) => {
+  const [busy, setBusy] = useState(false);
+  const lock = React.useRef(false);
+  const go = async () => {
+    if (lock.current) return;
+    lock.current = true; setBusy(true);
+    let ok = false;
+    try { ok = await onConfirm(); } finally { lock.current = false; setBusy(false); }
+    if (ok) onCancel();
+  };
+  return (
+    <Sheet title={`Fechar a ${(ABS_KINDS[kind] || ABS_KINDS.lesao).one} de ${name}?`} onClose={busy ? ()=>{} : onCancel}>
+      <p style={{ margin:"0 0 16px", fontSize:14, color:T.sub }}>O registo fica no histórico com data de fim hoje ({fmtDMY(todayLocal())}).</p>
+      <PrimaryBtn onClick={go} disabled={busy} color={T.green}>{busy ? "A fechar…" : "Fechar"}</PrimaryBtn>
+      <button onClick={onCancel} disabled={busy} style={{ display:"block", width:"100%", marginTop:10, padding:"10px", background:"transparent", border:"none", color:T.sub, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+    </Sheet>
+  );
+};
+
+// lista de registos (do mais recente para o mais antigo) com editar, fechar (se em curso) e apagar
+const AbsenceCards = ({ records, showName, color, onUpdate, onClose, onDelete, emptyText }) => {
+  const [editing, setEditing] = useState(null);
+  const [closing, setClosing] = useState(null);
+  const sorted = [...records].sort((a, b) => (b.start || "").localeCompare(a.start || "") || (b.end === null) - (a.end === null));
+  if (!sorted.length) return <p style={{ textAlign:"center", color:T.sub, padding:24 }}>{emptyText || "Sem registos"}</p>;
+  const btn = { padding:"4px 8px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.sub, fontSize:12, cursor:"pointer", fontFamily:"inherit" };
+  return (
+    <>
+      {sorted.map(a => {
+        const k = ABS_KINDS[a.kind];
+        const d = absDays(a);
+        return (
+          <div key={a.id} data-absence={a.id} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8, borderLeft:`3px solid ${a.end ? T.border : T.brand}` }}>
+            <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+              <span style={{ fontSize:22 }}>{a.emoji}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:0, fontSize:14, fontWeight:700, wordBreak:"break-word" }}>{showName ? `${a.memberName}${a.memberId ? "" : " (removido)"} · ` : ""}{k.label}{a.end ? "" : " · em curso"}</p>
+                <p style={{ margin:"2px 0 0", fontSize:13, wordBreak:"break-word" }}>{a.note}</p>
+                <p style={{ margin:"2px 0 0", fontSize:12, color:T.sub }}>{fmtDMY(a.start)}{a.end ? ` – ${fmtDMY(a.end)}` : " – hoje"} · {plural(d, "dia", "dias")}</p>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:6, marginTop:8, justifyContent:"flex-end", flexWrap:"wrap" }}>
+              {!a.end && a.memberId && <button onClick={()=>setClosing(a)} style={btn}>Fechar</button>}
+              <button onClick={()=>setEditing(a)} aria-label="Editar registo" style={btn}>✏️ Editar</button>
+              <button onClick={()=>{ if (window.confirm(`Apagar este registo de ${a.memberName}? Não tem volta.`)) onDelete(a); }} aria-label="Apagar registo" style={btn}>🗑️</button>
+            </div>
+          </div>
+        );
+      })}
+      {editing && <AbsenceForm title={`Editar ${ABS_KINDS[editing.kind].one}`} initial={editing} withEnd={!!editing.end} color={color} onSave={v => onUpdate(editing, v)} onClose={()=>setEditing(null)} />}
+      {closing && <CloseAbsenceSheet name={closing.memberName} kind={closing.kind} onConfirm={()=>onClose(closing)} onCancel={()=>setClosing(null)} />}
+    </>
+  );
+};
+
+// Gerir > Arquivo: todos os registos da equipa, com filtros por jogador, tipo e época
+const AbsenceArchive = ({ team, absences = [], onUpdate, onClose, onDelete }) => {
+  const [fPlayer, setFPlayer] = useState("");
+  const [fKind, setFKind] = useState("");
+  const [fSeason, setFSeason] = useState("");
+  if (absences === null) return <p style={{ color:T.brand, fontSize:13 }}>Não foi possível carregar o arquivo. Puxa para atualizar.</p>;
+  const pkey = a => a.memberId || `n:${a.memberName}`;
+  const players = []; const seen = new Set();
+  absences.forEach(a => { if (!seen.has(pkey(a))) { seen.add(pkey(a)); players.push([pkey(a), a.memberName + (a.memberId ? "" : " (removido)")]); } });
+  players.sort((x, y) => x[1].localeCompare(y[1], "pt"));
+  const seasons = [...new Set(absences.map(a => absSeason(a.start)).filter(Boolean))].sort().reverse();
+  const shown = absences.filter(a => (!fPlayer || pkey(a) === fPlayer) && (!fKind || a.kind === fKind) && (!fSeason || absSeason(a.start) === fSeason));
+  const nL = shown.filter(a => a.kind === "lesao").length, nA = shown.filter(a => a.kind === "ausencia").length;
+  return (
+    <div data-testid="absence-archive">
+      {absences.length > 0 && <>
+        <FSel value={fPlayer} onChange={e=>setFPlayer(e.target.value)}><option value="">Todos os jogadores</option>{players.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</FSel>
+        <div style={{ display:"flex", gap:8 }}>
+          <div style={{ flex:1 }}><FSel value={fKind} onChange={e=>setFKind(e.target.value)}><option value="">Todos os tipos</option><option value="lesao">Lesões</option><option value="ausencia">Ausências</option></FSel></div>
+          <div style={{ flex:1 }}><FSel value={fSeason} onChange={e=>setFSeason(e.target.value)}><option value="">Todas as épocas</option>{seasons.map(s => <option key={s} value={s}>{s}</option>)}</FSel></div>
+        </div>
+        <p style={{ margin:"-4px 0 10px", fontSize:12, color:T.sub }}>{plural(shown.length, "registo", "registos")} · {plural(nL, "lesão", "lesões")} · {plural(nA, "ausência", "ausências")}</p>
+      </>}
+      <AbsenceCards records={shown} showName color={team.color} onUpdate={onUpdate} onClose={onClose} onDelete={onDelete} emptyText={absences.length ? "Nenhum registo com estes filtros" : "Ainda sem lesões nem ausências registadas"} />
+    </div>
+  );
+};
+
 const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
   const [counts, setCounts] = useState(null); // null = a carregar; valor null = indisponível
   const [text, setText] = useState("");
@@ -2530,7 +2683,8 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
   useEffect(() => {
     let alive = true;
     const n = tbl => api.get(`${tbl}?team_id=eq.${team.id}&select=id`, token).then(r => r.length).catch(() => null);
-    Promise.all([n("team_members"), n("fines"), n("trainings"), n("cards"), n("expenses")]).then(c => { if (alive) setCounts(c); });
+    const abs = api.get(`member_absences?team_id=eq.${team.id}&select=kind`, token).then(r => [r.filter(x => x.kind === "lesao").length, r.filter(x => x.kind === "ausencia").length]).catch(() => [null, null]);
+    Promise.all([n("team_members"), n("fines"), n("trainings"), n("cards"), n("expenses"), abs]).then(([a, b, c, d, e, [l, au]]) => { if (alive) setCounts([a, b, c, d, e, l, au]); });
     return () => { alive = false; };
   }, [team.id]);
   const v = i => counts === null ? "…" : (counts[i] === null ? "?" : counts[i]);
@@ -2547,7 +2701,7 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
     <Sheet title={`Apagar ${team.name}?`} onClose={busy ? ()=>{} : onClose}>
       <div style={{ background:"#FFF5F5", border:"1px solid #FFD0D0", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
         <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>Perde-se tudo:</p>
-        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{q(0,"membro","membros")} · {q(1,"multa","multas")} · {q(2,"treino","treinos")} · {q(3,"cartão","cartões")} · {q(4,"despesa","despesas")}</p>
+        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{q(0,"membro","membros")} · {q(1,"multa","multas")} · {q(2,"treino","treinos")} · {q(3,"cartão","cartões")} · {q(4,"despesa","despesas")} · {q(5,"lesão","lesões")} · {q(6,"ausência","ausências")}</p>
       </div>
       <p style={{ margin:"0 0 12px", fontSize:14 }}>Isto não tem volta. Escreve o nome da equipa para confirmar.</p>
       <FI value={text} onChange={e=>setText(e.target.value)} placeholder={team.name} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
@@ -2560,60 +2714,48 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
   );
 };
 
-const UnavailableControl = ({ m, onSet }) => {
-  const [editing, setEditing] = useState(false); // zona de edição aberta (ícones, nota, Guardar)
-  const [note, setNote] = useState(m.unavailableNote || "");
-  const [emoji, setEmoji] = useState(m.unavailableEmoji || "🤕");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const on = m.unavailable || editing;
-  const run = async (fn) => { setBusy(true); setErr(""); try { await fn(); } catch(e) { setErr(e.message || "Erro ao guardar"); } setBusy(false); };
+// Interruptor "Indisponível". Ligar abre uma caixa (tipo, ícone, nota obrigatória) e o interruptor só liga depois de a escrita ser confirmada;
+// desligar pede confirmação. Todas as escritas passam por onOpen/onClose/onUpdate/onLegacy (funções absence_* na base de dados).
+const UnavailableControl = ({ m, record, color, onOpen, onClose, onUpdate, onLegacy }) => {
+  const [box, setBox] = useState(null); // "open" | "close" | "edit" | "legacy-close" | "legacy-fill"
+  const on = m.unavailable;
   const flip = () => {
-    if (busy) return;
-    if (m.unavailable) run(async () => { await onSet(m.id, false, "", ""); setNote(""); setEmoji("🤕"); });
-    else setEditing(d => !d);
+    if (box) return;
+    if (!on) setBox("open");
+    else setBox(record ? "close" : "legacy-close");
   };
-  const openEdit = () => { setNote(m.unavailableNote || ""); setEmoji(m.unavailableEmoji || "🤕"); setErr(""); setEditing(true); };
-  // só fecha se a gravação correr bem; se falhar, a zona fica aberta com o texto como está
-  const save = () => run(async () => { await onSet(m.id, true, emoji, note); setEditing(false); });
+  const done = () => setBox(null);
+  const cur = record || { kind:"lesao", emoji:m.unavailableEmoji, note:m.unavailableNote, start:m.unavailableSince };
   return (
     <div style={{ marginBottom:12 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span style={{ fontSize:14, fontWeight:600 }}>{m.unavailableEmoji||"🤕"} Indisponível</span>
-        <button onClick={flip} disabled={busy} role="switch" aria-checked={on} style={{ width:46, height:26, borderRadius:13, border:"none", background:on?T.green:T.border, position:"relative", cursor:"pointer", padding:0 }}>
+        <button onClick={flip} role="switch" aria-checked={on} aria-label="Indisponível" style={{ width:46, height:26, borderRadius:13, border:"none", background:on?T.green:T.border, position:"relative", cursor:"pointer", padding:0 }}>
           <span style={{ position:"absolute", top:3, left:on?23:3, width:20, height:20, borderRadius:10, background:"#fff", transition:"left 0.15s" }} />
         </button>
       </div>
-      {m.unavailable && !editing && (
+      {on && (
         <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {m.unavailableNote || "Sem nota"}</p>
-          <button onClick={openEdit} disabled={busy} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"4px 8px", fontSize:12, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>✏️ Alterar</button>
+          <p style={{ margin:0, flex:1, fontSize:12, color:T.sub }}>{m.unavailableEmoji||"🤕"} {m.unavailableNote || "Sem nota — escreve uma para poder desligar"}</p>
+          <button onClick={()=>setBox(record ? "edit" : "legacy-fill")} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"4px 8px", fontSize:12, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>✏️ Alterar</button>
         </div>
       )}
-      {editing && (
-        <div style={{ marginTop:10 }}>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-            {UNAVAIL_EMOJIS.map(e => (
-              <button key={e} onClick={()=>setEmoji(e)} style={{ fontSize:18, width:34, height:34, borderRadius:8, border:`2px solid ${emoji===e?T.green:T.border}`, background:emoji===e?`${T.green}15`:"transparent", cursor:"pointer" }}>{e}</button>
-            ))}
-          </div>
-          <FI value={note} onChange={e=>setNote(e.target.value)} placeholder="O que se passa? (ex: ligamentos, volta em novembro)" />
-          <button onClick={save} disabled={busy} style={{ width:"100%", padding:"10px", borderRadius:10, border:`1.5px solid ${T.green}`, background:`${T.green}12`, color:T.green, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{busy?"A guardar…":"Guardar"}</button>
-          {m.unavailable && <button onClick={()=>{ setEditing(false); setErr(""); }} disabled={busy} style={{ display:"block", width:"100%", marginTop:6, padding:"8px", background:"transparent", border:"none", color:T.sub, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>}
-        </div>
-      )}
-      {err && <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:600, color:T.brand }}>{err}</p>}
+      {box === "open" && <AbsenceForm title={`${m.name} está indisponível?`} initial={{ kind:"lesao", emoji:"🤕", note:"", start:todayLocal() }} color={color} onSave={v => onOpen(m.id, v)} onClose={done} />}
+      {box === "edit" && record && <AbsenceForm title={`Alterar ${(ABS_KINDS[cur.kind]||ABS_KINDS.lesao).one}`} initial={cur} color={color} onSave={v => onUpdate(record, v)} onClose={done} />}
+      {box === "legacy-fill" && <AbsenceForm title="Alterar indisponibilidade" initial={cur} color={color} onSave={v => onLegacy(m, v, false)} onClose={done} />}
+      {box === "legacy-close" && <AbsenceForm title={`Fechar a indisponibilidade de ${m.name}`} initial={cur} saveLabel="Guardar e fechar" color={color} onSave={v => onLegacy(m, v, true)} onClose={done} />}
+      {box === "close" && record && <CloseAbsenceSheet name={m.name} kind={record.kind} onConfirm={() => onClose(record)} onCancel={done} />}
     </div>
   );
 };
 
-const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, onSetUnavailable, setFineTypes }) => {
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [showDelete, setShowDelete] = useState(false);
   const isCreator = team.createdBy === myUserId;
   const myRoleHere = (tm.find(x=>x.userId===myUserId)||{}).role;
   // só admin: a política de escrita de team_members é is_admin_of(team_id)
-  const canMarkUnavailable = !!onSetUnavailable && myRoleHere==="admin";
+  const canMarkUnavailable = !!absHandlers && myRoleHere==="admin";
   const canEditTeam = tm.some(m=>m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId;
   const admins = tm.filter(m=>m.role==="admin");
   // a regra team_members_role_check da base de dados só aceita 'admin' e 'player':
@@ -2689,7 +2831,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
                 <p style={{ margin:0, fontSize:13, color:T.sub, fontStyle:"italic" }}>Sem informações adicionais</p>
               )}
             </div>
-            {canMarkUnavailable && <UnavailableControl m={m} onSet={onSetUnavailable} />}
+            {canMarkUnavailable && <UnavailableControl m={m} record={(absences||[]).find(a => a.memberId===m.id && !a.end)} color={team.color} onOpen={absHandlers.open} onClose={absHandlers.close} onUpdate={absHandlers.update} onLegacy={absHandlers.legacy} />}
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
               <button onClick={() => { setEditingMember(m); setExpandedMember(null); }} style={{ flex:1, padding:"10px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 ✏️ Editar
@@ -2767,7 +2909,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               <p style={{ margin:gi===0?"0 0 8px":"16px 0 8px", fontSize:11, fontWeight:700, color:g.color, textTransform:"uppercase", letterSpacing:0.5, display:"flex", alignItems:"center", gap:5 }}>
                 {g.role==="admin" ? <ShieldIcon size={11} color={g.color} /> : <PersonIcon size={11} color={g.color} />} {g.title} ({g.list.length}){unav>0 && ` · ${unav} ${unav===1?"indisponível":"indisponíveis"}`}
               </p>
-              {g.list.map(m=><Row key={m.id} m={m}/>)}
+              {g.list.map(m=><React.Fragment key={m.id}>{Row({ m })}</React.Fragment>)}
             </React.Fragment>
           );
         })}
@@ -2775,6 +2917,12 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         {/* Fine Types Management */}
         <Sec label="Tipos de multa" />
         <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} onUpdated={(id, data) => setFineTypes(p=>p.map(x=>x.id===id?{...x,...(typeof data==="object"?data:{emoji:data})}:x))} token={token} />
+
+        {/* Arquivo de lesões e ausências — só admin (a política da tabela só deixa admins ler e escrever) */}
+        {canMarkUnavailable && <>
+          <Sec label="Arquivo de lesões e ausências" />
+          <AbsenceArchive team={team} absences={absences} onUpdate={absHandlers.update} onClose={absHandlers.close} onDelete={absHandlers.del} />
+        </>}
 
         {/* Danger zone — só o criador (política DELETE: created_by = auth.uid()) */}
         {isCreator && <div style={{ marginTop:32, padding:"16px", background:"#FFF5F5", borderRadius:14, border:"1px solid #FFD0D0" }}>
@@ -2816,7 +2964,11 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   );
 };
 
-const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin }) => {
+const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin, absences, absHandlers }) => {
+  const [ptab, setPtab] = useState("multas");
+  const [adding, setAdding] = useState(false);
+  const showHist = isAdmin && !!absHandlers;
+  const mine = (absences || []).filter(a => a.memberId === member.id);
   const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const unpaid = pf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const paid = pf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
@@ -2839,6 +2991,29 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
       </div>
       <div style={{ padding:"16px 16px 100px" }}>
         {member.unavailable && <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"10px 12px", marginBottom:14, fontSize:13, color:T.sub }}>{member.unavailableEmoji||"🤕"} {unavailText(member)}</div>}
+        {showHist && (
+          <div role="tablist" style={{ display:"flex", gap:8, marginBottom:6 }}>
+            {[["multas","Multas"],["historico","Histórico"]].map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={ptab===k} onClick={()=>setPtab(k)} style={{ flex:1, padding:"9px", borderRadius:10, border:`1.5px solid ${ptab===k?team.color:T.border}`, background:ptab===k?`${team.color}15`:"transparent", color:ptab===k?team.color:T.sub, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+            ))}
+          </div>
+        )}
+        {showHist && ptab==="historico" && (
+          <div data-testid="member-history">
+            <Sec label="Histórico de lesões e ausências" />
+            {absences === null
+              ? <p style={{ color:T.brand, fontSize:13 }}>Não foi possível carregar o histórico. Puxa para atualizar.</p>
+              : <>
+                  <p style={{ margin:"0 0 10px", fontSize:12, color:T.sub }}>{plural(mine.length, "registo", "registos")} · {plural(mine.filter(a=>a.kind==="lesao").length, "lesão", "lesões")} · {plural(mine.filter(a=>a.kind==="ausencia").length, "ausência", "ausências")}</p>
+                  <AbsenceCards records={mine} color={team.color} onUpdate={absHandlers.update} onClose={absHandlers.close} onDelete={absHandlers.del} emptyText="Sem lesões nem ausências registadas" />
+                  {!member.unavailable
+                    ? <button onClick={()=>setAdding(true)} style={{ width:"100%", padding:"11px", borderRadius:10, border:`1.5px dashed ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>+ Adicionar registo passado</button>
+                    : <p style={{ fontSize:12, color:T.sub, textAlign:"center" }}>Para adicionar um registo passado, fecha primeiro a indisponibilidade atual.</p>}
+                  {adding && <AbsenceForm title="Registo passado" initial={{ kind:"lesao", emoji:"🤕", note:"", start:todayLocal(), end:todayLocal() }} withEnd color={team.color} onSave={v => absHandlers.addPast(member.id, v)} onClose={()=>setAdding(false)} />}
+                </>}
+          </div>
+        )}
+        {(!showHist || ptab==="multas") && <>
         <Sec label="Histórico de multas" />
         {pf.length===0 && <p style={{ textAlign:"center", color:T.sub, padding:32 }}>Sem multas 🎉</p>}
         {pf.map(f => (
@@ -2861,6 +3036,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
             </div>
           </div>
         ))}
+        </>}
       </div>
     </div>
   );
@@ -3245,6 +3421,7 @@ export default function App() {
   const [editingCard, setEditingCard] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [trainings, setTrainings] = useState([]);
+  const [absences, setAbsences] = useState([]); // null = não foi possível carregar (só admins leem a tabela)
   const [presences, setPresences] = useState({});
   const [teamId, setTeamId]     = useState(null);
   const [tab, setTab]           = useState("home");
@@ -3264,7 +3441,7 @@ export default function App() {
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
-    const [mRaw, ftData, fData, eData, tData, pData, cData] = await Promise.all([
+    const [mRaw, ftData, fData, eData, tData, pData, cData, aData] = await Promise.all([
       api.get(`team_members?team_id=eq.${tid}&select=*`, tok),
       api.get(`fine_types?team_id=eq.${tid}&order=amount.asc`, tok),
       api.get(`fines?team_id=eq.${tid}&order=created_at.desc`, tok),
@@ -3272,6 +3449,7 @@ export default function App() {
       api.get(`trainings?team_id=eq.${tid}&order=date.asc,time.asc`, tok),
       api.get(`presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.${tid}`, tok).catch(()=>[]),
       api.get(`cards?team_id=eq.${tid}&order=match_date.desc,created_at.desc`, tok).catch(()=>[]),
+      api.get(`member_absences?team_id=eq.${tid}&order=start_date.desc,created_at.desc`, tok).catch(()=>null),
     ]);
     // Fetch profiles via SECURITY DEFINER RPC (bypasses RLS - todos os membros podem ver)
     let profilesMap = {};
@@ -3300,7 +3478,7 @@ export default function App() {
       if (!presMap[p.training_id]) presMap[p.training_id] = {};
       presMap[p.training_id][p.member_id] = p.status;
     });
-    return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, cards:(Array.isArray(cData)?cData:[]).map(aCard) };
+    return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:Array.isArray(aData)?aData.map(aAbsence):null, cards:(Array.isArray(cData)?cData:[]).map(aCard) };
   };
 
   // Init app after login
@@ -3349,7 +3527,7 @@ export default function App() {
       const td = await loadTeam(tok, first);
       setMembers(td.members); setFineTypes(td.fineTypes);
       setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
-      setTrainings(td.trainings); setPresences(td.presences);
+      setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
       setAppReady(true);
     } catch(e) { setAuthError(`Erro: ${e.message}`); }
     finally { setLoading(false); }
@@ -3362,7 +3540,7 @@ export default function App() {
       const td = await loadTeam(token, id);
       setMembers(td.members); setFineTypes(td.fineTypes);
       setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
-      setTrainings(td.trainings); setPresences(td.presences);
+      setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
     } catch(e) { console.error(e); }
     setLoading(false);
   };
@@ -3375,7 +3553,7 @@ export default function App() {
       const td = await loadTeam(token, teamId);
       setMembers(td.members); setFineTypes(td.fineTypes);
       setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
-      setTrainings(td.trainings); setPresences(td.presences);
+      setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
     } catch(e) { console.error(e); }
     setRefreshing(false);
   }, [token, teamId, refreshing]);
@@ -3417,7 +3595,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => { setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setTeamId(null); setAppReady(false); setTab("home"); };
+  const handleLogout = () => { setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
 
   // Data actions
   const addFine = async d => {
@@ -3591,20 +3769,105 @@ export default function App() {
     const still = await api.get(`team_members?id=eq.${id}&select=id`, token);
     if (still.length) throw new Error("Não foi possível remover (sem permissão?)");
     setMembers(p => p.filter(x => x.id !== id));
+    // o trigger da base de dados fechou os registos abertos do jogador e o member_id passou a nulo: reler (não bloqueia)
+    if (m) api.get(`member_absences?team_id=eq.${m.teamId}&order=start_date.desc,created_at.desc`, token).then(r => setAbsences(r.map(aAbsence))).catch(e => console.warn('absences reload failed:', e));
     showToast(`${m ? m.name : "Membro"} removido da equipa`, T.navy);
   };
-  // id = id da linha de team_members (NUNCA o userId)
-  const setUnavailable = async (memberId, isUnavailable, emoji, note) => {
-    const m = members.find(x => x.id === memberId);
-    if (!m) throw new Error("Membro não encontrado");
-    const patch = isUnavailable
-      ? { unavailable:true, unavailable_emoji:emoji||'🤕', unavailable_note:(note||"").trim()||null, unavailable_since:(m.unavailable && m.unavailableSince) || todayLocal() }
-      : { unavailable:false, unavailable_emoji:null, unavailable_note:null, unavailable_since:null };
-    const res = await api.patch(`team_members?id=eq.${memberId}`, patch, token);
-    if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
-    setMembers(p => p.map(x => x.id === memberId ? { ...x, unavailable:patch.unavailable, unavailableEmoji:patch.unavailable_emoji||'🤕', unavailableNote:patch.unavailable_note||'', unavailableSince:patch.unavailable_since||'' } : x));
-    if (isUnavailable) showToast(`${m.name} marcado como indisponível`, T.navy);
+  // ── Lesões e ausências ──
+  // Todas as escritas passam pelas funções absence_open/close/update/delete (atómicas, só admin); nunca PATCH direto a team_members.
+  // Cada handler devolve true só depois de a resposta confirmar a escrita; se falhar, toast vermelho e o ecrã fica como estava.
+  const absLock = React.useRef(new Set());
+  const guarded = async (key, fn) => {
+    if (absLock.current.has(key)) return false; // toque repetido enquanto a primeira escrita não terminou
+    absLock.current.add(key);
+    try { return await fn(); } finally { absLock.current.delete(key); }
   };
+  const setMemberUnavail = (memberId, a) => setMembers(p => p.map(x => x.id !== memberId ? x : (a
+    ? { ...x, unavailable:true, unavailableEmoji:a.emoji, unavailableNote:a.note, unavailableSince:a.start }
+    : { ...x, unavailable:false, unavailableEmoji:'🤕', unavailableNote:'', unavailableSince:'' })));
+  const absRow = (res) => { if (!res || !res.id) throw new Error("sem permissão, ou resposta vazia"); return aAbsence(res); };
+  const needNote = v => { if (!v || !String(v.note || "").trim()) throw new Error("a nota é obrigatória"); };
+  const absPut = a => setAbsences(p => Array.isArray(p) ? (p.some(x => x.id === a.id) ? p.map(x => x.id === a.id ? a : x) : [a, ...p]) : p);
+  const callOpen = async (memberId, v) => absRow(await rpcCall('absence_open', { p_member_id:memberId, p_kind:v.kind, p_emoji:v.emoji, p_note:v.note.trim(), p_start:v.start }, token));
+  const callClose = async (a, end) => absRow(await rpcCall('absence_close', { p_absence_id:a.id, p_end:(end && end >= a.start) ? end : a.start }, token));
+  const absOpen = (memberId, v) => guarded(`m:${memberId}`, async () => {
+    const m = members.find(x => x.id === memberId);
+    try {
+      needNote(v);
+      const a = await callOpen(memberId, v);
+      absPut(a); setMemberUnavail(memberId, a);
+      showToast(`${m ? m.name : "Jogador"} marcado como indisponível`, T.navy);
+      return true;
+    } catch(e) { writeFailed("guardar a lesão/ausência", e); return false; }
+  });
+  const absClose = a => guarded(`a:${a.id}`, async () => {
+    try {
+      const r = await callClose(a, todayLocal());
+      absPut(r); if (r.memberId) setMemberUnavail(r.memberId, null);
+      showToast(`${a.memberName}: ${ABS_KINDS[a.kind].one} fechada`, T.navy);
+      return true;
+    } catch(e) { writeFailed("fechar o registo", e); return false; }
+  });
+  const absUpdate = (a, v) => guarded(`a:${a.id}`, async () => {
+    try {
+      needNote(v);
+      const r = absRow(await rpcCall('absence_update', { p_absence_id:a.id, p_kind:v.kind, p_emoji:v.emoji, p_note:v.note.trim(), p_start:v.start, p_end:a.end ? (v.end || a.end) : null }, token));
+      absPut(r); if (!r.end && r.memberId) setMemberUnavail(r.memberId, r);
+      return true;
+    } catch(e) { writeFailed("guardar o registo", e); return false; }
+  });
+  const absDelete = a => guarded(`a:${a.id}`, async () => {
+    try {
+      const res = await rpcCall('absence_delete', { p_absence_id:a.id }, token);
+      if (res !== a.id) throw new Error("sem permissão, ou o registo já não existe");
+      setAbsences(p => Array.isArray(p) ? p.filter(x => x.id !== a.id) : p);
+      if (!a.end && a.memberId) setMemberUnavail(a.memberId, null);
+      showToast("Registo apagado", T.navy);
+      return true;
+    } catch(e) { writeFailed("apagar o registo", e); return false; }
+  });
+  // registo já terminado: abre e fecha (2 chamadas); se o fecho falhar, apaga o registo acabado de abrir para não deixar o jogador indisponível
+  const absAddPast = (memberId, v) => guarded(`m:${memberId}`, async () => {
+    let opened = null;
+    try {
+      needNote(v);
+      if (!v.end || v.end < v.start) throw new Error("a data de fim não pode ser anterior ao início");
+      opened = await callOpen(memberId, v);
+      const closed = await callClose(opened, v.end);
+      absPut(closed); setMemberUnavail(memberId, null);
+      showToast("Registo adicionado", T.navy);
+      return true;
+    } catch(e) {
+      if (opened) {
+        try {
+          const res = await rpcCall('absence_delete', { p_absence_id:opened.id }, token);
+          if (res !== opened.id) throw new Error("não confirmado");
+        } catch(e2) {
+          // não deu para desfazer: mostrar o registo aberto tal como está na base de dados
+          absPut(opened); setMemberUnavail(memberId, opened);
+          writeFailed("adicionar o registo (ficou em curso, fecha-o ou apaga-o à mão)", e);
+          return false;
+        }
+      }
+      writeFailed("adicionar o registo", e); return false;
+    }
+  });
+  // jogador já indisponível sem registo (antes desta funcionalidade): obriga a escrever a nota; só então cria o registo (e fecha, se foi desligado)
+  const absLegacy = (m, v, closeAfter) => guarded(`m:${m.id}`, async () => {
+    let opened = null;
+    try {
+      needNote(v);
+      opened = (absences || []).find(x => x.memberId === m.id && !x.end) || await callOpen(m.id, { ...v, start: m.unavailableSince || v.start });
+      absPut(opened); setMemberUnavail(m.id, opened);
+      if (closeAfter) {
+        const closed = await callClose(opened, todayLocal());
+        absPut(closed); setMemberUnavail(m.id, null);
+        showToast(`${m.name}: ${ABS_KINDS[closed.kind].one} fechada`, T.navy);
+      }
+      return true;
+    } catch(e) { writeFailed(closeAfter && opened ? "fechar o registo (a nota ficou guardada, tenta fechar outra vez)" : "guardar o registo", e); return false; }
+  });
+  const absHandlers = { open:absOpen, close:absClose, update:absUpdate, del:absDelete, addPast:absAddPast, legacy:absLegacy };
   const editMember = async (id, data) => {
     try {
       const m = members.find(m => m.id === id);
@@ -3675,7 +3938,7 @@ export default function App() {
       } else {
         setTeamId(null);
         setMembers([]); setFines([]); setFineTypes([]);
-        setExpenses([]); setTrainings([]); setPresences({});
+        setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]);
       }
     } catch(e) { console.error('deleteTeam error:', e); }
   };
@@ -3844,10 +4107,10 @@ export default function App() {
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
-  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
+  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onSetUnavailable={setUnavailable} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
