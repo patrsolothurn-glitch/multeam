@@ -1505,7 +1505,7 @@ var AddFineModal = function AddFineModal(_ref16) {
                 profMap[p.id] = p;
               });
             case 6:
-              setTm((Array.isArray(mRaw) ? mRaw : []).map(function (m) {
+              setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(function (m) {
                 var _profMap$m$user_id, _profMap$m$user_id2, _profMap$m$user_id3, _profMap$m$user_id4, _profMap$m$user_id5, _profMap$m$user_id6;
                 return {
                   id: String(m.id),
@@ -1521,7 +1521,7 @@ var AddFineModal = function AddFineModal(_ref16) {
                     return w[0];
                   }).join('').slice(0, 2).toUpperCase()
                 };
-              }));
+              })));
               setTft((Array.isArray(ftRaw) ? ftRaw : []).map(function (ft) {
                 return {
                   id: String(ft.id),
@@ -2606,9 +2606,9 @@ var AddMatchModal = function AddMatchModal(_ref33) {
     members = _ref33.members,
     onAdd = _ref33.onAdd,
     onClose = _ref33.onClose;
-  var tm = members.filter(function (m) {
+  var tm = sortMembers(members.filter(function (m) {
     return m.teamId === team.id;
-  });
+  }), true);
   var _useState67 = useState(""),
     _useState68 = _slicedToArray(_useState67, 2),
     opponent = _useState68[0],
@@ -2916,9 +2916,9 @@ var EditMatchModal = function EditMatchModal(_ref39) {
     training = _ref39.training,
     onEdit = _ref39.onEdit,
     onClose = _ref39.onClose;
-  var tm = members.filter(function (m) {
+  var tm = sortMembers(members.filter(function (m) {
     return m.teamId === team.id;
-  });
+  }), true);
   var _useState93 = useState(training.opponent || ""),
     _useState94 = _slicedToArray(_useState93, 2),
     opponent = _useState94[0],
@@ -3296,13 +3296,15 @@ var positionRank = function positionRank(pos) {
   return i === undefined ? POSITION_ORDER.size : i;
 };
 var sortMembers = function sortMembers(list) {
+  var staffLast = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
   return list.map(function (m, i) {
     return {
       m: m,
-      i: i
+      i: i,
+      r: positionRank(m.position) + (staffLast && isStaffPosition(m.position) ? 1000 : 0)
     };
   }).sort(function (a, b) {
-    return positionRank(a.m.position) - positionRank(b.m.position) || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i;
+    return a.r - b.r || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i;
   }).map(function (x) {
     return x.m;
   });
@@ -6213,9 +6215,9 @@ var PresBar = function PresBar(_ref72) {
     expanded = _React$useState12[0],
     setExpanded = _React$useState12[1];
   var pres = presences[t.id] || {};
-  var tm = members.filter(function (m) {
+  var tm = sortMembers(members.filter(function (m) {
     return m.teamId === team.id;
-  });
+  }), true);
   var ok = Object.values(pres).filter(function (s) {
     return s === "present";
   }).length;
@@ -6380,11 +6382,11 @@ var EventCard = function EventCard(_ref73) {
   var weekday = dt.toLocaleDateString("pt-PT", {
     weekday: "long"
   });
-  var squadMembers = isJogo ? (t.squad || []).map(function (id) {
+  var squadMembers = isJogo ? sortMembers((t.squad || []).map(function (id) {
     return members.find(function (m) {
       return m.id === id;
     });
-  }).filter(Boolean) : [];
+  }).filter(Boolean), true) : [];
   return React.createElement("div", {
     style: {
       background: T.card,
@@ -8293,7 +8295,7 @@ var GeneralTab = function GeneralTab(_ref93) {
     var t = teams.find(function (x) {
       return x.id === showMembers;
     });
-    var tm = teamMembers;
+    var tm = sortMembers(teamMembers);
     return React.createElement("div", {
       style: {
         padding: "16px 16px 100px"
@@ -12048,9 +12050,9 @@ var AddCardModal = function AddCardModal(_ref141) {
     cards = _ref141.cards,
     onAdd = _ref141.onAdd,
     onClose = _ref141.onClose;
-  var tm = members.filter(function (m) {
+  var tm = sortMembers(members.filter(function (m) {
     return m.teamId === team.id;
-  });
+  }));
   var _useState331 = useState(""),
     _useState332 = _slicedToArray(_useState331, 2),
     mid = _useState332[0],
