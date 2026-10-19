@@ -3275,6 +3275,37 @@ var POSITIONS_GROUPED = {
   "🏛 Direção / Gestão": ["Diretor Desportivo", "Presidente", "Delegado", "Team Manager"],
   "· Outro": ["Outro"]
 };
+var normTxt = function normTxt(s) {
+  return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+};
+var STAFF_POSITIONS = [].concat(_toConsumableArray(POSITIONS_GROUPED["🎽 Equipa Técnica"]), _toConsumableArray(POSITIONS_GROUPED["🏛 Direção / Gestão"]));
+var DEFENSE_FIRST = ["Lateral Direito", "Defesa Central", "Lateral Esquerdo"];
+var FIELD_POSITIONS = [].concat(_toConsumableArray(POSITIONS_GROUPED["🥅 Guarda-redes"]), DEFENSE_FIRST, _toConsumableArray(POSITIONS_GROUPED["🛡 Defesa"].filter(function (p) {
+  return !DEFENSE_FIRST.includes(p);
+})), _toConsumableArray(POSITIONS_GROUPED["⚙️ Médio"]), _toConsumableArray(POSITIONS_GROUPED["⚡ Atacante"]), _toConsumableArray(POSITIONS_GROUPED["🏟 Futsal / Praia"]));
+var POSITION_ORDER = new Map([].concat(_toConsumableArray(STAFF_POSITIONS), _toConsumableArray(FIELD_POSITIONS)).map(function (p, i) {
+  return [normTxt(p), i];
+}));
+var isStaffPosition = function isStaffPosition(pos) {
+  var i = POSITION_ORDER.get(normTxt(pos));
+  return i !== undefined && i < STAFF_POSITIONS.length;
+};
+var positionRank = function positionRank(pos) {
+  var i = POSITION_ORDER.get(normTxt(pos));
+  return i === undefined ? POSITION_ORDER.size : i;
+};
+var sortMembers = function sortMembers(list) {
+  return list.map(function (m, i) {
+    return {
+      m: m,
+      i: i
+    };
+  }).sort(function (a, b) {
+    return positionRank(a.m.position) - positionRank(b.m.position) || normTxt(a.m.name).localeCompare(normTxt(b.m.name), "pt") || a.i - b.i;
+  }).map(function (x) {
+    return x.m;
+  });
+};
 var PositionSelect = function PositionSelect(_ref45) {
   var value = _ref45.value,
     onChange = _ref45.onChange,
@@ -10173,18 +10204,30 @@ var ManageTeamScreen = function ManageTeamScreen(_ref120) {
   var admins = tm.filter(function (m) {
     return m.role === "admin";
   });
+  var nonAdmin = tm.filter(function (m) {
+    return m.role !== "admin";
+  });
+  var staff = sortMembers(nonAdmin.filter(function (m) {
+    return isStaffPosition(m.position);
+  }));
+  var players = sortMembers(nonAdmin.filter(function (m) {
+    return !isStaffPosition(m.position);
+  }));
   var groups = [{
     role: "admin",
-    title: "Administradores",
+    title: admins.length === 1 ? "Administrador" : "Administradores",
     color: "#1D3557",
     list: admins
   }, {
+    role: "staff",
+    title: "Equipa técnica",
+    color: "#2E7D32",
+    list: staff
+  }, {
     role: "player",
-    title: "Jogadores",
+    title: players.length === 1 ? "Jogador" : "Jogadores",
     color: T.sub,
-    list: tm.filter(function (m) {
-      return m.role !== "admin";
-    })
+    list: players
   }].filter(function (g) {
     return g.list.length > 0;
   });
