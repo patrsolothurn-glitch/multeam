@@ -3424,15 +3424,31 @@ export default function App() {
     const [f]=await api.post('fines',{team_id:d.teamId,member_id:d.memberId,amount:d.amount,reason:d.reason,emoji:d.emoji,paid:false,assigned_by:myUserId},token);
     setFines(p=>[aFine(f),...p]);
   };
+  // Escritas verificadas: um UPDATE/DELETE bloqueado por RLS responde com sucesso sem alterar nada,
+  // por isso só se atualiza o ecrã depois de confirmar o resultado; se falhar, toast vermelho.
+  const writeFailed = (what, e) => showToast(`⚠️ Não foi possível ${what}: ${e && e.message ? e.message : "erro"}`, T.brand);
+  const updated = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
+  const confirmGone = async path => { const still = await api.get(path, token); if (still.length) throw new Error("sem permissão (o registo continua a existir)"); };
   const togglePaid = async id => {
     const f=fines.find(f=>f.id===id); if(!f)return;
-    try { await api.patch(`fines?id=eq.${id}`,{paid:!f.paid,paid_at:!f.paid?new Date().toISOString():null},token); setFines(p=>p.map(x=>x.id===id?{...x,paid:!x.paid}:x)); } catch(e){console.error(e);}
+    const paid = !f.paid;
+    try {
+      updated(await api.patch(`fines?id=eq.${id}`,{paid,paid_at:paid?new Date().toISOString():null},token));
+      setFines(p=>p.map(x=>x.id===id?{...x,paid}:x));
+    } catch(e){ writeFailed(paid ? "marcar a multa como paga" : "marcar a multa como por pagar", e); }
   };
   const delFine = async id => {
-    try { await api.del(`fines?id=eq.${id}`,token); setFines(p=>p.filter(f=>f.id!==id)); } catch(e){console.error(e);}
+    try {
+      await api.del(`fines?id=eq.${id}`,token);
+      await confirmGone(`fines?id=eq.${id}&select=id`);
+      setFines(p=>p.filter(f=>f.id!==id));
+    } catch(e){ writeFailed("apagar a multa", e); }
   };
   const editFine = async (id, data) => {
-    try { await api.patch(`fines?id=eq.${id}`,{emoji:data.emoji,reason:data.reason,amount:data.amount},token); setFines(p=>p.map(f=>f.id===id?{...f,...data}:f)); } catch(e){console.error(e);}
+    try {
+      updated(await api.patch(`fines?id=eq.${id}`,{emoji:data.emoji,reason:data.reason,amount:data.amount},token));
+      setFines(p=>p.map(f=>f.id===id?{...f,...data}:f));
+    } catch(e){ writeFailed("guardar a multa", e); }
   };
   const addCard = async d => {
     const [c] = await api.post('cards', { team_id:d.teamId, member_id:d.memberId, kind:d.kind,
@@ -3467,7 +3483,10 @@ export default function App() {
     } catch(e){ console.error(e); }
   };
   const addExpense = async d => {
-    try { const [e]=await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token); setExpenses(p=>[aExpense(e),...p]); } catch(e){console.error(e);}
+    try {
+      const [e]=updated(await api.post('expenses',{team_id:d.teamId,description:d.description,amount:d.amount,created_by:myUserId},token));
+      setExpenses(p=>[aExpense(e),...p]);
+    } catch(e){ writeFailed("registar a despesa", e); }
   };
   const logSession = async (recurring, date, currentPresences) => {
     const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===date && t.location===recurring.location && t.time===recurring.time);
@@ -3500,7 +3519,11 @@ export default function App() {
     }
   };
   const delTraining = async id => {
-    try { await api.del(`trainings?id=eq.${id}`,token); setTrainings(p=>p.filter(t=>t.id!==id)); } catch(e){console.error(e);}
+    try {
+      await api.del(`trainings?id=eq.${id}`,token);
+      await confirmGone(`trainings?id=eq.${id}&select=id`);
+      setTrainings(p=>p.filter(t=>t.id!==id));
+    } catch(e){ writeFailed("apagar o treino", e); }
   };
   const editTraining = async (id, d) => {
     const patch = {};
@@ -3817,10 +3840,11 @@ export default function App() {
 
   if (tab==="treinos") return (
     <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+      {toastBox}
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
-  if (sub?.type==="member") return wrap(<MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />);
+  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
     return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} onSetUnavailable={setUnavailable} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
