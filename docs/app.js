@@ -466,6 +466,7 @@ var aFine = function aFine(f) {
     reason: f.reason || '',
     emoji: f.emoji || '🟥',
     paid: f.paid,
+    paidAt: f.paid_at || null,
     date: f.date || localDate
   };
 };
@@ -7163,6 +7164,16 @@ var TreinosPage = function TreinosPage(_ref76) {
     }
   }));
 };
+var toCents = function toCents(x) {
+  return Math.round(Number(x) * 100);
+};
+var eurC = function eurC(c) {
+  var a = Math.abs(c);
+  return "".concat(a % 100 === 0 ? a / 100 : (a / 100).toFixed(2), "\u20AC");
+};
+var sgnEurC = function sgnEurC(c) {
+  return "".concat(c < 0 ? "-" : "+").concat(eurC(c));
+};
 var TreasuryTab = function TreasuryTab(_ref84) {
   var team = _ref84.team,
     fines = _ref84.fines,
@@ -7192,14 +7203,46 @@ var TreasuryTab = function TreasuryTab(_ref84) {
     var _gm;
     return _objectSpread(_objectSpread({}, f), {}, {
       type: "in",
-      label: "Multa \u2014 ".concat((_gm = gm(f.memberId)) === null || _gm === void 0 ? void 0 : _gm.name)
+      label: "Multa \u2014 ".concat((_gm = gm(f.memberId)) === null || _gm === void 0 ? void 0 : _gm.name),
+      day: localDay(f.paidAt) || localDay(f.date)
     });
   })), _toConsumableArray(te.map(function (e) {
     return _objectSpread(_objectSpread({}, e), {}, {
       type: "out",
-      label: e.description
+      label: e.description,
+      day: localDay(e.date)
     });
-  }))).sort(byDayDesc);
+  }))).sort(function (a, b) {
+    return b.day.localeCompare(a.day);
+  });
+  var months = [];
+  var at = {};
+  allTx.forEach(function (tx) {
+    var key = tx.day ? tx.day.slice(0, 7) : "";
+    if (!(key in at)) {
+      at[key] = months.length;
+      months.push({
+        key: key,
+        txs: [],
+        inC: 0,
+        outC: 0
+      });
+    }
+    var g = months[at[key]];
+    g.txs.push(tx);
+    if (tx.type === "in") g.inC += toCents(tx.amount);else g.outC += toCents(Math.abs(tx.amount));
+  });
+  var currentKey = todayLocal().slice(0, 7);
+  var _useState195 = useState({}),
+    _useState196 = _slicedToArray(_useState195, 2),
+    monthOpen = _useState196[0],
+    setMonthOpen = _useState196[1];
+  var isOpen = function isOpen(key) {
+    return key in monthOpen ? monthOpen[key] : key !== "" && key === currentKey;
+  };
+  var monthTitle = function monthTitle(key) {
+    return key ? "".concat(MESES_PT[+key.slice(5, 7) - 1], " ").concat(key.slice(0, 4)) : "Sem data";
+  };
   return React.createElement("div", {
     style: {
       padding: "14px 16px 100px"
@@ -7292,90 +7335,162 @@ var TreasuryTab = function TreasuryTab(_ref84) {
     }
   }, "+ Registar despesa"), React.createElement(Sec, {
     label: "Movimentos (".concat(allTx.length, ")")
-  }), allTx.map(function (tx, i) {
+  }), months.map(function (g) {
+    var open = isOpen(g.key);
+    var net = g.inC - g.outC;
     return React.createElement("div", {
-      key: i,
+      key: g.key || "none",
+      "data-month": g.key || "none",
       style: {
+        marginBottom: 10
+      }
+    }, React.createElement("button", {
+      onClick: function onClick() {
+        return setMonthOpen(function (p) {
+          return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, g.key, !open));
+        });
+      },
+      "aria-expanded": open,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        width: "100%",
+        minHeight: 44,
+        padding: "8px 12px",
         background: T.card,
+        border: "none",
         borderRadius: 12,
-        padding: "12px 14px",
-        marginBottom: 7,
-        display: "flex",
-        alignItems: "center",
-        gap: 12
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left",
+        marginBottom: open ? 7 : 0
       }
-    }, React.createElement("div", {
+    }, React.createElement("span", {
+      "aria-hidden": "true",
       style: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        background: tx.type === "in" ? "".concat(T.green, "18") : "".concat(T.brand, "18"),
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 18
+        fontSize: 12,
+        color: T.sub,
+        width: 14,
+        flexShrink: 0
       }
-    }, tx.type === "in" ? "⬆️" : "⬇️"), React.createElement("div", {
+    }, open ? "▼" : "▶"), React.createElement("div", {
       style: {
-        flex: 1
+        flex: 1,
+        minWidth: 0
       }
     }, React.createElement("p", {
       style: {
         margin: 0,
-        fontWeight: 600,
-        fontSize: 14
+        fontWeight: 800,
+        fontSize: 15
       }
-    }, tx.label), React.createElement("p", {
+    }, monthTitle(g.key)), React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 12,
         color: T.sub
       }
-    }, fmtDay(tx.date))), React.createElement("p", {
+    }, plural(g.txs.length, "movimento", "movimentos"), " \xB7 ", React.createElement("span", {
       style: {
-        margin: 0,
-        fontWeight: 800,
-        fontSize: 17,
-        color: tx.type === "in" ? T.green : T.brand
+        color: T.green
       }
-    }, tx.type === "in" ? "+" : "-", Math.abs(tx.amount), "\u20AC"));
+    }, sgnEurC(g.inC)), " \xB7 ", React.createElement("span", {
+      style: {
+        color: T.brand
+      }
+    }, sgnEurC(-g.outC)))), React.createElement("span", {
+      style: {
+        fontWeight: 800,
+        fontSize: 15,
+        color: net >= 0 ? T.green : T.brand,
+        flexShrink: 0
+      }
+    }, sgnEurC(net))), open && g.txs.map(function (tx, i) {
+      return React.createElement("div", {
+        key: i,
+        style: {
+          background: T.card,
+          borderRadius: 12,
+          padding: "12px 14px",
+          marginBottom: 7,
+          display: "flex",
+          alignItems: "center",
+          gap: 12
+        }
+      }, React.createElement("div", {
+        style: {
+          width: 38,
+          height: 38,
+          borderRadius: 19,
+          background: tx.type === "in" ? "".concat(T.green, "18") : "".concat(T.brand, "18"),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 18
+        }
+      }, tx.type === "in" ? "⬆️" : "⬇️"), React.createElement("div", {
+        style: {
+          flex: 1
+        }
+      }, React.createElement("p", {
+        style: {
+          margin: 0,
+          fontWeight: 600,
+          fontSize: 14
+        }
+      }, tx.label), React.createElement("p", {
+        style: {
+          margin: 0,
+          fontSize: 12,
+          color: T.sub
+        }
+      }, fmtDay(tx.day))), React.createElement("p", {
+        style: {
+          margin: 0,
+          fontWeight: 800,
+          fontSize: 17,
+          color: tx.type === "in" ? T.green : T.brand
+        }
+      }, tx.type === "in" ? "+" : "-", Math.abs(tx.amount), "\u20AC"));
+    }));
   }));
 };
 var AppAdminTab = function AppAdminTab(_ref85) {
   var token = _ref85.token,
     onBack = _ref85.onBack;
-  var _useState195 = useState(null),
-    _useState196 = _slicedToArray(_useState195, 2),
-    stats = _useState196[0],
-    setStats = _useState196[1];
-  var _useState197 = useState([]),
+  var _useState197 = useState(null),
     _useState198 = _slicedToArray(_useState197, 2),
-    users = _useState198[0],
-    setUsers = _useState198[1];
+    stats = _useState198[0],
+    setStats = _useState198[1];
   var _useState199 = useState([]),
     _useState200 = _slicedToArray(_useState199, 2),
-    teams = _useState200[0],
-    setTeams = _useState200[1];
-  var _useState201 = useState("stats"),
+    users = _useState200[0],
+    setUsers = _useState200[1];
+  var _useState201 = useState([]),
     _useState202 = _slicedToArray(_useState201, 2),
-    section = _useState202[0],
-    setSection = _useState202[1];
-  var _useState203 = useState(null),
+    teams = _useState202[0],
+    setTeams = _useState202[1];
+  var _useState203 = useState("stats"),
     _useState204 = _slicedToArray(_useState203, 2),
-    selectedTeam = _useState204[0],
-    setSelectedTeam = _useState204[1];
+    section = _useState204[0],
+    setSection = _useState204[1];
   var _useState205 = useState(null),
     _useState206 = _slicedToArray(_useState205, 2),
-    teamDetail = _useState206[0],
-    setTeamDetail = _useState206[1];
-  var _useState207 = useState(false),
+    selectedTeam = _useState206[0],
+    setSelectedTeam = _useState206[1];
+  var _useState207 = useState(null),
     _useState208 = _slicedToArray(_useState207, 2),
-    detailLoading = _useState208[0],
-    setDetailLoading = _useState208[1];
-  var _useState209 = useState(true),
+    teamDetail = _useState208[0],
+    setTeamDetail = _useState208[1];
+  var _useState209 = useState(false),
     _useState210 = _slicedToArray(_useState209, 2),
-    loading = _useState210[0],
-    setLoading = _useState210[1];
+    detailLoading = _useState210[0],
+    setDetailLoading = _useState210[1];
+  var _useState211 = useState(true),
+    _useState212 = _slicedToArray(_useState211, 2),
+    loading = _useState212[0],
+    setLoading = _useState212[1];
   useEffect(function () {
     var load = function () {
       var _ref86 = _asyncToGenerator(_regenerator().m(function _callee28() {
@@ -7467,10 +7582,10 @@ var AppAdminTab = function AppAdminTab(_ref85) {
     }();
     load();
   }, [token]);
-  var _useState211 = useState(null),
-    _useState212 = _slicedToArray(_useState211, 2),
-    detailError = _useState212[0],
-    setDetailError = _useState212[1];
+  var _useState213 = useState(null),
+    _useState214 = _slicedToArray(_useState213, 2),
+    detailError = _useState214[0],
+    setDetailError = _useState214[1];
   var openTeam = function () {
     var _ref87 = _asyncToGenerator(_regenerator().m(function _callee29(team) {
       var r, data, _t36;
@@ -8089,22 +8204,22 @@ var GeneralTab = function GeneralTab(_ref93) {
     }) || t.createdBy === myUserId;
   });
   var myAge = age(user.birthday);
-  var _useState213 = useState(0),
-    _useState214 = _slicedToArray(_useState213, 2),
-    tapCount = _useState214[0],
-    setTapCount = _useState214[1];
-  var _useState215 = useState(null),
+  var _useState215 = useState(0),
     _useState216 = _slicedToArray(_useState215, 2),
-    showMembers = _useState216[0],
-    setShowMembers = _useState216[1];
-  var _useState217 = useState([]),
+    tapCount = _useState216[0],
+    setTapCount = _useState216[1];
+  var _useState217 = useState(null),
     _useState218 = _slicedToArray(_useState217, 2),
-    teamMembers = _useState218[0],
-    setTeamMembers = _useState218[1];
-  var _useState219 = useState(false),
+    showMembers = _useState218[0],
+    setShowMembers = _useState218[1];
+  var _useState219 = useState([]),
     _useState220 = _slicedToArray(_useState219, 2),
-    loadingMembers = _useState220[0],
-    setLoadingMembers = _useState220[1];
+    teamMembers = _useState220[0],
+    setTeamMembers = _useState220[1];
+  var _useState221 = useState(false),
+    _useState222 = _slicedToArray(_useState221, 2),
+    loadingMembers = _useState222[0],
+    setLoadingMembers = _useState222[1];
   var tapTimer = React.useRef(null);
   var handleAvatarTap = function handleAvatarTap() {
     if (!isAppAdmin) return;
@@ -8622,46 +8737,46 @@ var FineTypesManager = function FineTypesManager(_ref98) {
     onDeleted = _ref98.onDeleted,
     onUpdated = _ref98.onUpdated,
     token = _ref98.token;
-  var _useState221 = useState(false),
-    _useState222 = _slicedToArray(_useState221, 2),
-    adding = _useState222[0],
-    setAdding = _useState222[1];
-  var _useState223 = useState(null),
+  var _useState223 = useState(false),
     _useState224 = _slicedToArray(_useState223, 2),
-    editingId = _useState224[0],
-    setEditingId = _useState224[1];
-  var _useState225 = useState(""),
+    adding = _useState224[0],
+    setAdding = _useState224[1];
+  var _useState225 = useState(null),
     _useState226 = _slicedToArray(_useState225, 2),
-    name = _useState226[0],
-    setName = _useState226[1];
+    editingId = _useState226[0],
+    setEditingId = _useState226[1];
   var _useState227 = useState(""),
     _useState228 = _slicedToArray(_useState227, 2),
-    amount = _useState228[0],
-    setAmount = _useState228[1];
-  var _useState229 = useState("🟥"),
+    name = _useState228[0],
+    setName = _useState228[1];
+  var _useState229 = useState(""),
     _useState230 = _slicedToArray(_useState229, 2),
-    emoji = _useState230[0],
-    setEmoji = _useState230[1];
+    amount = _useState230[0],
+    setAmount = _useState230[1];
   var _useState231 = useState("🟥"),
     _useState232 = _slicedToArray(_useState231, 2),
-    editEmoji = _useState232[0],
-    setEditEmoji = _useState232[1];
-  var _useState233 = useState(""),
+    emoji = _useState232[0],
+    setEmoji = _useState232[1];
+  var _useState233 = useState("🟥"),
     _useState234 = _slicedToArray(_useState233, 2),
-    editName = _useState234[0],
-    setEditName = _useState234[1];
+    editEmoji = _useState234[0],
+    setEditEmoji = _useState234[1];
   var _useState235 = useState(""),
     _useState236 = _slicedToArray(_useState235, 2),
-    editAmount = _useState236[0],
-    setEditAmount = _useState236[1];
+    editName = _useState236[0],
+    setEditName = _useState236[1];
   var _useState237 = useState(""),
     _useState238 = _slicedToArray(_useState237, 2),
-    err = _useState238[0],
-    setErr = _useState238[1];
-  var _useState239 = useState(false),
+    editAmount = _useState238[0],
+    setEditAmount = _useState238[1];
+  var _useState239 = useState(""),
     _useState240 = _slicedToArray(_useState239, 2),
-    saving = _useState240[0],
-    setSaving = _useState240[1];
+    err = _useState240[0],
+    setErr = _useState240[1];
+  var _useState241 = useState(false),
+    _useState242 = _slicedToArray(_useState241, 2),
+    saving = _useState242[0],
+    setSaving = _useState242[1];
   var tf = fineTypes.filter(function (f) {
     return f.teamId === team.id;
   });
@@ -8999,22 +9114,22 @@ var TeamDataSection = function TeamDataSection(_ref102) {
       postal: team.postal || ""
     };
   };
-  var _useState241 = useState(false),
-    _useState242 = _slicedToArray(_useState241, 2),
-    editing = _useState242[0],
-    setEditing = _useState242[1];
-  var _useState243 = useState(init),
+  var _useState243 = useState(false),
     _useState244 = _slicedToArray(_useState243, 2),
-    f = _useState244[0],
-    setF = _useState244[1];
-  var _useState245 = useState(false),
+    editing = _useState244[0],
+    setEditing = _useState244[1];
+  var _useState245 = useState(init),
     _useState246 = _slicedToArray(_useState245, 2),
-    busy = _useState246[0],
-    setBusy = _useState246[1];
-  var _useState247 = useState(""),
+    f = _useState246[0],
+    setF = _useState246[1];
+  var _useState247 = useState(false),
     _useState248 = _slicedToArray(_useState247, 2),
-    err = _useState248[0],
-    setErr = _useState248[1];
+    busy = _useState248[0],
+    setBusy = _useState248[1];
+  var _useState249 = useState(""),
+    _useState250 = _slicedToArray(_useState249, 2),
+    err = _useState250[0],
+    setErr = _useState250[1];
   var set = function set(k, v) {
     return setF(function (p) {
       return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, k, v));
@@ -9357,30 +9472,30 @@ var AbsenceForm = function AbsenceForm(_ref105) {
     onSave = _ref105.onSave,
     onClose = _ref105.onClose,
     color = _ref105.color;
-  var _useState249 = useState(initial.kind || "lesao"),
-    _useState250 = _slicedToArray(_useState249, 2),
-    kind = _useState250[0],
-    setKind = _useState250[1];
-  var _useState251 = useState(initial.emoji || "🤕"),
+  var _useState251 = useState(initial.kind || "lesao"),
     _useState252 = _slicedToArray(_useState251, 2),
-    emoji = _useState252[0],
-    setEmoji = _useState252[1];
-  var _useState253 = useState(initial.note || ""),
+    kind = _useState252[0],
+    setKind = _useState252[1];
+  var _useState253 = useState(initial.emoji || "🤕"),
     _useState254 = _slicedToArray(_useState253, 2),
-    note = _useState254[0],
-    setNote = _useState254[1];
-  var _useState255 = useState(initial.start || todayLocal()),
+    emoji = _useState254[0],
+    setEmoji = _useState254[1];
+  var _useState255 = useState(initial.note || ""),
     _useState256 = _slicedToArray(_useState255, 2),
-    start = _useState256[0],
-    setStart = _useState256[1];
-  var _useState257 = useState(initial.end || ""),
+    note = _useState256[0],
+    setNote = _useState256[1];
+  var _useState257 = useState(initial.start || todayLocal()),
     _useState258 = _slicedToArray(_useState257, 2),
-    end = _useState258[0],
-    setEnd = _useState258[1];
-  var _useState259 = useState(false),
+    start = _useState258[0],
+    setStart = _useState258[1];
+  var _useState259 = useState(initial.end || ""),
     _useState260 = _slicedToArray(_useState259, 2),
-    busy = _useState260[0],
-    setBusy = _useState260[1];
+    end = _useState260[0],
+    setEnd = _useState260[1];
+  var _useState261 = useState(false),
+    _useState262 = _slicedToArray(_useState261, 2),
+    busy = _useState262[0],
+    setBusy = _useState262[1];
   var lock = React.useRef(false);
   var noteOk = note.trim() !== "";
   var datesOk = !!start && (!withEnd || !!end && end >= start);
@@ -9540,10 +9655,10 @@ var CloseAbsenceSheet = function CloseAbsenceSheet(_ref109) {
     kind = _ref109.kind,
     onConfirm = _ref109.onConfirm,
     onCancel = _ref109.onCancel;
-  var _useState261 = useState(false),
-    _useState262 = _slicedToArray(_useState261, 2),
-    busy = _useState262[0],
-    setBusy = _useState262[1];
+  var _useState263 = useState(false),
+    _useState264 = _slicedToArray(_useState263, 2),
+    busy = _useState264[0],
+    setBusy = _useState264[1];
   var lock = React.useRef(false);
   var go = function () {
     var _ref110 = _asyncToGenerator(_regenerator().m(function _callee36() {
@@ -9619,14 +9734,14 @@ var AbsenceCards = function AbsenceCards(_ref111) {
     onClose = _ref111.onClose,
     onDelete = _ref111.onDelete,
     emptyText = _ref111.emptyText;
-  var _useState263 = useState(null),
-    _useState264 = _slicedToArray(_useState263, 2),
-    editing = _useState264[0],
-    setEditing = _useState264[1];
   var _useState265 = useState(null),
     _useState266 = _slicedToArray(_useState265, 2),
-    closing = _useState266[0],
-    setClosing = _useState266[1];
+    editing = _useState266[0],
+    setEditing = _useState266[1];
+  var _useState267 = useState(null),
+    _useState268 = _slicedToArray(_useState267, 2),
+    closing = _useState268[0],
+    setClosing = _useState268[1];
   var sorted = _toConsumableArray(records).sort(function (a, b) {
     return (b.start || "").localeCompare(a.start || "") || (b.end === null) - (a.end === null);
   });
@@ -9749,18 +9864,18 @@ var AbsenceArchive = function AbsenceArchive(_ref112) {
     onUpdate = _ref112.onUpdate,
     onClose = _ref112.onClose,
     onDelete = _ref112.onDelete;
-  var _useState267 = useState(""),
-    _useState268 = _slicedToArray(_useState267, 2),
-    fPlayer = _useState268[0],
-    setFPlayer = _useState268[1];
   var _useState269 = useState(""),
     _useState270 = _slicedToArray(_useState269, 2),
-    fKind = _useState270[0],
-    setFKind = _useState270[1];
+    fPlayer = _useState270[0],
+    setFPlayer = _useState270[1];
   var _useState271 = useState(""),
     _useState272 = _slicedToArray(_useState271, 2),
-    fSeason = _useState272[0],
-    setFSeason = _useState272[1];
+    fKind = _useState272[0],
+    setFKind = _useState272[1];
+  var _useState273 = useState(""),
+    _useState274 = _slicedToArray(_useState273, 2),
+    fSeason = _useState274[0],
+    setFSeason = _useState274[1];
   if (absences === null) return React.createElement("p", {
     style: {
       color: T.brand,
@@ -9867,22 +9982,22 @@ var DeleteTeamModal = function DeleteTeamModal(_ref115) {
     token = _ref115.token,
     onDelete = _ref115.onDelete,
     onClose = _ref115.onClose;
-  var _useState273 = useState(null),
-    _useState274 = _slicedToArray(_useState273, 2),
-    counts = _useState274[0],
-    setCounts = _useState274[1];
-  var _useState275 = useState(""),
+  var _useState275 = useState(null),
     _useState276 = _slicedToArray(_useState275, 2),
-    text = _useState276[0],
-    setText = _useState276[1];
-  var _useState277 = useState(false),
+    counts = _useState276[0],
+    setCounts = _useState276[1];
+  var _useState277 = useState(""),
     _useState278 = _slicedToArray(_useState277, 2),
-    busy = _useState278[0],
-    setBusy = _useState278[1];
-  var _useState279 = useState(""),
+    text = _useState278[0],
+    setText = _useState278[1];
+  var _useState279 = useState(false),
     _useState280 = _slicedToArray(_useState279, 2),
-    err = _useState280[0],
-    setErr = _useState280[1];
+    busy = _useState280[0],
+    setBusy = _useState280[1];
+  var _useState281 = useState(""),
+    _useState282 = _slicedToArray(_useState281, 2),
+    err = _useState282[0],
+    setErr = _useState282[1];
   useEffect(function () {
     var alive = true;
     var n = function n(tbl) {
@@ -10034,10 +10149,10 @@ var UnavailableControl = function UnavailableControl(_ref119) {
     onClose = _ref119.onClose,
     onUpdate = _ref119.onUpdate,
     onLegacy = _ref119.onLegacy;
-  var _useState281 = useState(null),
-    _useState282 = _slicedToArray(_useState281, 2),
-    box = _useState282[0],
-    setBox = _useState282[1];
+  var _useState283 = useState(null),
+    _useState284 = _slicedToArray(_useState283, 2),
+    box = _useState284[0],
+    setBox = _useState284[1];
   var on = m.unavailable;
   var flip = function flip() {
     if (box) return;
@@ -10189,10 +10304,10 @@ var ManageTeamScreen = function ManageTeamScreen(_ref120) {
   var tm = members.filter(function (m) {
     return m.teamId === team.id;
   });
-  var _useState283 = useState(false),
-    _useState284 = _slicedToArray(_useState283, 2),
-    showDelete = _useState284[0],
-    setShowDelete = _useState284[1];
+  var _useState285 = useState(false),
+    _useState286 = _slicedToArray(_useState285, 2),
+    showDelete = _useState286[0],
+    setShowDelete = _useState286[1];
   var isCreator = team.createdBy === myUserId;
   var myRoleHere = (tm.find(function (x) {
     return x.userId === myUserId;
@@ -10231,10 +10346,10 @@ var ManageTeamScreen = function ManageTeamScreen(_ref120) {
   }].filter(function (g) {
     return g.list.length > 0;
   });
-  var _useState285 = useState(null),
-    _useState286 = _slicedToArray(_useState285, 2),
-    roleErr = _useState286[0],
-    setRoleErr = _useState286[1];
+  var _useState287 = useState(null),
+    _useState288 = _slicedToArray(_useState287, 2),
+    roleErr = _useState288[0],
+    setRoleErr = _useState288[1];
   var changeRole = function () {
     var _ref121 = _asyncToGenerator(_regenerator().m(function _callee38(m, r) {
       var _t43;
@@ -10264,18 +10379,18 @@ var ManageTeamScreen = function ManageTeamScreen(_ref120) {
       return _ref121.apply(this, arguments);
     };
   }();
-  var _useState287 = useState(null),
-    _useState288 = _slicedToArray(_useState287, 2),
-    confirmRemove = _useState288[0],
-    setConfirmRemove = _useState288[1];
-  var _useState289 = useState(false),
+  var _useState289 = useState(null),
     _useState290 = _slicedToArray(_useState289, 2),
-    removeBusy = _useState290[0],
-    setRemoveBusy = _useState290[1];
-  var _useState291 = useState(""),
+    confirmRemove = _useState290[0],
+    setConfirmRemove = _useState290[1];
+  var _useState291 = useState(false),
     _useState292 = _slicedToArray(_useState291, 2),
-    removeErr = _useState292[0],
-    setRemoveErr = _useState292[1];
+    removeBusy = _useState292[0],
+    setRemoveBusy = _useState292[1];
+  var _useState293 = useState(""),
+    _useState294 = _slicedToArray(_useState293, 2),
+    removeErr = _useState294[0],
+    setRemoveErr = _useState294[1];
   var closeRemove = function closeRemove() {
     setConfirmRemove(null);
     setRemoveErr("");
@@ -10316,24 +10431,24 @@ var ManageTeamScreen = function ManageTeamScreen(_ref120) {
       return _ref122.apply(this, arguments);
     };
   }();
-  var _useState293 = useState(null),
-    _useState294 = _slicedToArray(_useState293, 2),
-    editingMember = _useState294[0],
-    setEditingMember = _useState294[1];
-  var _useState295 = useState(false),
+  var _useState295 = useState(null),
     _useState296 = _slicedToArray(_useState295, 2),
-    copied = _useState296[0],
-    setCopied = _useState296[1];
+    editingMember = _useState296[0],
+    setEditingMember = _useState296[1];
+  var _useState297 = useState(false),
+    _useState298 = _slicedToArray(_useState297, 2),
+    copied = _useState298[0],
+    setCopied = _useState298[1];
   var copyCode = function copyCode() {
     setCopied(true);
     setTimeout(function () {
       return setCopied(false);
     }, 2000);
   };
-  var _useState297 = useState(null),
-    _useState298 = _slicedToArray(_useState297, 2),
-    expandedMember = _useState298[0],
-    setExpandedMember = _useState298[1];
+  var _useState299 = useState(null),
+    _useState300 = _slicedToArray(_useState299, 2),
+    expandedMember = _useState300[0],
+    setExpandedMember = _useState300[1];
   var Row = function Row(_ref123) {
     var m = _ref123.m;
     var expanded = expandedMember === m.id;
@@ -10945,14 +11060,14 @@ var MemberDetailScreen = function MemberDetailScreen(_ref126) {
     isAdmin = _ref126.isAdmin,
     absences = _ref126.absences,
     absHandlers = _ref126.absHandlers;
-  var _useState299 = useState("multas"),
-    _useState300 = _slicedToArray(_useState299, 2),
-    ptab = _useState300[0],
-    setPtab = _useState300[1];
-  var _useState301 = useState(false),
+  var _useState301 = useState("multas"),
     _useState302 = _slicedToArray(_useState301, 2),
-    adding = _useState302[0],
-    setAdding = _useState302[1];
+    ptab = _useState302[0],
+    setPtab = _useState302[1];
+  var _useState303 = useState(false),
+    _useState304 = _slicedToArray(_useState303, 2),
+    adding = _useState304[0],
+    setAdding = _useState304[1];
   var showHist = isAdmin && !!absHandlers;
   var mine = (absences || []).filter(function (a) {
     return a.memberId === member.id;
@@ -11267,14 +11382,14 @@ var MemberDetailScreen = function MemberDetailScreen(_ref126) {
 };
 var LoginScreen = function LoginScreen(_ref129) {
   var onLogin = _ref129.onLogin;
-  var _useState303 = useState("patricio@multeam.app"),
-    _useState304 = _slicedToArray(_useState303, 2),
-    email = _useState304[0],
-    setEmail = _useState304[1];
-  var _useState305 = useState("••••••••"),
+  var _useState305 = useState("patricio@multeam.app"),
     _useState306 = _slicedToArray(_useState305, 2),
-    pass = _useState306[0],
-    setPass = _useState306[1];
+    email = _useState306[0],
+    setEmail = _useState306[1];
+  var _useState307 = useState("••••••••"),
+    _useState308 = _slicedToArray(_useState307, 2),
+    pass = _useState308[0],
+    setPass = _useState308[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -11380,30 +11495,30 @@ var LoginScreen = function LoginScreen(_ref129) {
 var ResetPasswordScreen = function ResetPasswordScreen(_ref130) {
   var accessToken = _ref130.accessToken,
     onDone = _ref130.onDone;
-  var _useState307 = useState(""),
-    _useState308 = _slicedToArray(_useState307, 2),
-    pass = _useState308[0],
-    setPass = _useState308[1];
   var _useState309 = useState(""),
     _useState310 = _slicedToArray(_useState309, 2),
-    pass2 = _useState310[0],
-    setPass2 = _useState310[1];
-  var _useState311 = useState(false),
+    pass = _useState310[0],
+    setPass = _useState310[1];
+  var _useState311 = useState(""),
     _useState312 = _slicedToArray(_useState311, 2),
-    showPass = _useState312[0],
-    setShowPass = _useState312[1];
-  var _useState313 = useState(""),
+    pass2 = _useState312[0],
+    setPass2 = _useState312[1];
+  var _useState313 = useState(false),
     _useState314 = _slicedToArray(_useState313, 2),
-    err = _useState314[0],
-    setErr = _useState314[1];
-  var _useState315 = useState(false),
+    showPass = _useState314[0],
+    setShowPass = _useState314[1];
+  var _useState315 = useState(""),
     _useState316 = _slicedToArray(_useState315, 2),
-    done = _useState316[0],
-    setDone = _useState316[1];
+    err = _useState316[0],
+    setErr = _useState316[1];
   var _useState317 = useState(false),
     _useState318 = _slicedToArray(_useState317, 2),
-    loading = _useState318[0],
-    setLoading = _useState318[1];
+    done = _useState318[0],
+    setDone = _useState318[1];
+  var _useState319 = useState(false),
+    _useState320 = _slicedToArray(_useState319, 2),
+    loading = _useState320[0],
+    setLoading = _useState320[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -11580,26 +11695,26 @@ var AuthScreen = function AuthScreen(_ref132) {
     onRegister = _ref132.onRegister,
     error = _ref132.error,
     loading = _ref132.loading;
-  var _useState319 = useState("login"),
-    _useState320 = _slicedToArray(_useState319, 2),
-    mode = _useState320[0],
-    setMode = _useState320[1];
-  var _useState321 = useState(""),
+  var _useState321 = useState("login"),
     _useState322 = _slicedToArray(_useState321, 2),
-    email = _useState322[0],
-    setEmail = _useState322[1];
+    mode = _useState322[0],
+    setMode = _useState322[1];
   var _useState323 = useState(""),
     _useState324 = _slicedToArray(_useState323, 2),
-    pass = _useState324[0],
-    setPass = _useState324[1];
+    email = _useState324[0],
+    setEmail = _useState324[1];
   var _useState325 = useState(""),
     _useState326 = _slicedToArray(_useState325, 2),
-    name = _useState326[0],
-    setName = _useState326[1];
-  var _useState327 = useState(false),
+    pass = _useState326[0],
+    setPass = _useState326[1];
+  var _useState327 = useState(""),
     _useState328 = _slicedToArray(_useState327, 2),
-    showPass = _useState328[0],
-    setShowPass = _useState328[1];
+    name = _useState328[0],
+    setName = _useState328[1];
+  var _useState329 = useState(false),
+    _useState330 = _slicedToArray(_useState329, 2),
+    showPass = _useState330[0],
+    setShowPass = _useState330[1];
   var inp = {
     width: "100%",
     padding: "14px 16px",
@@ -11936,34 +12051,34 @@ var AddCardModal = function AddCardModal(_ref141) {
   var tm = members.filter(function (m) {
     return m.teamId === team.id;
   });
-  var _useState329 = useState(""),
-    _useState330 = _slicedToArray(_useState329, 2),
-    mid = _useState330[0],
-    setMid = _useState330[1];
-  var _useState331 = useState("amarelo"),
+  var _useState331 = useState(""),
     _useState332 = _slicedToArray(_useState331, 2),
-    kind = _useState332[0],
-    setKind = _useState332[1];
-  var _useState333 = useState(todayLocal()),
+    mid = _useState332[0],
+    setMid = _useState332[1];
+  var _useState333 = useState("amarelo"),
     _useState334 = _slicedToArray(_useState333, 2),
-    date = _useState334[0],
-    setDate = _useState334[1];
-  var _useState335 = useState(""),
+    kind = _useState334[0],
+    setKind = _useState334[1];
+  var _useState335 = useState(todayLocal()),
     _useState336 = _slicedToArray(_useState335, 2),
-    opponent = _useState336[0],
-    setOpponent = _useState336[1];
+    date = _useState336[0],
+    setDate = _useState336[1];
   var _useState337 = useState(""),
     _useState338 = _slicedToArray(_useState337, 2),
-    note = _useState338[0],
-    setNote = _useState338[1];
-  var _useState339 = useState(false),
+    opponent = _useState338[0],
+    setOpponent = _useState338[1];
+  var _useState339 = useState(""),
     _useState340 = _slicedToArray(_useState339, 2),
-    saving = _useState340[0],
-    setSaving = _useState340[1];
-  var _useState341 = useState(""),
+    note = _useState340[0],
+    setNote = _useState340[1];
+  var _useState341 = useState(false),
     _useState342 = _slicedToArray(_useState341, 2),
-    err = _useState342[0],
-    setErr = _useState342[1];
+    saving = _useState342[0],
+    setSaving = _useState342[1];
+  var _useState343 = useState(""),
+    _useState344 = _slicedToArray(_useState343, 2),
+    err = _useState344[0],
+    setErr = _useState344[1];
   var sel = tm.find(function (m) {
     return String(m.id) === String(mid);
   });
@@ -12148,26 +12263,26 @@ var EditCardModal = function EditCardModal(_ref143) {
   var card = _ref143.card,
     onSave = _ref143.onSave,
     onClose = _ref143.onClose;
-  var _useState343 = useState(card.kind),
-    _useState344 = _slicedToArray(_useState343, 2),
-    kind = _useState344[0],
-    setKind = _useState344[1];
-  var _useState345 = useState(card.date || todayLocal()),
+  var _useState345 = useState(card.kind),
     _useState346 = _slicedToArray(_useState345, 2),
-    date = _useState346[0],
-    setDate = _useState346[1];
-  var _useState347 = useState(card.opponent),
+    kind = _useState346[0],
+    setKind = _useState346[1];
+  var _useState347 = useState(card.date || todayLocal()),
     _useState348 = _slicedToArray(_useState347, 2),
-    opponent = _useState348[0],
-    setOpponent = _useState348[1];
-  var _useState349 = useState(card.note),
+    date = _useState348[0],
+    setDate = _useState348[1];
+  var _useState349 = useState(card.opponent),
     _useState350 = _slicedToArray(_useState349, 2),
-    note = _useState350[0],
-    setNote = _useState350[1];
-  var _useState351 = useState(false),
+    opponent = _useState350[0],
+    setOpponent = _useState350[1];
+  var _useState351 = useState(card.note),
     _useState352 = _slicedToArray(_useState351, 2),
-    saving = _useState352[0],
-    setSaving = _useState352[1];
+    note = _useState352[0],
+    setNote = _useState352[1];
+  var _useState353 = useState(false),
+    _useState354 = _slicedToArray(_useState353, 2),
+    saving = _useState354[0],
+    setSaving = _useState354[1];
   var save = function () {
     var _ref144 = _asyncToGenerator(_regenerator().m(function _callee44() {
       return _regenerator().w(function (_context44) {
@@ -12270,10 +12385,10 @@ var cardSegments = function cardSegments(r) {
 var CompletedCards = function CompletedCards(_ref145) {
   var count = _ref145.count,
     children = _ref145.children;
-  var _useState353 = useState(false),
-    _useState354 = _slicedToArray(_useState353, 2),
-    show = _useState354[0],
-    setShow = _useState354[1];
+  var _useState355 = useState(false),
+    _useState356 = _slicedToArray(_useState355, 2),
+    show = _useState356[0],
+    setShow = _useState356[1];
   return React.createElement("div", {
     style: {
       marginTop: 8,
@@ -12325,14 +12440,14 @@ var CardsTab = function CardsTab(_ref146) {
     onEditCard = _ref146.onEditCard,
     onDeleteCard = _ref146.onDeleteCard,
     onServeSuspension = _ref146.onServeSuspension;
-  var _useState355 = useState(null),
-    _useState356 = _slicedToArray(_useState355, 2),
-    open = _useState356[0],
-    setOpen = _useState356[1];
-  var _useState357 = useState(false),
+  var _useState357 = useState(null),
     _useState358 = _slicedToArray(_useState357, 2),
-    showNone = _useState358[0],
-    setShowNone = _useState358[1];
+    open = _useState358[0],
+    setOpen = _useState358[1];
+  var _useState359 = useState(false),
+    _useState360 = _slicedToArray(_useState359, 2),
+    showNone = _useState360[0],
+    setShowNone = _useState360[1];
   var rows = members.filter(function (m) {
     return m.teamId === team.id;
   }).map(function (m) {
@@ -12653,15 +12768,15 @@ var CardsTab = function CardsTab(_ref146) {
 };
 function App() {
   var _members$find, _members$find3;
-  var _useState359 = useState(function () {
+  var _useState361 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("type=recovery")) return null;
       var m = h.match(/access_token=([^&#&]+)/);
       return m ? decodeURIComponent(m[1]) : null;
     }),
-    _useState360 = _slicedToArray(_useState359, 1),
-    recoveryToken = _useState360[0];
-  var _useState361 = useState(function () {
+    _useState362 = _slicedToArray(_useState361, 1),
+    recoveryToken = _useState362[0];
+  var _useState363 = useState(function () {
       var h = window.location.hash;
       if (!h.includes("access_token=")) return null;
       if (h.includes("type=recovery")) return null;
@@ -12673,100 +12788,100 @@ function App() {
         refresh: rt ? decodeURIComponent(rt[1]) : ""
       };
     }),
-    _useState362 = _slicedToArray(_useState361, 1),
-    magicToken = _useState362[0];
-  var _useState363 = useState(null),
-    _useState364 = _slicedToArray(_useState363, 2),
-    token = _useState364[0],
-    setToken = _useState364[1];
+    _useState364 = _slicedToArray(_useState363, 1),
+    magicToken = _useState364[0];
   var _useState365 = useState(null),
     _useState366 = _slicedToArray(_useState365, 2),
-    myUserId = _useState366[0],
-    setMyUserId = _useState366[1];
+    token = _useState366[0],
+    setToken = _useState366[1];
   var _useState367 = useState(null),
     _useState368 = _slicedToArray(_useState367, 2),
-    profile = _useState368[0],
-    setProfile = _useState368[1];
-  var _useState369 = useState([]),
+    myUserId = _useState368[0],
+    setMyUserId = _useState368[1];
+  var _useState369 = useState(null),
     _useState370 = _slicedToArray(_useState369, 2),
-    teams = _useState370[0],
-    setTeams = _useState370[1];
+    profile = _useState370[0],
+    setProfile = _useState370[1];
   var _useState371 = useState([]),
     _useState372 = _slicedToArray(_useState371, 2),
-    members = _useState372[0],
-    setMembers = _useState372[1];
+    teams = _useState372[0],
+    setTeams = _useState372[1];
   var _useState373 = useState([]),
     _useState374 = _slicedToArray(_useState373, 2),
-    fineTypes = _useState374[0],
-    setFineTypes = _useState374[1];
+    members = _useState374[0],
+    setMembers = _useState374[1];
   var _useState375 = useState([]),
     _useState376 = _slicedToArray(_useState375, 2),
-    fines = _useState376[0],
-    setFines = _useState376[1];
+    fineTypes = _useState376[0],
+    setFineTypes = _useState376[1];
   var _useState377 = useState([]),
     _useState378 = _slicedToArray(_useState377, 2),
-    cards = _useState378[0],
-    setCards = _useState378[1];
-  var _useState379 = useState(null),
+    fines = _useState378[0],
+    setFines = _useState378[1];
+  var _useState379 = useState([]),
     _useState380 = _slicedToArray(_useState379, 2),
-    editingCard = _useState380[0],
-    setEditingCard = _useState380[1];
-  var _useState381 = useState([]),
+    cards = _useState380[0],
+    setCards = _useState380[1];
+  var _useState381 = useState(null),
     _useState382 = _slicedToArray(_useState381, 2),
-    expenses = _useState382[0],
-    setExpenses = _useState382[1];
+    editingCard = _useState382[0],
+    setEditingCard = _useState382[1];
   var _useState383 = useState([]),
     _useState384 = _slicedToArray(_useState383, 2),
-    trainings = _useState384[0],
-    setTrainings = _useState384[1];
+    expenses = _useState384[0],
+    setExpenses = _useState384[1];
   var _useState385 = useState([]),
     _useState386 = _slicedToArray(_useState385, 2),
-    absences = _useState386[0],
-    setAbsences = _useState386[1];
-  var _useState387 = useState({}),
+    trainings = _useState386[0],
+    setTrainings = _useState386[1];
+  var _useState387 = useState([]),
     _useState388 = _slicedToArray(_useState387, 2),
-    presences = _useState388[0],
-    setPresences = _useState388[1];
-  var _useState389 = useState(null),
+    absences = _useState388[0],
+    setAbsences = _useState388[1];
+  var _useState389 = useState({}),
     _useState390 = _slicedToArray(_useState389, 2),
-    teamId = _useState390[0],
-    setTeamId = _useState390[1];
-  var _useState391 = useState("home"),
+    presences = _useState390[0],
+    setPresences = _useState390[1];
+  var _useState391 = useState(null),
     _useState392 = _slicedToArray(_useState391, 2),
-    tab = _useState392[0],
-    setTab = _useState392[1];
-  var _useState393 = useState(null),
+    teamId = _useState392[0],
+    setTeamId = _useState392[1];
+  var _useState393 = useState("home"),
     _useState394 = _slicedToArray(_useState393, 2),
-    sub = _useState394[0],
-    setSub = _useState394[1];
+    tab = _useState394[0],
+    setTab = _useState394[1];
   var _useState395 = useState(null),
     _useState396 = _slicedToArray(_useState395, 2),
-    modal = _useState396[0],
-    setModal = _useState396[1];
+    sub = _useState396[0],
+    setSub = _useState396[1];
   var _useState397 = useState(null),
     _useState398 = _slicedToArray(_useState397, 2),
-    editingFine = _useState398[0],
-    setEditingFine = _useState398[1];
+    modal = _useState398[0],
+    setModal = _useState398[1];
   var _useState399 = useState(null),
     _useState400 = _slicedToArray(_useState399, 2),
-    treinosModal = _useState400[0],
-    setTreinosModal = _useState400[1];
-  var _useState401 = useState(false),
+    editingFine = _useState400[0],
+    setEditingFine = _useState400[1];
+  var _useState401 = useState(null),
     _useState402 = _slicedToArray(_useState401, 2),
-    loading = _useState402[0],
-    setLoading = _useState402[1];
+    treinosModal = _useState402[0],
+    setTreinosModal = _useState402[1];
   var _useState403 = useState(false),
     _useState404 = _slicedToArray(_useState403, 2),
-    appReady = _useState404[0],
-    setAppReady = _useState404[1];
+    loading = _useState404[0],
+    setLoading = _useState404[1];
   var _useState405 = useState(false),
     _useState406 = _slicedToArray(_useState405, 2),
-    refreshing = _useState406[0],
-    setRefreshing = _useState406[1];
-  var _useState407 = useState(null),
+    appReady = _useState406[0],
+    setAppReady = _useState406[1];
+  var _useState407 = useState(false),
     _useState408 = _slicedToArray(_useState407, 2),
-    authError = _useState408[0],
-    setAuthError = _useState408[1];
+    refreshing = _useState408[0],
+    setRefreshing = _useState408[1];
+  var _useState409 = useState(null),
+    _useState410 = _slicedToArray(_useState409, 2),
+    authError = _useState410[0],
+    setAuthError = _useState410[1];
   var team = teams.find(function (t) {
     return t.id === teamId;
   });
@@ -14521,10 +14636,10 @@ function App() {
       return _ref185.apply(this, arguments);
     };
   }();
-  var _useState409 = useState(null),
-    _useState410 = _slicedToArray(_useState409, 2),
-    teamError = _useState410[0],
-    setTeamError = _useState410[1];
+  var _useState411 = useState(null),
+    _useState412 = _slicedToArray(_useState411, 2),
+    teamError = _useState412[0],
+    setTeamError = _useState412[1];
   var createTeam = function () {
     var _ref186 = _asyncToGenerator(_regenerator().m(function _callee80(d) {
       var tid, invCode, sr, se, tr, newTeam, _t85;
@@ -14781,13 +14896,13 @@ function App() {
       return _ref190.apply(this, arguments);
     };
   }();
-  var _useState411 = useState(function () {
+  var _useState413 = useState(function () {
       var p = new URLSearchParams(window.location.search);
       return p.get('invite') || null;
     }),
-    _useState412 = _slicedToArray(_useState411, 2),
-    pendingInvite = _useState412[0],
-    setPendingInvite = _useState412[1];
+    _useState414 = _slicedToArray(_useState413, 2),
+    pendingInvite = _useState414[0],
+    setPendingInvite = _useState414[1];
   useEffect(function () {
     if (!appReady || !pendingInvite) return;
     var alreadyIn = teams.find(function (t) {
@@ -14892,10 +15007,10 @@ function App() {
       subscribeToPush(token, myUserId);
     }
   }, [appReady, token, myUserId]);
-  var _useState413 = useState(null),
-    _useState414 = _slicedToArray(_useState413, 2),
-    toast = _useState414[0],
-    setToast = _useState414[1];
+  var _useState415 = useState(null),
+    _useState416 = _slicedToArray(_useState415, 2),
+    toast = _useState416[0],
+    setToast = _useState416[1];
   var showToast = function showToast(msg) {
     var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : T.navy;
     setToast({
