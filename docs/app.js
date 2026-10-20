@@ -10212,7 +10212,8 @@ var AbsenceCards = function AbsenceCards(_ref118) {
     onUpdate = _ref118.onUpdate,
     onClose = _ref118.onClose,
     onDelete = _ref118.onDelete,
-    emptyText = _ref118.emptyText;
+    emptyText = _ref118.emptyText,
+    readOnly = _ref118.readOnly;
   var _useState273 = useState(null),
     _useState274 = _slicedToArray(_useState273, 2),
     editing = _useState274[0],
@@ -10288,7 +10289,7 @@ var AbsenceCards = function AbsenceCards(_ref118) {
         fontSize: 12,
         color: T.sub
       }
-    }, fmtDMY(a.start), a.end ? " \u2013 ".concat(fmtDMY(a.end)) : " – hoje", " \xB7 ", plural(d, "dia", "dias")))), React.createElement("div", {
+    }, fmtDMY(a.start), a.end ? " \u2013 ".concat(fmtDMY(a.end)) : " – hoje", " \xB7 ", plural(d, "dia", "dias")))), !readOnly && React.createElement("div", {
       style: {
         display: "flex",
         gap: 6,
@@ -11538,7 +11539,8 @@ var MemberDetailScreen = function MemberDetailScreen(_ref133) {
     onDeleteFine = _ref133.onDeleteFine,
     isAdmin = _ref133.isAdmin,
     absences = _ref133.absences,
-    absHandlers = _ref133.absHandlers;
+    absHandlers = _ref133.absHandlers,
+    readOnly = _ref133.readOnly;
   var _useState309 = useState("multas"),
     _useState310 = _slicedToArray(_useState309, 2),
     ptab = _useState310[0],
@@ -11547,7 +11549,7 @@ var MemberDetailScreen = function MemberDetailScreen(_ref133) {
     _useState312 = _slicedToArray(_useState311, 2),
     adding = _useState312[0],
     setAdding = _useState312[1];
-  var showHist = isAdmin && !!absHandlers;
+  var showHist = isAdmin && !!absHandlers || !!readOnly;
   var mine = (absences || []).filter(function (a) {
     return a.memberId === member.id;
   });
@@ -11728,11 +11730,12 @@ var MemberDetailScreen = function MemberDetailScreen(_ref133) {
   }).length, "ausência", "ausências")), React.createElement(AbsenceCards, {
     records: mine,
     color: team.color,
-    onUpdate: absHandlers.update,
-    onClose: absHandlers.close,
-    onDelete: absHandlers.del,
+    readOnly: readOnly,
+    onUpdate: absHandlers && absHandlers.update,
+    onClose: absHandlers && absHandlers.close,
+    onDelete: absHandlers && absHandlers.del,
     emptyText: "Sem les\xF5es nem aus\xEAncias registadas"
-  }), !member.unavailable ? React.createElement("button", {
+  }), !readOnly && (!member.unavailable ? React.createElement("button", {
     onClick: function onClick() {
       return setAdding(true);
     },
@@ -11754,7 +11757,7 @@ var MemberDetailScreen = function MemberDetailScreen(_ref133) {
       color: T.sub,
       textAlign: "center"
     }
-  }, "Para adicionar um registo passado, fecha primeiro a indisponibilidade atual."), adding && React.createElement(AbsenceForm, {
+  }, "Para adicionar um registo passado, fecha primeiro a indisponibilidade atual.")), adding && React.createElement(AbsenceForm, {
     title: "Registo passado",
     initial: {
       kind: "lesao",
@@ -16311,6 +16314,7 @@ function App() {
     team: team,
     fines: fines,
     isAdmin: isAdmin,
+    readOnly: roMode,
     absences: absences,
     absHandlers: isAdmin ? absHandlers : null,
     onBack: function onBack() {
