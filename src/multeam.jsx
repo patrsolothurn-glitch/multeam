@@ -2851,7 +2851,7 @@ const CloseAbsenceSheet = ({ name, kind, onConfirm, onCancel }) => {
 };
 
 // lista de registos (do mais recente para o mais antigo) com editar, fechar (se em curso) e apagar
-const AbsenceCards = ({ records, showName, color, onUpdate, onClose, onDelete, emptyText }) => {
+const AbsenceCards = ({ records, showName, color, onUpdate, onClose, onDelete, emptyText, readOnly }) => {
   const [editing, setEditing] = useState(null);
   const [closing, setClosing] = useState(null);
   const sorted = [...records].sort((a, b) => (b.start || "").localeCompare(a.start || "") || (b.end === null) - (a.end === null));
@@ -2872,11 +2872,11 @@ const AbsenceCards = ({ records, showName, color, onUpdate, onClose, onDelete, e
                 <p style={{ margin:"2px 0 0", fontSize:12, color:T.sub }}>{fmtDMY(a.start)}{a.end ? ` – ${fmtDMY(a.end)}` : " – hoje"} · {plural(d, "dia", "dias")}</p>
               </div>
             </div>
-            <div style={{ display:"flex", gap:6, marginTop:8, justifyContent:"flex-end", flexWrap:"wrap" }}>
+            {!readOnly && <div style={{ display:"flex", gap:6, marginTop:8, justifyContent:"flex-end", flexWrap:"wrap" }}>
               {!a.end && a.memberId && <button onClick={()=>setClosing(a)} style={btn}>Fechar</button>}
               <button onClick={()=>setEditing(a)} aria-label="Editar registo" style={btn}>✏️ Editar</button>
               <button onClick={()=>{ if (window.confirm(`Apagar este registo de ${a.memberName}? Não tem volta.`)) onDelete(a); }} aria-label="Apagar registo" style={btn}>🗑️</button>
-            </div>
+            </div>}
           </div>
         );
       })}
@@ -3208,10 +3208,10 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   );
 };
 
-const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin, absences, absHandlers }) => {
+const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin, absences, absHandlers, readOnly }) => {
   const [ptab, setPtab] = useState("multas");
   const [adding, setAdding] = useState(false);
-  const showHist = isAdmin && !!absHandlers;
+  const showHist = (isAdmin && !!absHandlers) || !!readOnly; // modo leitura (super admin): histórico visível, sem ações
   const mine = (absences || []).filter(a => a.memberId === member.id);
   const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort(byDayDesc);
   const unpaid = pf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
@@ -3249,10 +3249,10 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
               ? <p style={{ color:T.brand, fontSize:13 }}>Não foi possível carregar o histórico. Puxa para atualizar.</p>
               : <>
                   <p style={{ margin:"0 0 10px", fontSize:12, color:T.sub }}>{plural(mine.length, "registo", "registos")} · {plural(mine.filter(a=>a.kind==="lesao").length, "lesão", "lesões")} · {plural(mine.filter(a=>a.kind==="ausencia").length, "ausência", "ausências")}</p>
-                  <AbsenceCards records={mine} color={team.color} onUpdate={absHandlers.update} onClose={absHandlers.close} onDelete={absHandlers.del} emptyText="Sem lesões nem ausências registadas" />
-                  {!member.unavailable
+                  <AbsenceCards records={mine} color={team.color} readOnly={readOnly} onUpdate={absHandlers && absHandlers.update} onClose={absHandlers && absHandlers.close} onDelete={absHandlers && absHandlers.del} emptyText="Sem lesões nem ausências registadas" />
+                  {!readOnly && (!member.unavailable
                     ? <button onClick={()=>setAdding(true)} style={{ width:"100%", padding:"11px", borderRadius:10, border:`1.5px dashed ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>+ Adicionar registo passado</button>
-                    : <p style={{ fontSize:12, color:T.sub, textAlign:"center" }}>Para adicionar um registo passado, fecha primeiro a indisponibilidade atual.</p>}
+                    : <p style={{ fontSize:12, color:T.sub, textAlign:"center" }}>Para adicionar um registo passado, fecha primeiro a indisponibilidade atual.</p>)}
                   {adding && <AbsenceForm title="Registo passado" initial={{ kind:"lesao", emoji:"🤕", note:"", start:todayLocal(), end:todayLocal() }} withEnd color={team.color} onSave={v => absHandlers.addPast(member.id, v)} onClose={()=>setAdding(false)} />}
                 </>}
           </div>
@@ -4487,7 +4487,7 @@ export default function App() {
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
-  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
+  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
     return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
