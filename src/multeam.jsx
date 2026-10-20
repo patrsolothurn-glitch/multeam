@@ -2063,12 +2063,9 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
 const AppAdminTab = ({ token, onBack }) => {
   const [stats, setStats] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null); // hora local da última carga dos dados
-  const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [section, setSection] = useState("stats");
   const [selectedTeam, setSelectedTeam] = useState(null);
-  const [teamDetail, setTeamDetail] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -2077,9 +2074,9 @@ const AppAdminTab = ({ token, onBack }) => {
         const rpc = (fn, body="{}") => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
           method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body
         });
-        const [sr, ur, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_app_user_list"), rpc("get_all_teams_admin")]);
+        // só agregados: contagens e totais (nunca nomes, emails, telefones nem valores por pessoa)
+        const [sr, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_all_teams_admin")]);
         if (sr.ok) setStats(await sr.json());
-        if (ur.ok) setUsers(await ur.json() || []);
         if (tr.ok) setTeams(await tr.json() || []);
         setUpdatedAt(new Date());
       } catch(e) { console.error(e); }
@@ -2088,106 +2085,42 @@ const AppAdminTab = ({ token, onBack }) => {
     load();
   }, [token]);
 
-  const [detailError, setDetailError] = useState(null);
-
-  const openTeam = async (team) => {
-    setSelectedTeam(team); setTeamDetail(null); setDetailLoading(true); setDetailError(null);
-    try {
-      const r = await fetch(`${SB_URL}/rest/v1/rpc/get_team_details_admin`, {
-        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-        body: JSON.stringify({ p_team_id: team.id })
-      });
-      const data = await r.json();
-      if (r.ok) {
-        setTeamDetail(data || { members:[], recent_fines:[], trainings:[] });
-      } else {
-        setDetailError(data?.message || data?.error || `Erro ${r.status}`);
-      }
-    } catch(e) { setDetailError(e.message); }
-    setDetailLoading(false);
-  };
-
   if (loading) return <Spinner msg="A carregar painel admin..." />;
 
-  // Team detail view
+  // Detalhe da equipa: só agregados que já vêm da lista (nada de nomes, motivos, adversários nem locais; sem pedido extra)
   if (selectedTeam) {
+    const t = selectedTeam;
+    const has = v => v !== undefined && v !== null && v !== "";
+    const lastAct = t.last_activity_at || t.last_activity || null; // só aparece se a função da base de dados o devolver
+    const rows = [
+      ["👥", "Membros", t.members_count],
+      ["📅", "Treinos e jogos", t.trainings_count],
+      ["🟥", "Multas", t.fines_count],
+      ["💶", "Total de multas", has(t.fines_total) ? `${t.fines_total}€` : null],
+      ["💸", "Por pagar", has(t.unpaid_total) ? `${t.unpaid_total}€` : null],
+      ["🕒", "Última atividade", lastAct ? fmtDay(lastAct) : null],
+    ];
     return (
       <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
         <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
           <button onClick={()=>setSelectedTeam(null)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12 }}>← Voltar</button>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:32 }}>{selectedTeam.emoji}</span>
+            <span style={{ fontSize:32 }}>{t.emoji}</span>
             <div>
-              <h2 style={{ margin:0, color:"#fff", fontSize:20, fontWeight:900 }}>{selectedTeam.name}</h2>
-              <p style={{ margin:0, fontSize:13, color:"rgba(255,255,255,0.5)" }}>{selectedTeam.season} · {plural(selectedTeam.members_count,"membro","membros")}</p>
+              <h2 style={{ margin:0, color:"#fff", fontSize:20, fontWeight:900 }}>{t.name}</h2>
+              <p style={{ margin:0, fontSize:13, color:"rgba(255,255,255,0.5)" }}>{t.season} · {plural(t.members_count,"membro","membros")}</p>
             </div>
           </div>
         </div>
         <div style={{ padding:"16px" }}>
-          {detailLoading && <Spinner msg="A carregar..." />}
-          {detailError && <div style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", color:"#c0392b", fontSize:14 }}>❌ {detailError}</div>}
-          {teamDetail && (
-            <>
-              {/* Members */}
-              <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>👥 Membros</p>
-              {(teamDetail.members||[]).map((m,i) => (
-                <div key={i} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ width:38, height:38, borderRadius:19, background:m.role==="admin"?T.navy:T.bg, border:`2px solid ${m.role==="admin"?T.navy:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:13, color:m.role==="admin"?"#fff":T.sub, flexShrink:0 }}>
-                    {(m.name||"?")[0].toUpperCase()}
-                  </div>
-                  <div style={{ flex:1 }}>
-                    <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{m.name||"—"}</p>
-                    <p style={{ margin:0, fontSize:12, color:T.sub }}>{m.position||"—"} · {m.role==="admin"?"Admin":"Jogador"}</p>
-                  </div>
-                  {m.unpaid_amount > 0 && (
-                    <div style={{ background:`${T.brand}15`, borderRadius:10, padding:"4px 10px" }}>
-                      <p style={{ margin:0, fontWeight:900, fontSize:13, color:T.brand }}>{m.unpaid_amount}€</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-
-              {/* Recent fines - grouped by member */}
-              {(teamDetail.recent_fines||[]).length > 0 && (() => {
-                const grouped = {};
-                (teamDetail.recent_fines||[]).forEach(f => {
-                  const k = f.member_name||"?";
-                  if (!grouped[k]) grouped[k] = { name:k, fines:[], total:0, unpaid:0 };
-                  grouped[k].fines.push(f);
-                  grouped[k].total += Number(f.amount||0);
-                  if (!f.paid) grouped[k].unpaid += Number(f.amount||0);
-                });
-                return (
-                  <>
-                    <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>🟥 Multas recentes</p>
-                    {Object.values(grouped).map(g => (
-                      <FineGroup key={g.name} group={g} color={selectedTeam.color||T.navy} />
-                    ))}
-                  </>
-                );
-              })()}
-
-              {/* Trainings */}
-              {(teamDetail.trainings||[]).length > 0 && (
-                <>
-                  <p style={{ margin:"16px 0 10px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>📅 Treinos / Jogos</p>
-                  {(teamDetail.trainings||[]).map((t,i) => {
-                    const dateStr = t.date ? new Date(t.date+"T00:00:00").toLocaleDateString("pt-PT",{day:"numeric",month:"short",year:"numeric"}) : "Recorrente";
-                    const timeStr = t.time ? t.time.slice(0,5) : "";
-                    return (
-                    <div key={i} style={{ background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6, display:"flex", alignItems:"center", gap:10 }}>
-                      <span style={{ fontSize:20 }}>{t.type==="jogo"?"⚽":t.type==="recorrente"?"🔄":"🏃"}</span>
-                      <div>
-                        <p style={{ margin:0, fontWeight:700, fontSize:13 }}>{t.type==="jogo"?`vs ${t.opponent||"?"}`:t.type==="recorrente"?"Recorrente":"Treino"}</p>
-                        <p style={{ margin:0, fontSize:12, color:T.sub }}>{dateStr}{timeStr?` · ${timeStr}`:""}{t.location?` · ${t.location}`:""}</p>
-                      </div>
-                    </div>
-                    );
-                  })}
-                </>
-              )}
-            </>
-          )}
+          {rows.map(([icon, label, val]) => (
+            <div key={label} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:22 }}>{icon}</span>
+              <p style={{ margin:0, flex:1, fontSize:14, fontWeight:600 }}>{label}</p>
+              <p style={{ margin:0, fontSize:18, fontWeight:900, color:T.navy, whiteSpace:"nowrap" }}>{has(val) ? val : "—"}</p>
+            </div>
+          ))}
+          <p style={{ margin:"12px 0 0", fontSize:12, color:"#5F5F66" }}>Só totais: o painel não mostra nomes, emails nem valores por pessoa.</p>
         </div>
       </div>
     );
@@ -2243,7 +2176,7 @@ const AppAdminTab = ({ token, onBack }) => {
           <>
             {teams.length===0 && <p style={{ color:T.sub, textAlign:"center", padding:"20px 0" }}>Nenhuma equipa ainda</p>}
             {teams.map(t => (
-              <div key={t.id} onClick={()=>{ setSection("teams"); openTeam(t); }} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", border:`1.5px solid ${T.border}` }}>
+              <div key={t.id} onClick={()=>{ setSection("teams"); setSelectedTeam(t); }} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", border:`1.5px solid ${T.border}` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
                   <span style={{ fontSize:28 }}>{t.emoji}</span>
                   <div style={{ flex:1 }}>
@@ -2267,24 +2200,12 @@ const AppAdminTab = ({ token, onBack }) => {
         )}
         {section==="users" && (
           <>
-            {users.map(u => (
-              <div key={u.id} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ width:40, height:40, borderRadius:20, background:u.is_admin?T.navy:T.bg, border:`2px solid ${u.is_admin?T.navy:T.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:u.is_admin?"#fff":T.sub, fontWeight:800, fontSize:14, flexShrink:0 }}>
-                    {(u.name||u.email||"?")[0].toUpperCase()}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name||"—"}</p>
-                    <p style={{ margin:0, fontSize:12, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</p>
-                  </div>
-                  <div style={{ textAlign:"right", flexShrink:0 }}>
-                    <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub }}>{u.teams_count} equipa{u.teams_count!==1?"s":""}</p>
-                    {u.is_admin && <span style={{ fontSize:10, background:T.navy, color:"#fff", borderRadius:6, padding:"2px 6px", fontWeight:700 }}>ADMIN</span>}
-                  </div>
-                </div>
-                {u.last_sign_in_at && <p style={{ margin:"6px 0 0", fontSize:11, color:T.sub }}>Último acesso: {new Date(u.last_sign_in_at).toLocaleDateString("pt-PT")}</p>}
-              </div>
-            ))}
+            <div style={{ display:"flex", gap:"clamp(4px, 1.5vw, 8px)", marginBottom:8 }}>
+              <StatCard cols={3} label="Utilizadores" value={stats ? stats.users : "—"} color="#6c47ff" />
+              <StatCard cols={3} label="Ativos 7 dias"  value="—" color={T.navy} />
+              <StatCard cols={3} label="Ativos 30 dias" value="—" color={T.navy} />
+            </div>
+            <p style={{ margin:"4px 0 0", fontSize:12, color:"#5F5F66" }}>Só totais: o painel não mostra nomes, emails nem datas de acesso por pessoa. Os utilizadores ativos aparecem quando existir a função agregada na base de dados.</p>
           </>
         )}
       </div>
