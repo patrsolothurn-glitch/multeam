@@ -13,10 +13,10 @@ const SB_KEY = "sb_publishable_MRMHqVQ-key1c5kf7UOLUA_rwyu85BI";
 const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRFVOnO37rQ81o-cYoOuTCwmo--CQnEk";
 
 // ── MODO LEITURA (super admin) ───────────────────────────────
-// Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às 3 rpc de leitura) sai da app.
+// Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -2083,6 +2083,168 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
   );
 };
 
+// ── ABA USERS (painel de super admin): equipas, membros, emails e histórico de multas ──
+// Só leitura. Dados: get_app_activity_totals + get_admin_teams_overview (as duas únicas rpc desta aba).
+const adminErrPt = e => {
+  const m = String(e && e.message ? e.message : "");
+  if (/not authorized|permission denied|42501|Sem permissão|403/i.test(m)) return "Sem permissão";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem ligação à internet";
+  if (/JWT|expired/i.test(m)) return "A sessão expirou: volta a entrar";
+  if (/resposta inválida/i.test(m)) return "Resposta inválida do servidor";
+  return m || "erro desconhecido";
+};
+const ROLE_PT = { admin:"admin", player:"jogador", treinador:"treinador", diretor:"diretor" };
+const eur = c => `${(c / 100).toFixed(2)}€`; // montantes em cêntimos inteiros
+const dotsDay = v => { const d = localDay(v); return d ? `${d.slice(8)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : null; }; // DD.MM.YYYY (dia local, via localDay)
+const ADMIN_DAY = 86400000;
+const adminAgeMs = iso => { const t = iso ? Date.parse(iso) : NaN; return isNaN(t) ? Infinity : Date.now() - t; };
+
+// valida e normaliza as duas respostas; qualquer forma inesperada lança "resposta inválida" (nunca ecrã vazio nem números inventados)
+const parseAdminUsers = (tot, ov) => {
+  const bad = () => new Error("resposta inválida");
+  const t = Array.isArray(tot) ? tot[0] : tot;
+  const num = v => (v !== null && v !== "" && v !== undefined && Number.isFinite(Number(v))) ? Number(v) : null;
+  if (!t || typeof t !== "object" || [t.users, t.active_7d, t.active_30d].some(v => num(v) === null)) throw bad();
+  const list = ov == null ? [] : ov;
+  if (!Array.isArray(list)) throw bad();
+  const cents = v => { if (v == null || v === "") return 0; const n = Number(v); if (!Number.isFinite(n)) throw bad(); return Math.round(n * 100); };
+  const count = (v, dflt) => { if (v == null || v === "") return dflt; const n = Number(v); if (!Number.isFinite(n)) throw bad(); return n; };
+  const teams = list.map(x => {
+    if (!x || typeof x !== "object" || x.id == null) throw bad();
+    const mem = x.members == null ? [] : x.members;
+    if (!Array.isArray(mem)) throw bad();
+    const members = mem.map((m, i) => {
+      if (!m || typeof m !== "object") throw bad();
+      const fl = m.fines == null ? [] : m.fines;
+      if (!Array.isArray(fl)) throw bad();
+      return {
+        key: m.member_id != null ? String(m.member_id) : `${x.id}-${i}`,
+        role: m.role || "", name: (m.name || "").trim(), email: (m.email || "").trim(), last: m.last_sign_in_at || null,
+        finesCount: count(m.fines_count, fl.length), total: cents(m.fines_total), unpaid: cents(m.unpaid_total),
+        fines: fl.map(f => ({ reason: (f && f.reason) || "", amount: cents(f && f.amount), paid: !!(f && f.paid), date: f && f.date || null, paidAt: f && f.paid_at || null })),
+      };
+    });
+    return {
+      id: String(x.id), name: x.name || "", emoji: x.emoji || "⚽", season: x.season || "",
+      membersCount: count(x.members_count, members.length), playersCount: count(x.players_count, members.filter(m => m.role === "player").length),
+      unpaid: members.reduce((a, m) => a + m.unpaid, 0), members,
+    };
+  });
+  return { totals: { users: num(t.users), a7: num(t.active_7d), a30: num(t.active_30d) }, teams };
+};
+
+const AdminUsersSection = ({ act, onRetry, StatCard }) => {
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [open, setOpen] = useState({});   // equipas expandidas
+  const [openM, setOpenM] = useState({}); // membros expandidos (histórico de multas)
+  const num = v => v === null || v === undefined ? "—" : String(v);
+  const tt = act.data && act.data.totals;
+  const cards = (
+    <div style={{ display:"flex", gap:"clamp(4px, 1.5vw, 8px)", marginBottom:12 }}>
+      <StatCard cols={3} label="Utilizadores" value={act.status==="loading" ? "…" : num(tt && tt.users)} color="#6c47ff" />
+      <StatCard cols={3} label="Ativos 7 dias" value={act.status==="loading" ? "…" : num(tt && tt.a7)} color={T.navy} />
+      <StatCard cols={3} label="Ativos 30 dias" value={act.status==="loading" ? "…" : num(tt && tt.a30)} color={T.navy} />
+    </div>
+  );
+  if (act.status === "loading" || act.status === "idle") return <>{cards}<Spinner msg="A carregar utilizadores..." /></>;
+  if (act.status === "error") return (
+    <>
+      {cards}
+      <div role="alert" style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", fontSize:14, color:"#8A0000", marginBottom:12 }}>Não foi possível carregar a atividade: {act.error}</div>
+      <button onClick={onRetry} style={{ width:"100%", minHeight:48, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
+    </>
+  );
+  const teams = act.data.teams;
+  const nq = normTxt(q);
+  const filtering = nq !== "" || filter !== "all";
+  const keep = m => {
+    if (nq && !normTxt(m.name).includes(nq) && !normTxt(m.email).includes(nq)) return false;
+    const age = adminAgeMs(m.last);
+    if (filter === "a7") return age <= 7 * ADMIN_DAY;
+    if (filter === "i30") return !(age <= 30 * ADMIN_DAY);
+    return true;
+  };
+  const shown = teams.map(tm => ({ tm, ms: tm.members.filter(keep) })).filter(x => !filtering || x.ms.length > 0);
+  const chips = [["all","Todos"],["a7","Ativos 7 dias"],["i30","Inativos 30+ dias"]];
+  const isOpen = id => id in open ? open[id] : filtering;
+  return (
+    <>
+      {cards}
+      <FI type="search" placeholder="Pesquisar por nome ou email" aria-label="Pesquisar por nome ou email" value={q} onChange={e=>{ setQ(e.target.value); setOpen({}); }} style={{ marginBottom:8 }} />
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+        {chips.map(([id,label]) => (
+          <button key={id} aria-pressed={filter===id} onClick={()=>{ setFilter(id); setOpen({}); }} style={{ minHeight:44, padding:"0 14px", borderRadius:22, border:`1.5px solid ${filter===id?T.navy:T.border}`, background:filter===id?T.navy:"transparent", color:filter===id?"#fff":T.sub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+      <p style={{ margin:"0 0 10px", fontSize:12, color:"#5F5F66" }}>{plural(shown.length, "equipa", "equipas")}{filtering ? ` com ${plural(shown.reduce((a,x)=>a+x.ms.length,0), "membro", "membros")}` : ""}</p>
+      {shown.length === 0 && <p style={{ textAlign:"center", color:"#5F5F66", padding:"24px 0", fontSize:14 }}>{filtering ? "Nenhum membro encontrado" : "Sem equipas"}</p>}
+      {shown.map(({ tm, ms }) => {
+        const o = isOpen(tm.id);
+        return (
+          <div key={tm.id} data-team={tm.id} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden" }}>
+            <button onClick={()=>setOpen(p=>({ ...p, [tm.id]: !o }))} aria-expanded={o} style={{ display:"flex", alignItems:"center", gap:12, width:"100%", minHeight:56, padding:"12px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit", boxSizing:"border-box" }}>
+              <span style={{ fontSize:26 }}>{tm.emoji}</span>
+              <span style={{ flex:1, minWidth:0 }}>
+                <span style={{ display:"block", fontWeight:800, fontSize:15, color:T.text, overflowWrap:"anywhere" }}>{tm.name || "Sem nome"}</span>
+                <span style={{ display:"block", fontSize:12, color:"#5F5F66" }}>{tm.season ? `${tm.season} · ` : ""}{plural(tm.playersCount, "jogador", "jogadores")} · {plural(tm.membersCount, "membro", "membros")}</span>
+              </span>
+              <span style={{ textAlign:"right", flexShrink:0 }}>
+                <span style={{ display:"block", fontWeight:900, fontSize:15, color: tm.unpaid > 0 ? T.brand : T.navy }}>{eur(tm.unpaid)}</span>
+                <span style={{ display:"block", fontSize:11, color:"#5F5F66" }}>por pagar</span>
+              </span>
+              <span aria-hidden="true" style={{ fontSize:12, color:T.sub }}>{o ? "▲" : "▼"}</span>
+            </button>
+            {o && (
+              <div style={{ padding:"0 12px 12px" }}>
+                {ms.length === 0 && <p style={{ margin:"4px 4px 0", fontSize:13, color:"#5F5F66" }}>Sem membros</p>}
+                {ms.map(m => {
+                  const mo = !!openM[tm.id + "/" + m.key];
+                  const acc = dotsDay(m.last);
+                  return (
+                    <div key={m.key} data-member={m.key} style={{ background:T.bg, borderRadius:12, marginTop:8, overflow:"hidden" }}>
+                      <button onClick={()=>setOpenM(p=>({ ...p, [tm.id + "/" + m.key]: !mo }))} aria-expanded={mo} style={{ display:"block", width:"100%", padding:"10px 12px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit", boxSizing:"border-box" }}>
+                        <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ flex:1, minWidth:0, fontWeight:800, fontSize:14, color:T.text, overflowWrap:"anywhere" }}>{m.name || "Sem nome"}</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:T.navy, border:`1px solid ${T.border}`, borderRadius:6, padding:"1px 6px", flexShrink:0 }}>{ROLE_PT[m.role] || m.role || "membro"}</span>
+                          <span aria-hidden="true" style={{ fontSize:11, color:T.sub }}>{mo ? "▲" : "▼"}</span>
+                        </span>
+                        <span style={{ display:"block", fontSize:12, color: m.email ? T.text : "#5F5F66", marginTop:2, overflowWrap:"anywhere" }}>{m.email || "Sem conta"}</span>
+                        <span style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>Último acesso: {acc || "Nunca"}</span>
+                        <span style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>{plural(m.finesCount, "multa", "multas")} · total {eur(m.total)} · por pagar {eur(m.unpaid)}</span>
+                      </button>
+                      {mo && (
+                        <div style={{ padding:"0 12px 10px" }}>
+                          {m.fines.length === 0 && <p style={{ margin:"0", fontSize:12, color:"#5F5F66" }}>Sem multas</p>}
+                          {m.fines.map((f, i) => {
+                            const d = dotsDay(f.date), pd = dotsDay(f.paidAt);
+                            return (
+                              <div key={i} data-fine style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"6px 0", borderTop:`1px solid ${T.border}` }}>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <p style={{ margin:0, fontSize:13, fontWeight:600, overflowWrap:"anywhere" }}>{f.reason || "Sem motivo"}</p>
+                                  <p style={{ margin:"1px 0 0", fontSize:11, color:"#5F5F66" }}>{d || "Sem data"}{f.paid ? ` · paga em ${pd || "data desconhecida"}` : ""}</p>
+                                </div>
+                                <div style={{ textAlign:"right", flexShrink:0 }}>
+                                  <p style={{ margin:0, fontSize:13, fontWeight:800 }}>{eur(f.amount)}</p>
+                                  <p style={{ margin:0, fontSize:11, fontWeight:700, color: f.paid ? T.green : T.brand }}>{f.paid ? "Paga" : "Por pagar"}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+};
+
 // ── APP ADMIN TAB ─────────────────────────────────────────────
 const AppAdminTab = ({ token, onBack, onOpenTeam }) => {
   const [stats, setStats] = useState(null);
@@ -2091,6 +2253,16 @@ const AppAdminTab = ({ token, onBack, onOpenTeam }) => {
   const [section, setSection] = useState("stats");
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [loading, setLoading] = useState(true);
+  // aba Users: pede as duas rpc uma vez, ao abrir a aba (com a base de dados a validar o super admin)
+  const [act, setAct] = useState({ status:"idle", data:null, error:"" });
+  const loadActivity = async () => {
+    setAct({ status:"loading", data:null, error:"" });
+    try {
+      const [tot, ov] = await Promise.all([rpcCall('get_app_activity_totals', {}, token), rpcCall('get_admin_teams_overview', {}, token)]);
+      setAct({ status:"ok", data:parseAdminUsers(tot, ov), error:"" });
+    } catch(e) { setAct({ status:"error", data:null, error:adminErrPt(e) }); }
+  };
+  useEffect(() => { if (section === "users" && act.status === "idle") loadActivity(); }, [section]);
 
   useEffect(() => {
     const load = async () => {
@@ -2225,16 +2397,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam }) => {
             ))}
           </>
         )}
-        {section==="users" && (
-          <>
-            <div style={{ display:"flex", gap:"clamp(4px, 1.5vw, 8px)", marginBottom:8 }}>
-              <StatCard cols={3} label="Utilizadores" value={stats ? stats.users : "—"} color="#6c47ff" />
-              <StatCard cols={3} label="Ativos 7 dias"  value="—" color={T.navy} />
-              <StatCard cols={3} label="Ativos 30 dias" value="—" color={T.navy} />
-            </div>
-            <p style={{ margin:"4px 0 0", fontSize:12, color:"#5F5F66" }}>Só totais: o painel não mostra nomes, emails nem datas de acesso por pessoa. Os utilizadores ativos aparecem quando existir a função agregada na base de dados.</p>
-          </>
-        )}
+        {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
       </div>
     </div>
   );
