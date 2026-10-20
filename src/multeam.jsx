@@ -2062,6 +2062,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
 // ── APP ADMIN TAB ─────────────────────────────────────────────
 const AppAdminTab = ({ token, onBack }) => {
   const [stats, setStats] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null); // hora local da última carga dos dados
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [section, setSection] = useState("stats");
@@ -2080,6 +2081,7 @@ const AppAdminTab = ({ token, onBack }) => {
         if (sr.ok) setStats(await sr.json());
         if (ur.ok) setUsers(await ur.json() || []);
         if (tr.ok) setTeams(await tr.json() || []);
+        setUpdatedAt(new Date());
       } catch(e) { console.error(e); }
       setLoading(false);
     };
@@ -2191,13 +2193,18 @@ const AppAdminTab = ({ token, onBack }) => {
     );
   }
 
-  const StatCard = ({ label, value, color }) => (
-    <div style={{ background:T.card, borderRadius:14, padding:"14px 16px", flex:1, minWidth:0 }}>
-      <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</p>
-      <p style={{ margin:0, fontSize:26, fontWeight:900, color: color||T.navy }}>{value}</p>
+  // Cartão de estatística: letra fluida (clamp) e sem quebra de linha, para o valor caber sempre no cartão (3 colunas: cols=3; 2 colunas: cols=2)
+  const StatCard = ({ label, value, color, cols = 2, sub }) => (
+    <div style={{ background:T.card, borderRadius:14, padding:"clamp(10px, 3vw, 14px) clamp(6px, 2.5vw, 16px)", flex:1, minWidth:0 }}>
+      <p style={{ margin:"0 0 4px", fontSize:"clamp(8.5px, 2.7vw, 11px)", fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:"clamp(0px, 0.15vw, 0.5px)", whiteSpace:"nowrap", minWidth:0 }}>{label}</p>
+      <p style={{ margin:0, fontSize:cols===3 ? "clamp(18.7px, 6.4vw, 26px)" : "clamp(18.7px, 5.8vw, 26px)", lineHeight:1.15, fontWeight:900, color: color||T.navy, whiteSpace:"nowrap", minWidth:0 }}>{value}</p>
+      {sub && <p style={{ margin:"2px 0 0", fontSize:"clamp(9.5px, 2.9vw, 12px)", color:"#5F5F66", whiteSpace:"nowrap", minWidth:0 }}>{sub}</p>}
     </div>
   );
 
+  // percentagem por pagar / total (só apresentação): 0% se o total for 0 ou não for número; sem divisão por zero
+  const totalN = Number(stats && stats.fines_total), unpaidN = Number(stats && stats.fines_unpaid);
+  const unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
   const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"]];
 
   return (
@@ -2207,6 +2214,7 @@ const AppAdminTab = ({ token, onBack }) => {
         <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Gestão</p>
         <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Visão Geral</h2>
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Monitorização da plataforma</p>
+        {updatedAt && <p style={{ margin:"2px 0 0", fontSize:12, color:"rgba(255,255,255,0.7)" }}>Atualizado às {String(updatedAt.getHours()).padStart(2,"0")}:{String(updatedAt.getMinutes()).padStart(2,"0")}</p>}
       </div>
       <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
         {tabs.map(([id,label]) => (
@@ -2216,18 +2224,18 @@ const AppAdminTab = ({ token, onBack }) => {
       <div style={{ padding:"16px" }}>
         {section==="stats" && stats && (
           <>
-            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-              <StatCard label="Equipas"      value={stats.teams}   color={T.navy} />
-              <StatCard label="Utilizadores" value={stats.users}   color="#6c47ff" />
-              <StatCard label="Membros"      value={stats.members} color={T.green} />
+            <div style={{ display:"flex", gap:"clamp(4px, 1.5vw, 8px)", marginBottom:8 }}>
+              <StatCard cols={3} label="Equipas"      value={stats.teams}   color={T.navy} />
+              <StatCard cols={3} label="Utilizadores" value={stats.users}   color="#6c47ff" />
+              <StatCard cols={3} label="Membros"      value={stats.members} color={T.green} />
             </div>
             <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-              <StatCard label="Multas"    value={stats.fines}             color={T.brand} />
-              <StatCard label="Total €"   value={`${stats.fines_total}€`} color={T.brand} />
-              <StatCard label="Por pagar" value={`${stats.fines_unpaid}€`} color="#FF6B00" />
+              <StatCard label="Multas"        value={stats.fines}     color={T.brand} />
+              <StatCard label="Treinos/Jogos" value={stats.trainings} color={T.green} />
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <StatCard label="Treinos/Jogos" value={stats.trainings} color={T.green} />
+              <StatCard label="Total €"   value={`${stats.fines_total}€`}  color={T.brand} />
+              <StatCard label="Por pagar" value={`${stats.fines_unpaid}€`} color="#F76800" sub={`${unpaidPct}% do total`} />
             </div>
           </>
         )}
