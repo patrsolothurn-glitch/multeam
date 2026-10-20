@@ -12,14 +12,37 @@ const SB_URL = "https://syakniwyvcfdqsrwsalk.supabase.co";
 const SB_KEY = "sb_publishable_MRMHqVQ-key1c5kf7UOLUA_rwyu85BI";
 const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRFVOnO37rQ81o-cYoOuTCwmo--CQnEk";
 
+// ── MODO LEITURA (super admin) ───────────────────────────────
+// Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às 3 rpc de leitura) sai da app.
+const RO_MSG = "Modo leitura: não é possível alterar.";
+const RO = { on:false };
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats"];
+const roAllows = (url, method) => {
+  const m = String(method || "GET").toUpperCase();
+  if (m === "GET" || m === "HEAD") return true;
+  return m === "POST" && RO_RPCS.some(f => String(url).split("?")[0] === `${SB_URL}/rest/v1/rpc/${f}`);
+};
+const roCheck = (url, method) => { if (RO.on && !roAllows(url, method)) throw new Error(RO_MSG); };
+// camada central: também apanha qualquer fetch direto que alguém se esqueça de esconder
+if (typeof window !== "undefined" && typeof window.fetch === "function" && !window.fetch.__ro) {
+  const realFetch = window.fetch.bind(window);
+  const guardedFetch = (input, init) => {
+    try { roCheck(typeof input === "string" ? input : (input && input.url) || String(input), (init && init.method) || (input && input.method)); }
+    catch (e) { return Promise.reject(e); }
+    return realFetch(input, init);
+  };
+  guardedFetch.__ro = true;
+  window.fetch = guardedFetch;
+}
+
 const api = {
   h(tok) { return { 'apikey':SB_KEY, 'Authorization':`Bearer ${tok||SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' }; },
   async get(p,tok)      { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
-  async post(p,b,tok)   { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
-  async insert(p,b,tok) { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'return=minimal'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.status; },
-  async patch(p,b,tok)  { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'PATCH',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
-  async del(p,tok)      { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'DELETE',headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); },
-  async upsert(p,b,tok) { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'resolution=merge-duplicates,return=representation'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
+  async post(p,b,tok)   { roCheck(`${SB_URL}/rest/v1/${p}`, 'POST'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
+  async insert(p,b,tok) { roCheck(`${SB_URL}/rest/v1/${p}`, 'POST'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'return=minimal'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.status; },
+  async patch(p,b,tok)  { roCheck(`${SB_URL}/rest/v1/${p}`, 'PATCH'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'PATCH',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
+  async del(p,tok)      { roCheck(`${SB_URL}/rest/v1/${p}`, 'DELETE'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'DELETE',headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); },
+  async upsert(p,b,tok) { roCheck(`${SB_URL}/rest/v1/${p}`, 'POST'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'resolution=merge-duplicates,return=representation'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
   async signIn(email,password) { const r=await fetch(`${SB_URL}/auth/v1/token?grant_type=password`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||d.error); return d; },
   async signUp(email,password,name) { const r=await fetch(`${SB_URL}/auth/v1/signup`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password,data:{name}})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||d.msg||'Erro'); return d; },
   async resetPassword(email) { await fetch(`${SB_URL}/auth/v1/recover`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email})}); },
@@ -65,6 +88,7 @@ const plural = (n, one, many) => `${n} ${Number(n) === 1 ? one : many}`;
 const ABS_KINDS = { lesao:{ one:"lesão", many:"lesões", label:"Lesão" }, ausencia:{ one:"ausência", many:"ausências", label:"Ausência" } };
 // chamada a uma função SQL; devolve o JSON ou lança com a mensagem da base de dados
 const rpcCall = async (fn, body, tok) => {
+  roCheck(`${SB_URL}/rest/v1/rpc/${fn}`, 'POST');
   const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method:'POST', headers:api.h(tok), body:JSON.stringify(body) });
   let j = null;
   try { j = await r.json(); } catch(e) { j = null; }
@@ -1188,12 +1212,12 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
   );
 };
 
-const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, onClose, onCreateTeam }) => (
+const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, onClose, onCreateTeam, readOnly }) => (
   <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"flex-end", zIndex:150 }}
     onClick={e => e.target===e.currentTarget && onClose()}>
     <div style={{ background:T.card, borderRadius:"22px 22px 0 0", padding:"0 16px 36px", width:"100%", boxSizing:"border-box" }}>
       <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:"12px auto 16px" }} />
-      <p style={{ margin:"0 0 14px 4px", fontWeight:800, fontSize:17 }}>As minhas equipas</p>
+      <p style={{ margin:"0 0 14px 4px", fontWeight:800, fontSize:17 }}>{readOnly ? "Todas as equipas (só leitura)" : "As minhas equipas"}</p>
       {teams.map(t => {
         const me = members.find(m => m.teamId===t.id && m.userId===myUserId);
         return (
@@ -1201,16 +1225,16 @@ const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, on
             <div style={{ width:42, height:42, borderRadius:12, background:t.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{t.emoji}</div>
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:16 }}>{t.name}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub }}>{me?.role==="admin"?"🛡 Admin":"· Jogador"} · {t.season}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>{readOnly ? t.season : `${me?.role==="admin"?"🛡 Admin":"· Jogador"} · ${t.season}`}</p>
             </div>
             {t.id===currentTeamId && <span style={{ color:t.color, fontWeight:800, fontSize:18 }}>✓</span>}
           </button>
         );
       })}
-      <button onClick={() => { onClose(); onCreateTeam(); }} style={{ display:"flex", alignItems:"center", gap:14, width:"100%", padding:"13px 12px", borderRadius:14, border:`1.5px dashed ${T.border}`, cursor:"pointer", background:"transparent", marginTop:8, fontFamily:"inherit" }}>
+      {!readOnly && <button onClick={() => { onClose(); onCreateTeam(); }} style={{ display:"flex", alignItems:"center", gap:14, width:"100%", padding:"13px 12px", borderRadius:14, border:`1.5px dashed ${T.border}`, cursor:"pointer", background:"transparent", marginTop:8, fontFamily:"inherit" }}>
         <div style={{ width:42, height:42, borderRadius:12, background:T.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>➕</div>
         <p style={{ margin:0, fontWeight:700, fontSize:15, color:T.sub }}>Criar nova equipa</p>
-      </button>
+      </button>}
     </div>
   </div>
 );
@@ -2060,7 +2084,7 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
 };
 
 // ── APP ADMIN TAB ─────────────────────────────────────────────
-const AppAdminTab = ({ token, onBack }) => {
+const AppAdminTab = ({ token, onBack, onOpenTeam }) => {
   const [stats, setStats] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null); // hora local da última carga dos dados
   const [teams, setTeams] = useState([]);
@@ -2113,6 +2137,9 @@ const AppAdminTab = ({ token, onBack }) => {
           </div>
         </div>
         <div style={{ padding:"16px" }}>
+          {onOpenTeam && (
+            <button onClick={()=>onOpenTeam(t.id, teams)} style={{ width:"100%", minHeight:48, marginBottom:12, background:T.navy, color:"#fff", border:"none", borderRadius:14, fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Abrir equipa</button>
+          )}
           {rows.map(([icon, label, val]) => (
             <div key={label} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <span style={{ fontSize:22 }}>{icon}</span>
@@ -2216,8 +2243,9 @@ const AppAdminTab = ({ token, onBack }) => {
 
 
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token }) => {
-  const myTeams = teams.filter(t => 
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly }) => {
+  // modo leitura (super admin): só a equipa aberta, sem ser membro
+  const myTeams = readOnly ? teams : teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
   );
   const myAge = age(user.birthday);
@@ -2238,6 +2266,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
 
   const openTeamMembers = async (teamId) => {
     setShowMembers(teamId);
+    if (readOnly) { setTeamMembers(members.filter(m => m.teamId === teamId)); setLoadingMembers(false); return; } // já vêm carregados (get_team_as_admin)
     setLoadingMembers(true);
     try {
       const mRaw = await api.get(`team_members?team_id=eq.${teamId}&select=*`, token);
@@ -2286,7 +2315,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   return (
     <div style={{ padding:"16px 16px 100px" }}>
       {/* Profile card */}
-      <div style={{ background:T.card, borderRadius:20, padding:"20px", marginBottom:16, position:"relative" }}>
+      {!readOnly && <div style={{ background:T.card, borderRadius:20, padding:"20px", marginBottom:16, position:"relative" }}>
         <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18, paddingRight:80 }}>
           <div onClick={handleAvatarTap} style={{ cursor: isAppAdmin ? "pointer" : "default" }}>
@@ -2309,13 +2338,13 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Teams */}
       <Sec label={`Equipas (${myTeams.length})`} />
       {myTeams.map(t => {
         const me = members.find(m=>m.teamId===t.id&&m.userId===myUserId);
-        const admin = me?.role==="admin" || t.createdBy===myUserId;
+        const admin = !readOnly && (me?.role==="admin" || t.createdBy===myUserId);
         return (
           <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8 }}>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -2323,7 +2352,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:16 }}>{t.name}</p>
                 <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:3 }}>
-                  <RoleBadgeLight role={admin?"admin":"player"} />
+                  {!readOnly && <RoleBadgeLight role={admin?"admin":"player"} />}
                   <span style={{ fontSize:12, color:T.sub }}>{t.season}</span>
                 </div>
               </div>
@@ -2334,7 +2363,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
             <button onClick={() => openTeamMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               👥 Ver membros da equipa
             </button>
-            {!admin && (
+            {!admin && !readOnly && (
               <button onClick={() => { if(window.confirm(`Sair de "${t.name}"? Perdes o acesso à equipa.`)) onLeaveTeam(t.id); }} style={{ width:"100%", marginTop:6, background:"transparent", border:`1px solid ${T.brand}`, borderRadius:10, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer", color:T.brand, fontFamily:"inherit" }}>
                 🚪 Sair desta equipa
               </button>
@@ -2342,12 +2371,14 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
           </div>
         );
       })}
+      {!readOnly && <>
       <button onClick={onCreateTeam} style={{ width:"100%", background:"transparent", border:`1.5px dashed ${T.border}`, borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:T.sub, marginTop:4, fontFamily:"inherit" }}>
         ➕ Criar nova equipa
       </button>
       <button onClick={onJoinTeam} style={{ width:"100%", background:"transparent", border:`1.5px solid ${T.navy}`, borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:T.navy, marginTop:8, fontFamily:"inherit" }}>
         🔗 Entrar numa equipa com código
       </button>
+      </>}
       <button onClick={onLogout} style={{ width:"100%", background:"transparent", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:T.brand, marginTop:8, fontFamily:"inherit" }}>
         Terminar sessão
       </button>
@@ -3344,7 +3375,7 @@ const CompletedCards = ({ count, children }) => {
   );
 };
 
-const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDeleteCard, onServeSuspension }) => {
+const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEditCard, onDeleteCard, onServeSuspension }) => {
   const [open, setOpen] = useState(null);
   const [showNone, setShowNone] = useState(false);
   const rows = members.filter(m => m.teamId===team.id).map(m => ({ m, ...cardCount(cards, team.id, m.id) }))
@@ -3437,7 +3468,7 @@ const CardsTab = ({ team, cards, members, canManage, onAddCard, onEditCard, onDe
           {showNone && noCards.map(renderRow)}
         </>
       )}
-      {!canManage && <p style={{ margin:"14px 0 0", fontSize:12, color:T.sub, textAlign:"center" }}>Só o admin pode lançar cartões.</p>}
+      {!canManage && !readOnly && <p style={{ margin:"14px 0 0", fontSize:12, color:T.sub, textAlign:"center" }}>Só o admin pode lançar cartões.</p>}
     </div>
   );
 };
@@ -3484,11 +3515,15 @@ export default function App() {
   const [appReady, setAppReady] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [adminView, setAdminView] = useState(false); // modo super admin: só em memória
+  const [adminErr, setAdminErr] = useState(null);     // { msg, id } quando um pedido do modo falha
 
   const team = teams.find(t=>t.id===teamId);
-  const isAdmin = members.some(m=>m.teamId===teamId&&m.userId===myUserId&&m.role==="admin") || team?.createdBy===myUserId;
+  // modo leitura só existe para o super admin (profile.isAppAdmin); aí ninguém é admin da equipa aberta
+  const roMode = adminView && !!profile?.isAppAdmin;
+  const isAdmin = !roMode && (members.some(m=>m.teamId===teamId&&m.userId===myUserId&&m.role==="admin") || team?.createdBy===myUserId);
   const myRole = members.find(m=>m.teamId===teamId&&m.userId===myUserId)?.role||"player";
-  const canManageTrainings = isAdmin || myRole==="treinador" || myRole==="diretor";
+  const canManageTrainings = !roMode && (isAdmin || myRole==="treinador" || myRole==="diretor");
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
@@ -3532,6 +3567,60 @@ export default function App() {
     return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:Array.isArray(aData)?aData.map(aAbsence):null, cards:(Array.isArray(cData)?cData:[]).map(aCard) };
   };
 
+  // Modo super admin: UM pedido (rpc get_team_as_admin) convertido com os mesmos adaptadores do loadTeam
+  const roErrPt = e => {
+    const m = String(e && e.message ? e.message : "");
+    if (/not authorized|permission denied|42501|Sem permissão|403/i.test(m)) return "Sem permissão";
+    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem ligação à internet";
+    if (/JWT|expired/i.test(m)) return "A sessão expirou: volta a entrar";
+    if (/resposta inválida/i.test(m)) return "Resposta inválida do servidor";
+    return m || "erro desconhecido";
+  };
+  const loadTeamAdmin = async (tok, tid) => {
+    const raw = await rpcCall('get_team_as_admin', { p_team_id: tid }, tok);
+    const r = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
+    const bad = () => new Error("resposta inválida");
+    if (!r || typeof r !== "object" || Array.isArray(r)) throw bad();
+    if (!r.team || typeof r.team !== "object" || String(r.team.id) !== String(tid)) throw bad();
+    // essenciais (sem eles os ecrãs enganavam): membros, multas, caixa, treinos; os outros assumem lista vazia
+    const lst = (k, essential) => { const v = r[k]; if (v == null) { if (essential) throw bad(); return []; } if (!Array.isArray(v)) throw bad(); return v; };
+    const mRaw = lst("members", true), fData = lst("fines", true), eData = lst("expenses", true), tData = lst("trainings", true);
+    const ftData = lst("fine_types"), pData = lst("presences"), cData = lst("cards"), aData = lst("absences"), profs = lst("profiles");
+    const profilesMap = {}; profs.forEach(p => { if (p && p.id != null) profilesMap[p.id] = p; });
+    const presMap = {};
+    pData.forEach(p => { if (!presMap[p.training_id]) presMap[p.training_id] = {}; presMap[p.training_id][p.member_id] = p.status; });
+    return { team:aTeam(r.team), members:mRaw.map(m => aMember({ ...m, profiles: profilesMap[m.user_id] || null })), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:aData.map(aAbsence), cards:cData.map(aCard) };
+  };
+  const applyAdminData = td => {
+    setTeams(p => p.some(x => x.id === td.team.id) ? p.map(x => x.id === td.team.id ? td.team : x) : [...p, td.team]);
+    setMembers(td.members); setFineTypes(td.fineTypes); setFines(td.fines); setCards(td.cards);
+    setExpenses(td.expenses); setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
+  };
+  const loadAdmin = async id => {
+    setLoading(true); setAdminErr(null);
+    try { applyAdminData(await loadTeamAdmin(token, id)); }
+    catch(e) { setAdminErr({ msg: roErrPt(e), id }); }
+    setLoading(false);
+  };
+  // entrada: botão "Abrir equipa" do painel de super admin (list = resposta de get_all_teams_admin)
+  const openAdminTeam = async (id, list) => {
+    if (!profile?.isAppAdmin || !token) return;
+    RO.on = true;
+    setAdminView(true); setSub(null); setModal(null); setTab("home");
+    setTeams((Array.isArray(list) ? list : []).filter(t => t && t.id != null).map(aTeam));
+    setTeamId(id);
+    await loadAdmin(id);
+  };
+  // saída: volta ao painel e recarrega as equipas e os dados normais do utilizador
+  const exitAdminView = async () => {
+    RO.on = false;
+    setAdminView(false); setAdminErr(null); setSub(null); setModal(null);
+    setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null);
+    setTab("appadmin");
+    const ok = await initApp(token, myUserId);
+    if (ok === false) showToast("Não foi possível recarregar as tuas equipas", T.brand);
+  };
+
   // Init app after login
   const initApp = async (tok, uid) => {
     setLoading(true);
@@ -3571,7 +3660,7 @@ export default function App() {
       }
       setTeams(adapted);
 
-      if (!adapted.length) { setAppReady(true); setLoading(false); return; }
+      if (!adapted.length) { setAppReady(true); setLoading(false); return true; }
 
       const first = adapted[0].id;
       setTeamId(first);
@@ -3580,13 +3669,16 @@ export default function App() {
       setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
       setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
       setAppReady(true);
-    } catch(e) { setAuthError(`Erro: ${e.message}`); }
+      return true;
+    } catch(e) { setAuthError(`Erro: ${e.message}`); return false; }
     finally { setLoading(false); }
   };
 
   // Switch team
   const switchTeam = async id => {
-    setTeamId(id); setLoading(true); setTab("home");
+    setTeamId(id); setTab("home");
+    if (roMode) { await loadAdmin(id); return; }
+    setLoading(true);
     try {
       const td = await loadTeam(token, id);
       setMembers(td.members); setFineTypes(td.fineTypes);
@@ -3600,6 +3692,12 @@ export default function App() {
   const refresh = useCallback(async () => {
     if (refreshing || !token || !teamId) return;
     setRefreshing(true);
+    if (roMode) {
+      try { applyAdminData(await loadTeamAdmin(token, teamId)); }
+      catch(e) { showToast(`Não foi possível atualizar: ${roErrPt(e)}`, T.brand); }
+      setRefreshing(false);
+      return;
+    }
     try {
       const td = await loadTeam(token, teamId);
       setMembers(td.members); setFineTypes(td.fineTypes);
@@ -3607,7 +3705,7 @@ export default function App() {
       setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
     } catch(e) { console.error(e); }
     setRefreshing(false);
-  }, [token, teamId, refreshing]);
+  }, [token, teamId, refreshing, roMode]);
   useEffect(() => { window.__multeamRefresh = refresh; }, [refresh]);
 
   // Auth
@@ -3646,7 +3744,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => { setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
+  const handleLogout = () => { RO.on = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
 
   // Data actions
   const addFine = async d => {
@@ -4090,6 +4188,7 @@ export default function App() {
 
   // Subscribe to push notifications and store subscription in Supabase
   const subscribeToPush = async (tok, uid) => {
+    if (RO.on) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     try {
       const reg = await navigator.serviceWorker.ready;
@@ -4110,9 +4209,10 @@ export default function App() {
 
   // Request notification permission once after login
   useEffect(() => {
-    if (!appReady || !token || !myUserId) return;
+    if (!appReady || !token || !myUserId || RO.on) return;
     if ("Notification" in window && Notification.permission === "default") {
       setTimeout(async () => {
+        if (RO.on) return;
         const perm = await Notification.requestPermission();
         if (perm === "granted") subscribeToPush(token, myUserId);
       }, 2500);
@@ -4131,6 +4231,7 @@ export default function App() {
   // Wrap addFine to show toast
   // Send push to all subscribed members via Supabase Edge Function
   const sendPushToTeam = async (teamId, members, title, body) => {
+    if (RO.on) return;
     const userIds = members.map(m => m.userId).filter(Boolean);
     if (!userIds.length) return;
     try {
@@ -4182,10 +4283,26 @@ export default function App() {
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
+  const roBanner = roMode ? (
+    <div role="status" style={{ position:"sticky", top:0, zIndex:300, background:"#3D2B00", color:"#FFE9B0", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"6px 14px", fontSize:13, fontWeight:700 }}>
+      <span>👁️ Modo leitura (super admin)</span>
+      <button onClick={exitAdminView} style={{ minHeight:36, padding:"0 16px", background:"#FFE9B0", color:"#3D2B00", border:"none", borderRadius:18, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Sair</button>
+    </div>
+  ) : null;
+  if (roMode && adminErr) return (
+    <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"system-ui" }}>
+      <p style={{ fontSize:40, margin:0 }}>⚠️</p>
+      <p style={{ fontWeight:800, fontSize:18, margin:"8px 0 6px", textAlign:"center" }}>Não foi possível abrir a equipa</p>
+      <div role="alert" style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", marginBottom:16, width:"100%", maxWidth:340, fontSize:14, color:"#8A0000", textAlign:"center", boxSizing:"border-box" }}>{adminErr.msg}</div>
+      <button onClick={()=>loadAdmin(adminErr.id)} style={{ width:"100%", maxWidth:300, minHeight:48, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>Tentar novamente</button>
+      <button onClick={exitAdminView} style={{ width:"100%", maxWidth:300, minHeight:48, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Sair</button>
+    </div>
+  );
+
   const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
-  const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{ch}</div>;
+  const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{roBanner}{ch}</div>;
 
   if (!team) return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"system-ui" }}>
@@ -4202,8 +4319,9 @@ export default function App() {
 
   if (tab==="treinos") return (
     <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+      {roBanner}
       {toastBox}
-      <TreinosPage team={team} trainings={trainings} members={members} myUserId={myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
+      <TreinosPage team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
   );
   if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
@@ -4214,6 +4332,7 @@ export default function App() {
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+      {roBanner}
       {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
       {toastBox}
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
@@ -4224,17 +4343,17 @@ export default function App() {
           {isAdmin && <AdminHeaderBadge teamColor={team.color} />}
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={()=>window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:36, height:36, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
+          <button onClick={()=>roMode ? refresh() : window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:36, height:36, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
           <button onClick={()=>setModal("picker")} style={{ background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
         </div>
       </div>
 
-      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={setPresence} />}
+      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={roMode ? null : members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={roMode ? null : setPresence} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
-      {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
+      {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
-      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>setTab("appadmin")} />}
+      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
@@ -4245,7 +4364,7 @@ export default function App() {
         ))}
       </div>
 
-      {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} />}
+      {modal==="picker"  && <TeamPickerModal teams={teams} members={members} myUserId={myUserId} currentTeamId={teamId} onSelect={switchTeam} onClose={()=>setModal(null)} onCreateTeam={()=>setModal("team")} readOnly={roMode} />}
       {modal==="fine"    && isAdmin && <AddFineModal team={team} myUserId={myUserId} token={token} onAdd={addFineWithToast} onClose={()=>setModal(null)} />}
       {modal==="card"    && canManageTrainings && <AddCardModal team={team} members={members} cards={cards} onAdd={addCardWithAlert} onClose={()=>setModal(null)} />}
       {editingCard && canManageTrainings && <EditCardModal card={editingCard} onSave={editCard} onClose={()=>setEditingCard(null)} />}
