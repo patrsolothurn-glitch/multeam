@@ -59,8 +59,12 @@ const aFine = f => {
 };
 // ── ÍCONE AUTOMÁTICO das multas e dos tipos de multa (nada é gravado para multas antigas) ──
 // Regras por palavra-chave, por prioridade (nome sem maiúsculas nem acentos). Cartão amarelo/vermelho/expulsão primeiro, para nunca mudar o 🟥 desses nomes.
+// "ícone" especial: a imagem da app (multas "não registadas na app"). iconForFine devolve este marcador; FineIcon desenha a imagem. Nunca se grava na base (storableIcon).
+const MULTEAM_ICON = "multeam";
+const storableIcon = ic => ic === MULTEAM_ICON ? "⚪" : ic;
 const ICON_RULES = [
   [/cartao\s+amarelo/, "🟨"], [/cartao\s+vermelho|\bvermelho\b|expuls/, "🟥"],
+  [/multeam|(?=.*\bregistar\b)(?=.*\baplicacao\b)/, MULTEAM_ICON],
   [/\bfum(ar|o)\b|cigarro|tabaco/, "🚭"],
   [/\bbolos?\b|aniversar/, "🎂"],
   [/atras|chegar.*(tarde|depois)|ultimo a entrar|\bchegar tarde/, "⏰"],
@@ -80,7 +84,7 @@ const normFineName = name => String(name || '').normalize('NFD').replace(/[\u030
 // 1) emoji guardado que não seja o 🟥 por defeito: manda (escolha da equipa). 2) 🟥 ou vazio: regra por palavra-chave. 3) sem regra: 🟥 só para cartão/vermelho/expulsão, senão ⚪.
 const iconForFine = (name, emoji) => {
   const e = String(emoji == null ? '' : emoji).trim();
-  if (e && e !== '🟥') return e;
+  if (e && e !== '🟥' && e !== '⚪') return e;   // ⚪ = neutro (não é escolha da equipa): as regras podem substituí-lo
   const n = normFineName(name);
   for (const [re, ic] of ICON_RULES) if (re.test(n)) return ic;
   return /cartao|vermelho|expuls/.test(n) ? '🟥' : '⚪';
@@ -312,6 +316,10 @@ const cardStatus = y => y>=5 ? {label:"SUSPENSO", color:"#B00020"}
                    : null;
 const age = d => d ? Math.floor((new Date() - new Date(d)) / (365.25*24*3600*1000)) : null;
 
+// ícone de uma multa/tipo: o emoji, ou (caso especial) a imagem local da app (icon-192.png, em cache do service worker); mesmo tamanho, cantos arredondados, sem deformar
+const FineIcon = ({ icon, size = 24, style }) => icon === MULTEAM_ICON
+  ? <img src="icon-192.png" alt="Multeam" draggable={false} width={Math.round(size*1.1)} height={Math.round(size*1.1)} style={{ width:Math.round(size*1.1), height:Math.round(size*1.1), borderRadius:Math.round(size*0.28), objectFit:"cover", verticalAlign:"middle", flexShrink:0, ...style }} />
+  : <span style={{ fontSize:size, ...style }}>{icon}</span>;
 // ── FOTO AMPLIADA (lightbox): um único componente partilhado por todos os avatares com foto ──
 // LB.n: lightbox aberto; LB.guard: popstate provocado por nós (o botão "atrás" do modo leitura não deve reagir a eles)
 const LB = { n:0, guard:0 };
@@ -463,7 +471,7 @@ const FineIconField = ({ name, custom, onCustom }) => {
   return (
     <div data-fine-icon-field style={{ marginBottom:10 }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-        <span data-fine-icon aria-label="Ícone" style={{ fontSize:32, lineHeight:1, minWidth:40, textAlign:"center" }}>{resolveTypeIcon(name, custom)}</span>
+        <span data-fine-icon aria-label="Ícone" style={{ fontSize:32, lineHeight:1, minWidth:40, textAlign:"center", display:"inline-flex", alignItems:"center", justifyContent:"center" }}><FineIcon icon={resolveTypeIcon(name, custom)} size={32} /></span>
         <span style={{ fontSize:12, color:"#5F5F66", flex:1, minWidth:90 }}>{custom ? "Ícone escolhido por ti" : "Ícone automático"}</span>
         <button type="button" onClick={()=>setOpen(o=>!o)} style={{ minHeight:44, minWidth:44, padding:"0 14px", borderRadius:12, border:"1.5px solid #1a1a1f", background:"#fff", color:"#1a1a1f", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Mudar ícone</button>
       </div>
@@ -509,7 +517,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     setSavingEdit(true);
     try {
       const em = resolveTypeIcon(editName.trim(), editCustom);
-      needRows(await api.patch(`fine_types?id=eq.${editingFt.id}`, { name: editName.trim(), amount: Number(editAmount), emoji: em }, token));
+      needRows(await api.patch(`fine_types?id=eq.${editingFt.id}`, { name: editName.trim(), amount: Number(editAmount), emoji: storableIcon(em) }, token));
       setTft(p => p.map(x => x.id===editingFt.id ? {...x, name:editName.trim(), amount:Number(editAmount), emoji:em} : x));
       if (sft?.id===editingFt.id) setSft(f => ({...f, name:editName.trim(), amount:Number(editAmount), emoji:em}));
       setEditingFt(null);
@@ -571,7 +579,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     if (!newName.trim() || !newAmount) return;
     setSavingType(true);
     try {
-      const data = needRows(await api.post('fine_types', { team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: resolveTypeIcon(newName.trim(), newCustom) }, token));
+      const data = needRows(await api.post('fine_types', { team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: storableIcon(resolveTypeIcon(newName.trim(), newCustom)) }, token));
       const ft = Array.isArray(data) ? data[0] : data;
       if (ft?.id) {
         const newFt = { id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: iconForFine(ft.name, ft.emoji) };
@@ -589,7 +597,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     if (!canSubmit) return;
     setErr("");
     try {
-      await onAdd({ teamId: team.id, memberId: mid, amount: sft.amount, reason: reason || sft.name, emoji: sft.emoji, paid: false });
+      await onAdd({ teamId: team.id, memberId: mid, amount: sft.amount, reason: reason || sft.name, emoji: storableIcon(sft.emoji), paid: false });
       onClose();
     } catch(e) { setErr(errPt(e)); }
   };
@@ -627,7 +635,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
               cursor:"pointer", fontFamily:"inherit",
               boxShadow: sft?.id===ft.id?`0 2px 10px ${T.brand}30`:"none",
             }}>
-              <div style={{ fontSize:26, marginBottom:4 }}>{ft.emoji}</div>
+              <div style={{ fontSize:26, marginBottom:4 }}><FineIcon icon={ft.emoji} size={26} /></div>
               <p style={{ margin:0, fontWeight:700, fontSize:12, color:sft?.id===ft.id?T.brand:T.text, overflowWrap:"anywhere" }}>{ft.name}</p>
               <p style={{ margin:"2px 0 0", fontWeight:900, fontSize:16, color:sft?.id===ft.id?T.brand:T.navy }}>{ft.amount}€</p>
               {/* Editar / Apagar: alvos de 44 px, separados para não tocar no apagar sem querer */}
@@ -669,7 +677,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         {/* Selected summary */}
         {sft && (
           <div style={{ background:`${T.brand}10`, border:`1.5px solid ${T.brand}30`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:24 }}>{sft.emoji}</span>
+            <FineIcon icon={sft.emoji} size={24} />
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{sft.name}</p>
               <p style={{ margin:0, fontSize:12, color:T.sub }}>Valor: <strong style={{ color:T.brand }}>{sft.amount}€</strong></p>
@@ -691,7 +699,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
 
 const EditFineModal = ({ fine, onSave, onClose }) => {
   const EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤","🍺","🎂","🍕","🚗","📱","🎯","🔇","💤","🎪","🤡","🍾","🃏","🏆","🎖️"];
-  const [emoji, setEmoji] = useState(fine.emoji || "🟥");
+  const [emoji, setEmoji] = useState(storableIcon(fine.emoji || "🟥"));
   const [reason, setReason] = useState(fine.reason || "");
   const [amount, setAmount] = useState(String(fine.amount));
   const [saving, setSaving] = useState(false);
@@ -1370,7 +1378,7 @@ const FineGroup = ({ group, color }) => {
       </div>
       {open && group.fines.map((f,i) => (
         <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px 8px 60px", borderTop:`1px solid ${T.border}`, background:T.bg }}>
-          <span style={{ fontSize:18, flexShrink:0 }}>{f.emoji||"🟥"}</span>
+          <FineIcon icon={f.emoji||"🟥"} size={18} style={{ flexShrink:0 }} />
           <div style={{ flex:1, minWidth:0 }}>
             <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason||"—"}</p>
             <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
@@ -1407,7 +1415,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
         <div style={{ borderTop:`1px solid ${isTop?"rgba(255,255,255,0.2)":T.border}`, background:isTop?"rgba(0,0,0,0.15)":T.bg, padding:"8px 10px" }}>
           {member.fines.map((f,i) => (
             <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 4px" }}>
-              <span style={{ fontSize:18 }}>{f.emoji}</span>
+              <FineIcon icon={f.emoji} size={18} />
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontSize:13, fontWeight:600, color:isTop?"rgba(255,255,255,0.9)":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
                 <p style={{ margin:0, fontSize:11, color:isTop?"rgba(255,255,255,0.55)":T.sub }}>{fmtDay(f.date)}</p>
@@ -1439,7 +1447,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
             ? group.fines.map(f => renderFine(f))
             : group.fines.map((f,i) => (
               <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 4px" }}>
-                <span style={{ fontSize:20, flexShrink:0 }}>{f.emoji}</span>
+                <FineIcon icon={f.emoji} size={20} style={{ flexShrink:0 }} />
                 <div style={{ flex:1, minWidth:0 }}>
                   <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
                   <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
@@ -1474,7 +1482,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
           {tf.length===0 && <p style={{ color:T.sub, textAlign:"center", padding:20 }}>Sem tipos de multa definidos</p>}
           {tf.sort((a,b)=>a.amount-b.amount).map(ft => (
             <div key={ft.id} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-              <span style={{ fontSize:26, flexShrink:0 }}>{ft.emoji}</span>
+              <FineIcon icon={ft.emoji} size={26} style={{ flexShrink:0 }} />
               <p style={{ margin:0, fontWeight:700, fontSize:15, flex:1 }}>{ft.name}</p>
               <p style={{ margin:0, fontWeight:900, fontSize:18, color:T.brand }}>{ft.amount}€</p>
             </div>
@@ -1772,7 +1780,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
     const m = gm(f.memberId);
     return (
       <div style={{ background:T.card, borderRadius:12, padding:"11px 13px", marginBottom:6, display:"flex", alignItems:"center", gap:10, borderLeft:`3px solid ${f.paid?T.green:T.brand}` }}>
-        <span onClick={() => m && onSelectMember(m)} style={{ fontSize:24, flexShrink:0, cursor:"pointer" }}>{f.emoji}</span>
+        <span onClick={() => m && onSelectMember(m)} style={{ fontSize:24, flexShrink:0, cursor:"pointer" }}><FineIcon icon={f.emoji} size={24} /></span>
         <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => m && onSelectMember(m)}>
           <p style={{ margin:0, fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
           <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
@@ -2879,7 +2887,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
     if (!name.trim() || !amount) return;
     setSaving(true); setErr("");
     try {
-      const ft = needRows(await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji: resolveTypeIcon(name.trim(), custom) }, token))[0];
+      const ft = needRows(await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji: storableIcon(resolveTypeIcon(name.trim(), custom)) }, token))[0];
       onAdded(ft);
       setName(""); setAmount(""); setCustom(null); setAdding(false);
     } catch(e) { setErr(errPt(e)); }
@@ -2895,7 +2903,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
     setSaving(true);
     try {
       const em = resolveTypeIcon(editName.trim(), editCustom);
-      needRows(await api.patch(`fine_types?id=eq.${id}`, { emoji: em, name: editName.trim(), amount: Number(editAmount) }, token));
+      needRows(await api.patch(`fine_types?id=eq.${id}`, { emoji: storableIcon(em), name: editName.trim(), amount: Number(editAmount) }, token));
       onUpdated(id, { emoji: em, name: editName.trim(), amount: Number(editAmount) });
       setEditingId(null);
     } catch(e) { setErr(errPt(e)); }
@@ -2917,7 +2925,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
       {tf.map(ft => (
         <div key={ft.id}>
           <div style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-            <span style={{ fontSize:26 }}>{ft.emoji}</span>
+            <FineIcon icon={ft.emoji} size={26} />
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{ft.name}</p>
               <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€</p>
@@ -3555,7 +3563,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         {pf.length===0 && <p style={{ textAlign:"center", color:T.sub, padding:32 }}>Sem multas 🎉</p>}
         {pf.map(f => (
           <div key={f.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12, borderLeft:`3px solid ${f.paid?T.green:T.brand}` }}>
-            <span style={{ fontSize:24 }}>{f.emoji}</span>
+            <FineIcon icon={f.emoji} size={24} />
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontSize:14, fontWeight:600 }}>{f.reason}</p>
               <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(f.date)}</p>
