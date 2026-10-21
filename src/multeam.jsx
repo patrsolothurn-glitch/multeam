@@ -3876,6 +3876,16 @@ export default function App() {
     setRefreshing(false);
   }, [token, teamId, refreshing, roMode]);
   useEffect(() => { window.__multeamRefresh = refresh; }, [refresh]);
+  // Scroll por cima dos cartões: o index.html põe overscroll-behavior:none em todos os elementos e os cartões têm overflow:hidden
+  // (também são "contentores de scroll"); em alguns telemóveis o arrasto que começa num cartão deixava de rolar o ecrã.
+  // Dentro do #root volta ao valor normal; o #root, o html e o body mantêm o "none" (sem efeito elástico).
+  useEffect(() => {
+    if (document.getElementById("multeam-scroll-fix")) return;
+    const st = document.createElement("style");
+    st.id = "multeam-scroll-fix";
+    st.textContent = "#root * { overscroll-behavior: auto; }";
+    document.head.appendChild(st);
+  }, []);
 
   // Auth
   const handleLogin = async (email, pass) => {
