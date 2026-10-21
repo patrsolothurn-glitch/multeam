@@ -1786,7 +1786,7 @@ const PresCounter = ({ count, color }) => (
   <div style={{ width:26, height:26, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800 }}>{count}</div>
 );
 
-const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
+const PresBar = ({ t, presences, myMember, team, members, onSetPresence, isAdmin }) => {
   const [expanded, setExpanded] = React.useState(false);
   const pres = presences[t.id] || {};
   const tm = sortMembers(members.filter(m => m.teamId === team.id), true);
@@ -1795,6 +1795,8 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
   const unav = tm.filter(m => m.unavailable && !pres[m.id]).length; // indisponíveis sem resposta gravada
   const pend = tm.length - ok - no - unav;
   const me = pres[myMember?.id];
+  // só leitura: nomes de quem ainda não respondeu (sem botões, sem notificações). Admin; no modo leitura do super admin (onSetPresence nulo) aparece igual
+  const semResposta = (isAdmin || !onSetPresence) ? tm.filter(m => !pres[m.id] && !m.unavailable) : [];
   return (
     <div style={{ paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -1824,6 +1826,12 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
               </div>
             );
           })}
+          {semResposta.length > 0 && (
+            <div data-pres="sem-resposta" style={{ marginTop:6, paddingTop:8, borderTop:`1px dashed ${T.border}` }}>
+              <p style={{ margin:"0 0 4px", fontSize:13, fontWeight:800, color:"#C94F00" }}>Sem resposta ({semResposta.length})</p>
+              <p style={{ margin:0, fontSize:13, color:T.text, lineHeight:1.5, overflowWrap:"anywhere" }}>{semResposta.map(m => m.name).join(", ")}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1868,7 +1876,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
             <button onClick={() => setCtxMenu(ctxMenu===t.id?null:t.id)} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:T.sub, padding:"0 4px", flexShrink:0 }}>⋮</button>
           )}
         </div>
-        <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} />
+        <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} isAdmin={isAdmin} />
       </div>
       {ctxMenu===t.id && (
         <div style={{ background:T.bg, borderTop:`1px solid ${T.border}` }}>
@@ -1962,7 +1970,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                 {isAdmin && onLogSession && (
                   <button onClick={()=>setLogTarget(t)} style={{ display:"block", width:"100%", marginTop:10, padding:"8px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textAlign:"center" }}>📋 Registar sessão</button>
                 )}
-                <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} />
+                <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} isAdmin={isAdmin} />
               </div>
             ))}
           </>

@@ -6318,7 +6318,8 @@ var PresBar = function PresBar(_ref73) {
     myMember = _ref73.myMember,
     team = _ref73.team,
     members = _ref73.members,
-    onSetPresence = _ref73.onSetPresence;
+    onSetPresence = _ref73.onSetPresence,
+    isAdmin = _ref73.isAdmin;
   var _React$useState11 = React.useState(false),
     _React$useState12 = _slicedToArray(_React$useState11, 2),
     expanded = _React$useState12[0],
@@ -6338,6 +6339,9 @@ var PresBar = function PresBar(_ref73) {
   }).length;
   var pend = tm.length - ok - no - unav;
   var me = pres[myMember === null || myMember === void 0 ? void 0 : myMember.id];
+  var semResposta = isAdmin || !onSetPresence ? tm.filter(function (m) {
+    return !pres[m.id] && !m.unavailable;
+  }) : [];
   return React.createElement("div", {
     style: {
       paddingTop: 10,
@@ -6471,7 +6475,31 @@ var PresBar = function PresBar(_ref73) {
         fontWeight: st ? 600 : 400
       }
     }, m.name, isUnav && " · indisponível"));
-  })));
+  }), semResposta.length > 0 && React.createElement("div", {
+    "data-pres": "sem-resposta",
+    style: {
+      marginTop: 6,
+      paddingTop: 8,
+      borderTop: "1px dashed ".concat(T.border)
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: "0 0 4px",
+      fontSize: 13,
+      fontWeight: 800,
+      color: "#C94F00"
+    }
+  }, "Sem resposta (", semResposta.length, ")"), React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 13,
+      color: T.text,
+      lineHeight: 1.5,
+      overflowWrap: "anywhere"
+    }
+  }, semResposta.map(function (m) {
+    return m.name;
+  }).join(", ")))));
 };
 var EventCard = function EventCard(_ref74) {
   var fc = _ref74.fc,
@@ -6634,7 +6662,8 @@ var EventCard = function EventCard(_ref74) {
     myMember: myMember,
     team: team,
     members: members,
-    onSetPresence: onSetPresence
+    onSetPresence: onSetPresence,
+    isAdmin: isAdmin
   })), ctxMenu === t.id && React.createElement("div", {
     style: {
       background: T.bg,
@@ -7023,7 +7052,8 @@ var TreinosPage = function TreinosPage(_ref77) {
       myMember: myMember,
       team: team,
       members: members,
-      onSetPresence: onSetPresence
+      onSetPresence: onSetPresence,
+      isAdmin: isAdmin
     }));
   })), Object.entries(byMonth).map(function (_ref78) {
     var _ref79 = _slicedToArray(_ref78, 2),
