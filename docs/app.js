@@ -13940,6 +13940,13 @@ function App() {
   useEffect(function () {
     window.__multeamRefresh = refresh;
   }, [refresh]);
+  useEffect(function () {
+    if (document.getElementById("multeam-scroll-fix")) return;
+    var st = document.createElement("style");
+    st.id = "multeam-scroll-fix";
+    st.textContent = "#root * { overscroll-behavior: auto; }";
+    document.head.appendChild(st);
+  }, []);
   var handleLogin = function () {
     var _ref162 = _asyncToGenerator(_regenerator().m(function _callee54(email, pass) {
       var _d$session, _d$user, d, tok, uid, _t59;
