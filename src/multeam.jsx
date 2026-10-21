@@ -3781,6 +3781,7 @@ export default function App() {
     setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null);
     setTab("appadmin");
     const ok = await initApp(token, myUserId);
+    setTab("appadmin"); // o initApp pode ter posto o separador Geral (super admin sem equipas)
     if (ok === false) showToast("Não foi possível recarregar as tuas equipas", T.brand);
   };
 
@@ -3823,7 +3824,8 @@ export default function App() {
       }
       setTeams(adapted);
 
-      if (!adapted.length) { setAppReady(true); setLoading(false); return true; }
+      // isAppAdmin já é conhecido aqui (p.is_admin, lido acima): o super admin sem equipas não fica preso no ecrã "Sem equipas ainda"
+      if (!adapted.length) { if (p && p.is_admin === true) setTab("geral"); setAppReady(true); setLoading(false); return true; }
 
       const first = adapted[0].id;
       setTeamId(first);
@@ -4466,6 +4468,41 @@ export default function App() {
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
   const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{roBanner}{ch}</div>;
+
+  // Super admin sem equipa própria: ecrã principal só com Geral e o painel de super admin (ver "Abrir equipa")
+  if (!team && profile?.isAppAdmin) return (
+    <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+      {toastBox}
+      <div style={{ background:`linear-gradient(135deg, ${T.navy}, #0d1f36)`, color:"#fff", padding:"52px 16px 14px" }}>
+        <p style={{ margin:0, fontSize:11, opacity:0.6, fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Multeam</p>
+        <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Super admin</h2>
+      </div>
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
+      {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} />}
+      {tab!=="geral" && tab!=="appadmin" && (
+        <div style={{ textAlign:"center", padding:"60px 24px 120px", color:T.sub }}>
+          <p style={{ fontSize:40, margin:"0 0 8px" }}>⚽</p>
+          <p style={{ fontWeight:700, fontSize:16, margin:0, color:T.text }}>Sem equipa. Usa o painel de super admin.</p>
+          <button onClick={()=>setTab("geral")} style={{ marginTop:16, minHeight:44, padding:"0 20px", borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Ir para Geral</button>
+        </div>
+      )}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
+        {nav.map(item=>(
+          <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit" }}>
+            <span style={{ fontSize:20 }}>{item.emoji}</span>
+            <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?T.navy:T.sub }}>{item.label}</span>
+          </button>
+        ))}
+      </div>
+      {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
+        try { needRows(await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token)); }
+        catch(e){ writeFailed("guardar o perfil", e); return; }
+        setProfile(p=>({...p,...u}));
+      }} onClose={()=>setModal(null)} />}
+    </div>
+  );
 
   if (!team) return (
     <div style={{ minHeight:"100vh", background:T.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"system-ui" }}>

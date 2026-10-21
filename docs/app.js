@@ -13682,6 +13682,7 @@ function App() {
             return initApp(token, myUserId);
           case 1:
             ok = _context50.v;
+            setTab("appadmin");
             if (ok === false) showToast("Não foi possível recarregar as tuas equipas", T.brand);
           case 2:
             return _context50.a(2);
@@ -13785,6 +13786,7 @@ function App() {
               _context51.n = 12;
               break;
             }
+            if (p && p.is_admin === true) setTab("geral");
             setAppReady(true);
             setLoading(false);
             return _context51.a(2, true);
@@ -16177,6 +16179,219 @@ function App() {
       }
     }, roBanner, ch);
   };
+  if (!team && profile !== null && profile !== void 0 && profile.isAppAdmin) return React.createElement("div", {
+    style: {
+      background: T.bg,
+      minHeight: "100vh",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      maxWidth: 480,
+      margin: "0 auto"
+    }
+  }, toastBox, React.createElement("div", {
+    style: {
+      background: "linear-gradient(135deg, ".concat(T.navy, ", #0d1f36)"),
+      color: "#fff",
+      padding: "52px 16px 14px"
+    }
+  }, React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 11,
+      opacity: 0.6,
+      fontWeight: 700,
+      letterSpacing: 1,
+      textTransform: "uppercase"
+    }
+  }, "Multeam"), React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 22,
+      fontWeight: 900,
+      letterSpacing: -0.5
+    }
+  }, "Super admin")), tab === "geral" && React.createElement(GeneralTab, {
+    user: _objectSpread({}, profile || {}),
+    myUserId: myUserId,
+    teams: teams,
+    members: members,
+    token: token,
+    onEditProfile: function onEditProfile() {
+      return setModal("profile");
+    },
+    onManageTeam: function onManageTeam() {},
+    onCreateTeam: function onCreateTeam() {
+      return setModal("team");
+    },
+    onJoinTeam: function onJoinTeam() {
+      return setModal("join");
+    },
+    onLeaveTeam: leaveTeam,
+    onLogout: handleLogout,
+    isAppAdmin: profile === null || profile === void 0 ? void 0 : profile.isAppAdmin,
+    onAdminOpen: function onAdminOpen() {
+      return setTab("appadmin");
+    }
+  }), tab === "appadmin" && React.createElement(AppAdminTab, {
+    token: token,
+    onBack: function onBack() {
+      return setTab("geral");
+    },
+    onOpenTeam: openAdminTeam
+  }), tab !== "geral" && tab !== "appadmin" && React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "60px 24px 120px",
+      color: T.sub
+    }
+  }, React.createElement("p", {
+    style: {
+      fontSize: 40,
+      margin: "0 0 8px"
+    }
+  }, "\u26BD"), React.createElement("p", {
+    style: {
+      fontWeight: 700,
+      fontSize: 16,
+      margin: 0,
+      color: T.text
+    }
+  }, "Sem equipa. Usa o painel de super admin."), React.createElement("button", {
+    onClick: function onClick() {
+      return setTab("geral");
+    },
+    style: {
+      marginTop: 16,
+      minHeight: 44,
+      padding: "0 20px",
+      borderRadius: 14,
+      border: "1.5px solid ".concat(T.navy),
+      background: "transparent",
+      color: T.navy,
+      fontWeight: 800,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Ir para Geral")), React.createElement("div", {
+    style: {
+      position: "fixed",
+      bottom: 0,
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "100%",
+      maxWidth: 480,
+      background: T.card,
+      borderTop: "1px solid ".concat(T.border),
+      display: "flex",
+      padding: "8px 0 24px",
+      boxShadow: "0 -2px 20px rgba(0,0,0,0.06)"
+    }
+  }, nav.map(function (item) {
+    return React.createElement("button", {
+      key: item.id,
+      onClick: function onClick() {
+        return setTab(item.id);
+      },
+      style: {
+        flex: 1,
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+        padding: "4px 0",
+        fontFamily: "inherit"
+      }
+    }, React.createElement("span", {
+      style: {
+        fontSize: 20
+      }
+    }, item.emoji), React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontWeight: tab === item.id ? 800 : 500,
+        color: tab === item.id ? T.navy : T.sub
+      }
+    }, item.label));
+  })), modal === "team" && React.createElement(CreateTeamModal, {
+    onAdd: createTeam,
+    onClose: function onClose() {
+      return setModal(null);
+    }
+  }), modal === "join" && React.createElement(JoinTeamModal, {
+    teams: teams,
+    user: profile,
+    onFindByCode: findTeamByCode,
+    onJoin: (function () {
+      var _ref213 = _asyncToGenerator(_regenerator().m(function _callee97(t) {
+        return _regenerator().w(function (_context97) {
+          while (1) switch (_context97.n) {
+            case 0:
+              _context97.n = 1;
+              return joinTeam(t);
+            case 1:
+              setPendingInvite(null);
+              window.history.replaceState({}, document.title, window.location.pathname);
+            case 2:
+              return _context97.a(2);
+          }
+        }, _callee97);
+      }));
+      return function (_x66) {
+        return _ref213.apply(this, arguments);
+      };
+    }()),
+    initialCode: pendingInvite || "",
+    onClose: function onClose() {
+      setModal(null);
+      setPendingInvite(null);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }), modal === "profile" && React.createElement(EditProfileModal, {
+    user: profile || {},
+    onSave: (function () {
+      var _ref214 = _asyncToGenerator(_regenerator().m(function _callee98(u) {
+        var _t110, _t111;
+        return _regenerator().w(function (_context98) {
+          while (1) switch (_context98.p = _context98.n) {
+            case 0:
+              _context98.p = 0;
+              _t110 = needRows;
+              _context98.n = 1;
+              return api.patch("profiles?id=eq.".concat(myUserId), {
+                name: u.name,
+                phone: u.phone || null,
+                birthday: u.birthday || null,
+                avatar_url: u.avatarUrl || null,
+                position: u.position || null
+              }, token);
+            case 1:
+              _t110(_context98.v);
+              _context98.n = 3;
+              break;
+            case 2:
+              _context98.p = 2;
+              _t111 = _context98.v;
+              writeFailed("guardar o perfil", _t111);
+              return _context98.a(2);
+            case 3:
+              setProfile(function (p) {
+                return _objectSpread(_objectSpread({}, p), u);
+              });
+            case 4:
+              return _context98.a(2);
+          }
+        }, _callee98, null, [[0, 2]]);
+      }));
+      return function (_x67) {
+        return _ref214.apply(this, arguments);
+      };
+    }()),
+    onClose: function onClose() {
+      return setModal(null);
+    }
+  }));
   if (!team) return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -16258,22 +16473,22 @@ function App() {
     user: profile,
     onFindByCode: findTeamByCode,
     onJoin: (function () {
-      var _ref213 = _asyncToGenerator(_regenerator().m(function _callee97(t) {
-        return _regenerator().w(function (_context97) {
-          while (1) switch (_context97.n) {
+      var _ref215 = _asyncToGenerator(_regenerator().m(function _callee99(t) {
+        return _regenerator().w(function (_context99) {
+          while (1) switch (_context99.n) {
             case 0:
-              _context97.n = 1;
+              _context99.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context97.a(2);
+              return _context99.a(2);
           }
-        }, _callee97);
+        }, _callee99);
       }));
-      return function (_x66) {
-        return _ref213.apply(this, arguments);
+      return function (_x68) {
+        return _ref215.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
@@ -16685,15 +16900,15 @@ function App() {
   }), modal === "profile" && React.createElement(EditProfileModal, {
     user: profile || {},
     onSave: (function () {
-      var _ref214 = _asyncToGenerator(_regenerator().m(function _callee98(u) {
+      var _ref216 = _asyncToGenerator(_regenerator().m(function _callee100(u) {
         var _members$find4;
-        var _t110, _t111;
-        return _regenerator().w(function (_context98) {
-          while (1) switch (_context98.p = _context98.n) {
+        var _t112, _t113;
+        return _regenerator().w(function (_context100) {
+          while (1) switch (_context100.p = _context100.n) {
             case 0:
-              _context98.p = 0;
-              _t110 = needRows;
-              _context98.n = 1;
+              _context100.p = 0;
+              _t112 = needRows;
+              _context100.n = 1;
               return api.patch("profiles?id=eq.".concat(myUserId), {
                 name: u.name,
                 phone: u.phone || null,
@@ -16702,29 +16917,29 @@ function App() {
                 position: u.position || null
               }, token);
             case 1:
-              _t110(_context98.v);
-              _context98.n = 3;
+              _t112(_context100.v);
+              _context100.n = 3;
               break;
             case 2:
-              _context98.p = 2;
-              _t111 = _context98.v;
-              writeFailed("guardar o perfil", _t111);
-              return _context98.a(2);
+              _context100.p = 2;
+              _t113 = _context100.v;
+              writeFailed("guardar o perfil", _t113);
+              return _context100.a(2);
             case 3:
               setProfile(function (p) {
                 return _objectSpread(_objectSpread({}, p), u);
               });
-              _context98.n = 4;
+              _context100.n = 4;
               return editMember((_members$find4 = members.find(function (m) {
                 return m.userId === myUserId && m.teamId === teamId;
               })) === null || _members$find4 === void 0 ? void 0 : _members$find4.id, u);
             case 4:
-              return _context98.a(2);
+              return _context100.a(2);
           }
-        }, _callee98, null, [[0, 2]]);
+        }, _callee100, null, [[0, 2]]);
       }));
-      return function (_x67) {
-        return _ref214.apply(this, arguments);
+      return function (_x69) {
+        return _ref216.apply(this, arguments);
       };
     }()),
     onClose: function onClose() {
@@ -16735,22 +16950,22 @@ function App() {
     user: profile,
     onFindByCode: findTeamByCode,
     onJoin: (function () {
-      var _ref215 = _asyncToGenerator(_regenerator().m(function _callee99(t) {
-        return _regenerator().w(function (_context99) {
-          while (1) switch (_context99.n) {
+      var _ref217 = _asyncToGenerator(_regenerator().m(function _callee101(t) {
+        return _regenerator().w(function (_context101) {
+          while (1) switch (_context101.n) {
             case 0:
-              _context99.n = 1;
+              _context101.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context99.a(2);
+              return _context101.a(2);
           }
-        }, _callee99);
+        }, _callee101);
       }));
-      return function (_x68) {
-        return _ref215.apply(this, arguments);
+      return function (_x70) {
+        return _ref217.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
