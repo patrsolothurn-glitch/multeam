@@ -8091,7 +8091,9 @@ var AdminUsersSection = function AdminUsersSection(_ref86) {
 var AppAdminTab = function AppAdminTab(_ref90) {
   var token = _ref90.token,
     onBack = _ref90.onBack,
-    onOpenTeam = _ref90.onOpenTeam;
+    onOpenTeam = _ref90.onOpenTeam,
+    initialSection = _ref90.initialSection,
+    initialTeams = _ref90.initialTeams;
   var _useState209 = useState(null),
     _useState210 = _slicedToArray(_useState209, 2),
     stats = _useState210[0],
@@ -8100,11 +8102,11 @@ var AppAdminTab = function AppAdminTab(_ref90) {
     _useState212 = _slicedToArray(_useState211, 2),
     updatedAt = _useState212[0],
     setUpdatedAt = _useState212[1];
-  var _useState213 = useState([]),
+  var _useState213 = useState(Array.isArray(initialTeams) ? initialTeams : []),
     _useState214 = _slicedToArray(_useState213, 2),
     teams = _useState214[0],
     setTeams = _useState214[1];
-  var _useState215 = useState("stats"),
+  var _useState215 = useState(initialSection || "stats"),
     _useState216 = _slicedToArray(_useState215, 2),
     section = _useState216[0],
     setSection = _useState216[1];
@@ -8112,7 +8114,7 @@ var AppAdminTab = function AppAdminTab(_ref90) {
     _useState218 = _slicedToArray(_useState217, 2),
     selectedTeam = _useState218[0],
     setSelectedTeam = _useState218[1];
-  var _useState219 = useState(true),
+  var _useState219 = useState(!(Array.isArray(initialTeams) && initialTeams.length)),
     _useState220 = _slicedToArray(_useState219, 2),
     loading = _useState220[0],
     setLoading = _useState220[1];
@@ -13395,6 +13397,17 @@ function App() {
     _useState422 = _slicedToArray(_useState421, 2),
     adminErr = _useState422[0],
     setAdminErr = _useState422[1];
+  var _useState423 = useState(null),
+    _useState424 = _slicedToArray(_useState423, 2),
+    adminStart = _useState424[0],
+    setAdminStart = _useState424[1];
+  var _useState425 = useState(null),
+    _useState426 = _slicedToArray(_useState425, 2),
+    adminTeamsCache = _useState426[0],
+    setAdminTeamsCache = _useState426[1];
+  var roHistoryRef = React.useRef(false);
+  var ignorePopRef = React.useRef(0);
+  var exitRoRef = React.useRef(null);
   var team = teams.find(function (t) {
     return t.id === teamId;
   });
@@ -13657,6 +13670,13 @@ function App() {
             return _context49.a(2);
           case 1:
             RO.on = true;
+            setAdminTeamsCache(Array.isArray(list) ? list : null);
+            try {
+              window.history.pushState({
+                multeamRO: true
+              }, "", window.location.href);
+              roHistoryRef.current = true;
+            } catch (e) {}
             setAdminView(true);
             setSub(null);
             setModal(null);
@@ -13677,12 +13697,25 @@ function App() {
     };
   }();
   var exitAdminView = function () {
-    var _ref158 = _asyncToGenerator(_regenerator().m(function _callee50() {
-      var ok;
+    var _ref158 = _asyncToGenerator(_regenerator().m(function _callee50(opts) {
+      var toTeams, ok;
       return _regenerator().w(function (_context50) {
         while (1) switch (_context50.n) {
           case 0:
+            toTeams = !!(opts && opts.toTeams);
             RO.on = false;
+            if (roHistoryRef.current) {
+              roHistoryRef.current = false;
+              if (!(opts && opts.fromPop)) {
+                ignorePopRef.current++;
+                try {
+                  window.history.back();
+                } catch (e) {
+                  ignorePopRef.current--;
+                }
+              }
+            }
+            setAdminStart(toTeams ? "teams" : null);
             setAdminView(false);
             setAdminErr(null);
             setSub(null);
@@ -13709,10 +13742,29 @@ function App() {
         }
       }, _callee50);
     }));
-    return function exitAdminView() {
+    return function exitAdminView(_x21) {
       return _ref158.apply(this, arguments);
     };
   }();
+  exitRoRef.current = exitAdminView;
+  useEffect(function () {
+    var onPop = function onPop() {
+      if (ignorePopRef.current > 0) {
+        ignorePopRef.current--;
+        return;
+      }
+      if (!roHistoryRef.current) return;
+      roHistoryRef.current = false;
+      if (exitRoRef.current) exitRoRef.current({
+        toTeams: true,
+        fromPop: true
+      });
+    };
+    window.addEventListener("popstate", onPop);
+    return function () {
+      return window.removeEventListener("popstate", onPop);
+    };
+  }, []);
   var initApp = function () {
     var _ref159 = _asyncToGenerator(_regenerator().m(function _callee51(tok, uid) {
       var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t53, _t54;
@@ -13841,7 +13893,7 @@ function App() {
         }
       }, _callee51, null, [[3, 5], [1, 14, 15, 16]]);
     }));
-    return function initApp(_x21, _x22) {
+    return function initApp(_x22, _x23) {
       return _ref159.apply(this, arguments);
     };
   }();
@@ -13889,7 +13941,7 @@ function App() {
         }
       }, _callee52, null, [[3, 5]]);
     }));
-    return function switchTeam(_x23) {
+    return function switchTeam(_x24) {
       return _ref160.apply(this, arguments);
     };
   }();
@@ -14006,7 +14058,7 @@ function App() {
         }
       }, _callee54, null, [[1, 5]]);
     }));
-    return function handleLogin(_x24, _x25) {
+    return function handleLogin(_x25, _x26) {
       return _ref162.apply(this, arguments);
     };
   }();
@@ -14100,12 +14152,13 @@ function App() {
         }
       }, _callee55, null, [[9, 14], [3, 5], [1, 18]]);
     }));
-    return function handleRegister(_x26, _x27, _x28) {
+    return function handleRegister(_x27, _x28, _x29) {
       return _ref163.apply(this, arguments);
     };
   }();
   var handleLogout = function handleLogout() {
     RO.on = false;
+    roHistoryRef.current = false;
     setAdminView(false);
     setAdminErr(null);
     setToken(null);
@@ -14153,7 +14206,7 @@ function App() {
         }
       }, _callee56);
     }));
-    return function addFine(_x29) {
+    return function addFine(_x30) {
       return _ref164.apply(this, arguments);
     };
   }();
@@ -14184,7 +14237,7 @@ function App() {
         }
       }, _callee57);
     }));
-    return function confirmGone(_x30) {
+    return function confirmGone(_x31) {
       return _ref165.apply(this, arguments);
     };
   }();
@@ -14231,7 +14284,7 @@ function App() {
         }
       }, _callee58, null, [[2, 4]]);
     }));
-    return function togglePaid(_x31) {
+    return function togglePaid(_x32) {
       return _ref166.apply(this, arguments);
     };
   }();
@@ -14264,7 +14317,7 @@ function App() {
         }
       }, _callee59, null, [[0, 3]]);
     }));
-    return function delFine(_x32) {
+    return function delFine(_x33) {
       return _ref167.apply(this, arguments);
     };
   }();
@@ -14300,7 +14353,7 @@ function App() {
         }
       }, _callee60, null, [[0, 2]]);
     }));
-    return function editFine(_x33, _x34) {
+    return function editFine(_x34, _x35) {
       return _ref168.apply(this, arguments);
     };
   }();
@@ -14333,7 +14386,7 @@ function App() {
         }
       }, _callee61);
     }));
-    return function addCard(_x35) {
+    return function addCard(_x36) {
       return _ref169.apply(this, arguments);
     };
   }();
@@ -14559,7 +14612,7 @@ function App() {
         }
       }, _callee67, null, [[0, 2]]);
     }));
-    return function addExpense(_x36) {
+    return function addExpense(_x37) {
       return _ref175.apply(this, arguments);
     };
   }();
@@ -14642,7 +14695,7 @@ function App() {
         }
       }, _callee68, null, [[1, 5]]);
     }));
-    return function logSession(_x37, _x38, _x39) {
+    return function logSession(_x38, _x39, _x40) {
       return _ref176.apply(this, arguments);
     };
   }();
@@ -14692,7 +14745,7 @@ function App() {
         }
       }, _callee69);
     }));
-    return function addTraining(_x40) {
+    return function addTraining(_x41) {
       return _ref181.apply(this, arguments);
     };
   }();
@@ -14891,7 +14944,7 @@ function App() {
         }
       }, _callee73, null, [[3, 5], [1, 9]]);
     }));
-    return function addMember(_x41) {
+    return function addMember(_x42) {
       return _ref185.apply(this, arguments);
     };
   }();
@@ -14948,7 +15001,7 @@ function App() {
         }
       }, _callee74, null, [[1, 5]]);
     }));
-    return function leaveTeam(_x42) {
+    return function leaveTeam(_x43) {
       return _ref186.apply(this, arguments);
     };
   }();
@@ -15010,7 +15063,7 @@ function App() {
         }
       }, _callee75);
     }));
-    return function toggleRole(_x43, _x44) {
+    return function toggleRole(_x44, _x45) {
       return _ref187.apply(this, arguments);
     };
   }();
@@ -15058,7 +15111,7 @@ function App() {
         }
       }, _callee76);
     }));
-    return function removeMember(_x45) {
+    return function removeMember(_x46) {
       return _ref188.apply(this, arguments);
     };
   }();
@@ -15089,7 +15142,7 @@ function App() {
         }
       }, _callee77, null, [[2,, 4, 5]]);
     }));
-    return function guarded(_x46, _x47) {
+    return function guarded(_x47, _x48) {
       return _ref189.apply(this, arguments);
     };
   }();
@@ -15146,7 +15199,7 @@ function App() {
         }
       }, _callee78);
     }));
-    return function callOpen(_x48, _x49) {
+    return function callOpen(_x49, _x50) {
       return _ref190.apply(this, arguments);
     };
   }();
@@ -15167,7 +15220,7 @@ function App() {
         }
       }, _callee79);
     }));
-    return function callClose(_x50, _x51) {
+    return function callClose(_x51, _x52) {
       return _ref191.apply(this, arguments);
     };
   }();
@@ -15503,10 +15556,10 @@ function App() {
       }, _callee86, null, [[1, 8]]);
     })));
   };
-  var _useState423 = useState(null),
-    _useState424 = _slicedToArray(_useState423, 2),
-    teamError = _useState424[0],
-    setTeamError = _useState424[1];
+  var _useState427 = useState(null),
+    _useState428 = _slicedToArray(_useState427, 2),
+    teamError = _useState428[0],
+    setTeamError = _useState428[1];
   var createTeam = function () {
     var _ref203 = _asyncToGenerator(_regenerator().m(function _callee87(d) {
       var tid, invCode, sr, se, tr, newTeam, _t103;
@@ -15587,7 +15640,7 @@ function App() {
         }
       }, _callee87, null, [[1, 8]]);
     }));
-    return function createTeam(_x52) {
+    return function createTeam(_x53) {
       return _ref203.apply(this, arguments);
     };
   }();
@@ -15617,7 +15670,7 @@ function App() {
         }
       }, _callee88);
     }));
-    return function editTeam(_x53, _x54) {
+    return function editTeam(_x54, _x55) {
       return _ref204.apply(this, arguments);
     };
   }();
@@ -15677,7 +15730,7 @@ function App() {
         }
       }, _callee89, null, [[3, 7]]);
     }));
-    return function deleteTeam(_x55) {
+    return function deleteTeam(_x56) {
       return _ref205.apply(this, arguments);
     };
   }();
@@ -15719,7 +15772,7 @@ function App() {
         }
       }, _callee90, null, [[0, 2]]);
     }));
-    return function joinTeam(_x56) {
+    return function joinTeam(_x57) {
       return _ref206.apply(this, arguments);
     };
   }();
@@ -15759,17 +15812,17 @@ function App() {
         }
       }, _callee91, null, [[0, 3]]);
     }));
-    return function findTeamByCode(_x57) {
+    return function findTeamByCode(_x58) {
       return _ref207.apply(this, arguments);
     };
   }();
-  var _useState425 = useState(function () {
+  var _useState429 = useState(function () {
       var p = new URLSearchParams(window.location.search);
       return p.get('invite') || null;
     }),
-    _useState426 = _slicedToArray(_useState425, 2),
-    pendingInvite = _useState426[0],
-    setPendingInvite = _useState426[1];
+    _useState430 = _slicedToArray(_useState429, 2),
+    pendingInvite = _useState430[0],
+    setPendingInvite = _useState430[1];
   useEffect(function () {
     if (!appReady || !pendingInvite) return;
     var alreadyIn = teams.find(function (t) {
@@ -15854,7 +15907,7 @@ function App() {
         }
       }, _callee92, null, [[2, 8]]);
     }));
-    return function subscribeToPush(_x58, _x59) {
+    return function subscribeToPush(_x59, _x60) {
       return _ref208.apply(this, arguments);
     };
   }();
@@ -15886,10 +15939,10 @@ function App() {
       subscribeToPush(token, myUserId);
     }
   }, [appReady, token, myUserId]);
-  var _useState427 = useState(null),
-    _useState428 = _slicedToArray(_useState427, 2),
-    toast = _useState428[0],
-    setToast = _useState428[1];
+  var _useState431 = useState(null),
+    _useState432 = _slicedToArray(_useState431, 2),
+    toast = _useState432[0],
+    setToast = _useState432[1];
   var showToast = function showToast(msg) {
     var color = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : T.navy;
     setToast({
@@ -15949,7 +16002,7 @@ function App() {
         }
       }, _callee94, null, [[2, 4]]);
     }));
-    return function sendPushToTeam(_x60, _x61, _x62, _x63) {
+    return function sendPushToTeam(_x61, _x62, _x63, _x64) {
       return _ref210.apply(this, arguments);
     };
   }();
@@ -15974,7 +16027,7 @@ function App() {
         }
       }, _callee95);
     }));
-    return function addFineWithToast(_x64) {
+    return function addFineWithToast(_x65) {
       return _ref211.apply(this, arguments);
     };
   }();
@@ -16023,7 +16076,7 @@ function App() {
         }
       }, _callee96);
     }));
-    return function addCardWithAlert(_x65) {
+    return function addCardWithAlert(_x66) {
       return _ref212.apply(this, arguments);
     };
   }();
@@ -16068,27 +16121,52 @@ function App() {
       color: "#FFE9B0",
       display: "flex",
       alignItems: "center",
+      flexWrap: "wrap",
       justifyContent: "space-between",
-      gap: 8,
+      gap: "6px 8px",
       padding: "6px 14px",
       fontSize: 13,
       fontWeight: 700
     }
-  }, React.createElement("span", null, "\uD83D\uDC41\uFE0F Modo leitura (super admin)"), React.createElement("button", {
-    onClick: exitAdminView,
+  }, React.createElement("span", null, "\uD83D\uDC41\uFE0F Modo leitura (super admin)"), React.createElement("span", {
     style: {
-      minHeight: 36,
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("button", {
+    onClick: function onClick() {
+      return exitAdminView({
+        toTeams: true
+      });
+    },
+    style: {
+      minHeight: 44,
       padding: "0 16px",
       background: "#FFE9B0",
       color: "#3D2B00",
       border: "none",
-      borderRadius: 18,
+      borderRadius: 22,
       fontSize: 13,
       fontWeight: 800,
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "Sair")) : null;
+  }, "\u2190 Voltar \xE0s equipas"), React.createElement("button", {
+    onClick: exitAdminView,
+    style: {
+      minHeight: 44,
+      padding: "0 16px",
+      background: "#FFE9B0",
+      color: "#3D2B00",
+      border: "none",
+      borderRadius: 22,
+      fontSize: 13,
+      fontWeight: 800,
+      cursor: "pointer",
+      fontFamily: "inherit"
+    }
+  }, "Sair"))) : null;
   if (roMode && adminErr) return React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -16144,6 +16222,25 @@ function App() {
       fontFamily: "inherit"
     }
   }, "Tentar novamente"), React.createElement("button", {
+    onClick: function onClick() {
+      return exitAdminView({
+        toTeams: true
+      });
+    },
+    style: {
+      width: "100%",
+      maxWidth: 300,
+      minHeight: 48,
+      borderRadius: 14,
+      border: "none",
+      background: T.navy,
+      color: "#fff",
+      fontWeight: 800,
+      cursor: "pointer",
+      marginBottom: 10,
+      fontFamily: "inherit"
+    }
+  }, "\u2190 Voltar \xE0s equipas"), React.createElement("button", {
     onClick: exitAdminView,
     style: {
       width: "100%",
@@ -16263,14 +16360,17 @@ function App() {
     onLogout: handleLogout,
     isAppAdmin: profile === null || profile === void 0 ? void 0 : profile.isAppAdmin,
     onAdminOpen: function onAdminOpen() {
-      return setTab("appadmin");
+      setAdminStart(null);
+      setTab("appadmin");
     }
   }), tab === "appadmin" && React.createElement(AppAdminTab, {
     token: token,
     onBack: function onBack() {
       return setTab("geral");
     },
-    onOpenTeam: openAdminTeam
+    onOpenTeam: openAdminTeam,
+    initialSection: adminStart,
+    initialTeams: adminStart === "teams" ? adminTeamsCache : null
   }), tab !== "geral" && tab !== "appadmin" && React.createElement("div", {
     style: {
       textAlign: "center",
@@ -16372,7 +16472,7 @@ function App() {
           }
         }, _callee97);
       }));
-      return function (_x66) {
+      return function (_x67) {
         return _ref213.apply(this, arguments);
       };
     }()),
@@ -16418,7 +16518,7 @@ function App() {
           }
         }, _callee98, null, [[0, 2]]);
       }));
-      return function (_x67) {
+      return function (_x68) {
         return _ref214.apply(this, arguments);
       };
     }()),
@@ -16521,7 +16621,7 @@ function App() {
           }
         }, _callee99);
       }));
-      return function (_x68) {
+      return function (_x69) {
         return _ref215.apply(this, arguments);
       };
     }()),
@@ -16811,14 +16911,17 @@ function App() {
     isAppAdmin: roMode ? false : profile === null || profile === void 0 ? void 0 : profile.isAppAdmin,
     readOnly: roMode,
     onAdminOpen: function onAdminOpen() {
-      return setTab("appadmin");
+      setAdminStart(null);
+      setTab("appadmin");
     }
   }), tab === "appadmin" && (profile === null || profile === void 0 ? void 0 : profile.isAppAdmin) && React.createElement(AppAdminTab, {
     token: token,
     onBack: function onBack() {
       return setTab("geral");
     },
-    onOpenTeam: openAdminTeam
+    onOpenTeam: openAdminTeam,
+    initialSection: adminStart,
+    initialTeams: adminStart === "teams" ? adminTeamsCache : null
   }), React.createElement("div", {
     style: {
       position: "fixed",
@@ -16974,7 +17077,7 @@ function App() {
           }
         }, _callee100, null, [[0, 2]]);
       }));
-      return function (_x69) {
+      return function (_x70) {
         return _ref216.apply(this, arguments);
       };
     }()),
@@ -17000,7 +17103,7 @@ function App() {
           }
         }, _callee101);
       }));
-      return function (_x70) {
+      return function (_x71) {
         return _ref217.apply(this, arguments);
       };
     }()),
