@@ -352,16 +352,17 @@ const PhotoLightbox = ({ src, name, onClose }) => {
   return (typeof ReactDOM !== "undefined" && ReactDOM.createPortal) ? ReactDOM.createPortal(node, document.body) : node;
 };
 // foto do jogador: tocar abre a foto ampliada (sem abrir/fechar o cartão onde está); sem foto, quem a usa mostra só iniciais
-const ZoomPhoto = ({ src, name, style }) => {
+// onTapGesture (opcional): em vez de abrir logo, entrega a função "abrir" a quem decide quando (ex.: gesto dos 3 toques do super admin em Geral)
+const ZoomPhoto = ({ src, name, style, onTapGesture }) => {
   const [open, setOpen] = useState(false);
   return (<>
-    <img src={src} alt={name || ""} onClick={e => { e.stopPropagation(); setOpen(true); }} style={{ ...style, cursor:"zoom-in" }} />
+    <img src={src} alt={name || ""} onClick={e => { e.stopPropagation(); if (onTapGesture) onTapGesture(() => setOpen(true)); else setOpen(true); }} style={{ ...style, cursor:"zoom-in" }} />
     {open && <PhotoLightbox src={src} name={name} onClose={() => setOpen(false)} />}
   </>);
 };
-const Avatar = ({ initials, color = T.navy, size = 38, photo, name }) => (
+const Avatar = ({ initials, color = T.navy, size = 38, photo, name, onTapGesture }) => (
   photo
-    ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><ZoomPhoto src={photo} name={name} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
+    ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><ZoomPhoto src={photo} name={name} onTapGesture={onTapGesture} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
     : <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
 );
 const Badge = ({ label, color }) => (
@@ -2897,6 +2898,16 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   const [teamMembers, setTeamMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const tapTimer = React.useRef(null);
+  const photoTaps = React.useRef(0);
+  useEffect(() => () => clearTimeout(tapTimer.current), []);
+  // foto do perfil (só super admin): 3 toques na mesma janela abrem o painel; 1 toque sozinho abre o zoom quando a janela acaba; 2 toques não abrem nada
+  const photoTap = openZoom => {
+    const next = photoTaps.current + 1;
+    photoTaps.current = next;
+    clearTimeout(tapTimer.current);
+    if (next >= 3) { photoTaps.current = 0; setTapCount(0); onAdminOpen(); return; }
+    tapTimer.current = setTimeout(() => { const n = photoTaps.current; photoTaps.current = 0; if (n === 1) openZoom(); }, 800);
+  };
 
   const handleAvatarTap = () => {
     if (!isAppAdmin) return;
@@ -2962,7 +2973,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18, paddingRight:80 }}>
           <div onClick={handleAvatarTap} style={{ cursor: isAppAdmin ? "pointer" : "default" }}>
-            <Avatar initials={user.initials} color={T.navy} size={54} photo={user.avatarUrl} name={user.name} />
+            <Avatar initials={user.initials} color={T.navy} size={54} photo={user.avatarUrl} name={user.name} onTapGesture={isAppAdmin ? photoTap : undefined} />
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <h2 style={{ margin:0, fontSize:20, fontWeight:900 }}>{user.name}</h2>
