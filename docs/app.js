@@ -1114,7 +1114,8 @@ var PhotoLightbox = function PhotoLightbox(_ref5) {
 var ZoomPhoto = function ZoomPhoto(_ref6) {
   var src = _ref6.src,
     name = _ref6.name,
-    style = _ref6.style;
+    style = _ref6.style,
+    onTapGesture = _ref6.onTapGesture;
   var _useState3 = useState(false),
     _useState4 = _slicedToArray(_useState3, 2),
     open = _useState4[0],
@@ -1124,7 +1125,9 @@ var ZoomPhoto = function ZoomPhoto(_ref6) {
     alt: name || "",
     onClick: function onClick(e) {
       e.stopPropagation();
-      setOpen(true);
+      if (onTapGesture) onTapGesture(function () {
+        return setOpen(true);
+      });else setOpen(true);
     },
     style: _objectSpread(_objectSpread({}, style), {}, {
       cursor: "zoom-in"
@@ -1144,7 +1147,8 @@ var Avatar = function Avatar(_ref7) {
     _ref7$size = _ref7.size,
     size = _ref7$size === void 0 ? 38 : _ref7$size,
     photo = _ref7.photo,
-    name = _ref7.name;
+    name = _ref7.name,
+    onTapGesture = _ref7.onTapGesture;
   return photo ? React.createElement("div", {
     style: {
       width: size,
@@ -1156,6 +1160,7 @@ var Avatar = function Avatar(_ref7) {
   }, React.createElement(ZoomPhoto, {
     src: photo,
     name: name,
+    onTapGesture: onTapGesture,
     style: {
       width: "100%",
       height: "100%",
@@ -10432,6 +10437,28 @@ var GeneralTab = function GeneralTab(_ref118) {
     loadingMembers = _useState270[0],
     setLoadingMembers = _useState270[1];
   var tapTimer = React.useRef(null);
+  var photoTaps = React.useRef(0);
+  useEffect(function () {
+    return function () {
+      return clearTimeout(tapTimer.current);
+    };
+  }, []);
+  var photoTap = function photoTap(openZoom) {
+    var next = photoTaps.current + 1;
+    photoTaps.current = next;
+    clearTimeout(tapTimer.current);
+    if (next >= 3) {
+      photoTaps.current = 0;
+      setTapCount(0);
+      onAdminOpen();
+      return;
+    }
+    tapTimer.current = setTimeout(function () {
+      var n = photoTaps.current;
+      photoTaps.current = 0;
+      if (n === 1) openZoom();
+    }, 800);
+  };
   var handleAvatarTap = function handleAvatarTap() {
     if (!isAppAdmin) return;
     var next = tapCount + 1;
@@ -10685,7 +10712,8 @@ var GeneralTab = function GeneralTab(_ref118) {
     color: T.navy,
     size: 54,
     photo: user.avatarUrl,
-    name: user.name
+    name: user.name,
+    onTapGesture: isAppAdmin ? photoTap : undefined
   })), React.createElement("div", {
     style: {
       flex: 1,
