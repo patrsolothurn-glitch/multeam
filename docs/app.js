@@ -89,7 +89,10 @@ var api = {
         while (1) switch (_context.n) {
           case 0:
             _context.n = 1;
-            return fetch("".concat(SB_URL, "/rest/v1/").concat(p), {
+            return fetch("".concat(SB_URL, "/rest/v1/").concat(p), p.startsWith('fine_types') ? {
+              headers: _this.h(tok),
+              cache: 'no-store'
+            } : {
               headers: _this.h(tok)
             });
           case 1:
@@ -504,10 +507,12 @@ var aFine = function aFine(f) {
   };
 };
 var fineTypeIcon = function fineTypeIcon(name, emoji) {
-  var e = emoji || '🟥';
-  if (e !== '🟥') return e;
+  var e = String(emoji == null ? '' : emoji).trim();
+  if (e) return e;
   var n = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return /(^|[^a-z])bolos?([^a-z]|$)/.test(n) ? '🎂' : e;
+  if (/(^|[^a-z])bolos?([^a-z]|$)/.test(n)) return '🎂';
+  if (/(^|[^a-z])cartao([^a-z]|$)/.test(n)) return /amarelo/.test(n) ? '🟨' : '🟥';
+  return '🟥';
 };
 var aFineType = function aFineType(ft) {
   return {
@@ -1504,7 +1509,8 @@ var AddFineModal = function AddFineModal(_ref16) {
     }).then(function (r) {
       return r.json();
     }), fetch("".concat(SB_URL, "/rest/v1/fine_types?team_id=eq.").concat(team.id, "&order=amount.asc"), {
-      headers: H
+      headers: H,
+      cache: 'no-store'
     }).then(function (r) {
       return r.json();
     })]).then(function () {
@@ -11381,6 +11387,20 @@ var ManageTeamScreen = function ManageTeamScreen(_ref131) {
     _useState300 = _slicedToArray(_useState299, 2),
     showDelete = _useState300[0],
     setShowDelete = _useState300[1];
+  useEffect(function () {
+    if (!setFineTypes || !token || RO.on) return;
+    var alive = true;
+    api.get("fine_types?team_id=eq.".concat(team.id, "&order=amount.asc"), token).then(function (rows) {
+      if (alive && Array.isArray(rows)) setFineTypes(function (p) {
+        return [].concat(_toConsumableArray(p.filter(function (x) {
+          return x.teamId !== team.id;
+        })), _toConsumableArray(rows.map(aFineType)));
+      });
+    }).catch(function () {});
+    return function () {
+      alive = false;
+    };
+  }, [team.id]);
   var isCreator = team.createdBy === myUserId;
   var myRoleHere = (tm.find(function (x) {
     return x.userId === myUserId;
