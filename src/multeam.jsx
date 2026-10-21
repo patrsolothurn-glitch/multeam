@@ -55,19 +55,36 @@ const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color|
 const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
-  return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, paidAt:f.paid_at||null, date:f.date||localDate };
+  return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:iconForFine(f.reason, f.emoji), paid:f.paid, paidAt:f.paid_at||null, date:f.date||localDate };
 };
-// ícone do tipo de multa: manda sempre o campo emoji de fine_types, se existir e não estiver vazio. Só quando está vazio há um
-// fallback por nome (sem maiúsculas nem acentos): "bolo" → 🎂; "cartão/cartao amarelo" → 🟨; "cartão/cartao vermelho" → 🟥; senão 🟥. Nada é gravado.
-const fineTypeIcon = (name, emoji) => {
+// ── ÍCONE AUTOMÁTICO das multas e dos tipos de multa (nada é gravado para multas antigas) ──
+// Regras por palavra-chave, por prioridade (nome sem maiúsculas nem acentos). Cartão amarelo/vermelho/expulsão primeiro, para nunca mudar o 🟥 desses nomes.
+const ICON_RULES = [
+  [/cartao\s+amarelo/, "🟨"], [/cartao\s+vermelho|\bvermelho\b|expuls/, "🟥"],
+  [/\bbolos?\b|aniversar/, "🎂"],
+  [/atras|chegar.*(tarde|depois)|ultimo a entrar|\bchegar tarde/, "⏰"],
+  [/falt\w*.*\bjogos?\b/, "⚽"],
+  [/\bfalt|\bnao vir\b|\bnao (ir|aparecer)\b/, "❌"],
+  [/equipament|\bmaterial|\bfatos?\b|\bkit\b|chuteira|camisola|roupa/, "👕"],
+  [/telemovel|telefone/, "📵"],
+  [/\blixo|migalha|\bsuj|balneario/, "🧹"],
+  [/\bfalar\b|gritar|\bbocas?\b|arbitr|histori|barulho/, "🗣️"],
+  [/derrota/, "😞"], [/vitoria/, "🏆"], [/golos? sofrid/, "🥅"], [/golos? marcad/, "⚽"],
+  [/pagamento|\bmultas?\b|divida/, "💶"],
+  [/carrinha|viatura|boleia/, "🚐"],
+  [/lanche|comida|jantar|consumo|\bcomer\b/, "🍽️"],
+  [/assinar|convocatoria/, "✍️"], [/penalt/, "🎯"], [/dormir|adormec/, "😴"],
+];
+const normFineName = name => String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+// 1) emoji guardado que não seja o 🟥 por defeito: manda (escolha da equipa). 2) 🟥 ou vazio: regra por palavra-chave. 3) sem regra: 🟥 só para cartão/vermelho/expulsão, senão ⚪.
+const iconForFine = (name, emoji) => {
   const e = String(emoji == null ? '' : emoji).trim();
-  if (e) return e;
-  const n = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  if (/(^|[^a-z])bolos?([^a-z]|$)/.test(n)) return '🎂';
-  if (/(^|[^a-z])cartao([^a-z]|$)/.test(n)) return /amarelo/.test(n) ? '🟨' : '🟥';
-  return '🟥';
+  if (e && e !== '🟥') return e;
+  const n = normFineName(name);
+  for (const [re, ic] of ICON_RULES) if (re.test(n)) return ic;
+  return /cartao|vermelho|expuls/.test(n) ? '🟥' : '⚪';
 };
-const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:fineTypeIcon(ft.name, ft.emoji) });
+const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:iconForFine(ft.name, ft.emoji) });
 const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
   date:c.match_date||'', opponent:c.opponent||'', note:c.note||'', consumed:!!c.consumed });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:(() => { const d = e.created_at ? new Date(e.created_at) : null; return d && !isNaN(d) ? localDateStr(d) : ''; })() });
@@ -390,6 +407,45 @@ const PrimaryBtn = ({ onClick, disabled, color = T.brand, children }) => (
 
 // ── MODALS ────────────────────────────────────────────────────
 
+// Ícone do tipo de multa: automático pelo nome (aparece ao lado do nome e muda enquanto se escreve). "Mudar ícone" abre uma grelha por categoria;
+// um ícone escolhido à mão fica fixo (custom). custom=null → automático.
+const FINE_ICON_CATS = [
+  ["Multas", ["🟥","🟨","⏰","❌","⚽","🥅","🏆","😞"]],
+  ["Equipamento e balneário", ["👕","🧹","📵","🚐"]],
+  ["Comportamento", ["🗣️","😴","🎯","✍️","😤","🤦","🚫","🔇","🤡"]],
+  ["Dinheiro", ["💶","💸"]],
+  ["Comida e festa", ["🎂","🍽️","🍺","🍕","🍾"]],
+  ["Outros", ["⚪","🃏","🎪","🎖️","🤕","💪","🚗","💬"]],
+];
+const resolveTypeIcon = (name, custom) => custom || iconForFine(name, '');
+const FineIconField = ({ name, custom, onCustom }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-fine-icon-field style={{ marginBottom:10 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+        <span data-fine-icon aria-label="Ícone" style={{ fontSize:32, lineHeight:1, minWidth:40, textAlign:"center" }}>{resolveTypeIcon(name, custom)}</span>
+        <span style={{ fontSize:12, color:"#5F5F66", flex:1, minWidth:90 }}>{custom ? "Ícone escolhido por ti" : "Ícone automático"}</span>
+        <button type="button" onClick={()=>setOpen(o=>!o)} style={{ minHeight:44, minWidth:44, padding:"0 14px", borderRadius:12, border:"1.5px solid #1a1a1f", background:"#fff", color:"#1a1a1f", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Mudar ícone</button>
+      </div>
+      {open && (
+        <div style={{ marginTop:8 }}>
+          {custom && <button type="button" onClick={()=>{ onCustom(null); setOpen(false); }} style={{ minHeight:44, padding:"0 14px", marginBottom:8, borderRadius:12, border:"1.5px solid #1a1a1f", background:"#fff", color:"#1a1a1f", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>↺ Voltar ao automático</button>}
+          {FINE_ICON_CATS.map(([cat, list]) => (
+            <div key={cat} style={{ marginBottom:6 }}>
+              <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>{cat}</p>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {list.map(e => (
+                  <button type="button" key={e} aria-label={`Ícone ${e}`} onClick={()=>{ onCustom(e); setOpen(false); }} style={{ fontSize:22, width:44, height:44, padding:0, borderRadius:10, border:`2px solid ${resolveTypeIcon(name, custom)===e?"#1a1a1f":"#D7D7DE"}`, background:"#fff", cursor:"pointer" }}>{e}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   const [tm, setTm]   = useState([]);
   const [tft, setTft] = useState([]);
@@ -399,22 +455,23 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [addingType, setAddingType] = useState(false);
-  const [newName, setNewName] = useState(""); const [newAmount, setNewAmount] = useState(""); const [newEmoji, setNewEmoji] = useState("🟥");
+  const [newName, setNewName] = useState(""); const [newAmount, setNewAmount] = useState(""); const [newCustom, setNewCustom] = useState(null);
   const [savingType, setSavingType] = useState(false);
 
   const [editingFt, setEditingFt] = useState(null);
-  const [editName, setEditName] = useState(""); const [editAmount, setEditAmount] = useState(""); const [editEmoji, setEditEmoji] = useState("🟥");
+  const [editName, setEditName] = useState(""); const [editAmount, setEditAmount] = useState(""); const [editCustom, setEditCustom] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  const startEdit = (ft, e) => { e.stopPropagation(); setEditingFt(ft); setEditName(ft.name); setEditAmount(String(ft.amount)); setEditEmoji(ft.emoji); };
+  const startEdit = (ft, e) => { e.stopPropagation(); setEditingFt(ft); setEditName(ft.name); setEditAmount(String(ft.amount)); setEditCustom(ft.emoji === iconForFine(ft.name, '') ? null : ft.emoji); };
 
   const saveEdit = async () => {
     if (!editName.trim() || !editAmount) return;
     setSavingEdit(true);
     try {
-      needRows(await api.patch(`fine_types?id=eq.${editingFt.id}`, { name: editName.trim(), amount: Number(editAmount), emoji: editEmoji }, token));
-      setTft(p => p.map(x => x.id===editingFt.id ? {...x, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji} : x));
-      if (sft?.id===editingFt.id) setSft(f => ({...f, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji}));
+      const em = resolveTypeIcon(editName.trim(), editCustom);
+      needRows(await api.patch(`fine_types?id=eq.${editingFt.id}`, { name: editName.trim(), amount: Number(editAmount), emoji: em }, token));
+      setTft(p => p.map(x => x.id===editingFt.id ? {...x, name:editName.trim(), amount:Number(editAmount), emoji:em} : x));
+      if (sft?.id===editingFt.id) setSft(f => ({...f, name:editName.trim(), amount:Number(editAmount), emoji:em}));
       setEditingFt(null);
     } catch(e) { setErr(errPt(e)); }
     setSavingEdit(false);
@@ -432,7 +489,6 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     } catch(e) { setErr(errPt(e)); }
   };
 
-  const QUICK_EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤"];
 
   useEffect(() => {
     const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
@@ -465,7 +521,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         initials: (profMap[m.user_id]?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
       }))));
       setTft((Array.isArray(ftRaw) ? ftRaw : []).map(ft => ({
-        id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: fineTypeIcon(ft.name, ft.emoji)
+        id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: iconForFine(ft.name, ft.emoji)
       })));
       setLoading(false);
     }).catch(e => { setErr(errPt(e)); setLoading(false); });
@@ -475,14 +531,14 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     if (!newName.trim() || !newAmount) return;
     setSavingType(true);
     try {
-      const data = needRows(await api.post('fine_types', { team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: newEmoji }, token));
+      const data = needRows(await api.post('fine_types', { team_id: team.id, name: newName.trim(), amount: Number(newAmount), emoji: resolveTypeIcon(newName.trim(), newCustom) }, token));
       const ft = Array.isArray(data) ? data[0] : data;
       if (ft?.id) {
-        const newFt = { id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: fineTypeIcon(ft.name, ft.emoji) };
+        const newFt = { id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: iconForFine(ft.name, ft.emoji) };
         setTft(p => [...p, newFt]);
         setSft(newFt);
       }
-      setAddingType(false); setNewName(""); setNewAmount(""); setNewEmoji("🟥");
+      setAddingType(false); setNewName(""); setNewAmount(""); setNewCustom(null);
     } catch(e) { setErr(errPt(e)); }
     setSavingType(false);
   };
@@ -515,11 +571,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
           {tft.map(ft => editingFt?.id===ft.id ? (
             <div key={ft.id} style={{ gridColumn:"1 / -1", background:T.inputBg, borderRadius:14, padding:"14px", border:`1.5px solid ${T.brand}` }}>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:8 }}>
-                {QUICK_EMOJIS.map(e => (
-                  <button key={e} onClick={()=>setEditEmoji(e)} style={{ fontSize:18, width:34, height:34, borderRadius:8, border:`2px solid ${editEmoji===e?T.brand:T.border}`, background:editEmoji===e?`${T.brand}15`:"transparent", cursor:"pointer" }}>{e}</button>
-                ))}
-              </div>
+              <FineIconField name={editName} custom={editCustom} onCustom={setEditCustom} />
               <FI value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome" />
               <FI type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)} placeholder="Valor €" />
               <div style={{ display:"flex", gap:8 }}>
@@ -562,11 +614,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         {addingType && (
           <div style={{ background:T.inputBg, borderRadius:14, padding:"14px", marginBottom:12, border:`1.5px solid ${T.border}` }}>
             <p style={{ margin:"0 0 10px", fontWeight:700, fontSize:13 }}>➕ Novo tipo de multa</p>
-            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-              {QUICK_EMOJIS.map(e => (
-                <button key={e} onClick={()=>setNewEmoji(e)} style={{ fontSize:20, width:38, height:38, borderRadius:10, border:`2px solid ${newEmoji===e?T.brand:T.border}`, background:newEmoji===e?`${T.brand}15`:"transparent", cursor:"pointer" }}>{e}</button>
-              ))}
-            </div>
+            <FineIconField name={newName} custom={newCustom} onCustom={setNewCustom} />
             <FI value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nome (ex: Cartão azul)" />
             <FI type="number" value={newAmount} onChange={e=>setNewAmount(e.target.value)} placeholder="Valor em € (ex: 10)" />
             <div style={{ display:"flex", gap:8 }}>
@@ -2782,8 +2830,8 @@ const EmojiPicker = ({ value, onChange, color }) => (
 const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, token }) => {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [emoji, setEmoji] = useState("🟥");
-  const [editEmoji, setEditEmoji] = useState("🟥"); const [editName, setEditName] = useState(""); const [editAmount, setEditAmount] = useState("");
+  const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [custom, setCustom] = useState(null);
+  const [editCustom, setEditCustom] = useState(null); const [editName, setEditName] = useState(""); const [editAmount, setEditAmount] = useState("");
   const [err, setErr] = useState(""); const [saving, setSaving] = useState(false);
   const tf = fineTypes.filter(f => f.teamId === team.id);
 
@@ -2791,23 +2839,24 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
     if (!name.trim() || !amount) return;
     setSaving(true); setErr("");
     try {
-      const ft = needRows(await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji }, token))[0];
+      const ft = needRows(await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji: resolveTypeIcon(name.trim(), custom) }, token))[0];
       onAdded(ft);
-      setName(""); setAmount(""); setEmoji("🟥"); setAdding(false);
+      setName(""); setAmount(""); setCustom(null); setAdding(false);
     } catch(e) { setErr(errPt(e)); }
     setSaving(false);
   };
 
   const startEdit = ft => {
-    setEditingId(ft.id); setEditEmoji(ft.emoji); setEditName(ft.name); setEditAmount(String(ft.amount));
+    setEditingId(ft.id); setEditCustom(ft.emoji === iconForFine(ft.name, '') ? null : ft.emoji); setEditName(ft.name); setEditAmount(String(ft.amount));
   };
 
   const saveEdit = async (id) => {
     if (!editName.trim() || !editAmount) return;
     setSaving(true);
     try {
-      needRows(await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) }, token));
-      onUpdated(id, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) });
+      const em = resolveTypeIcon(editName.trim(), editCustom);
+      needRows(await api.patch(`fine_types?id=eq.${id}`, { emoji: em, name: editName.trim(), amount: Number(editAmount) }, token));
+      onUpdated(id, { emoji: em, name: editName.trim(), amount: Number(editAmount) });
       setEditingId(null);
     } catch(e) { setErr(errPt(e)); }
     setSaving(false);
@@ -2838,7 +2887,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
           </div>
           {editingId===ft.id && (
             <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8, marginTop:-4 }}>
-              <EmojiPicker value={editEmoji} onChange={setEditEmoji} color={team.color} />
+              <FineIconField name={editName} custom={editCustom} onCustom={setEditCustom} />
               <FL>Nome</FL>
               <FI value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do tipo..." />
               <FL>Valor (€)</FL>
@@ -2855,7 +2904,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
       ))}
       {adding ? (
         <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8 }}>
-          <EmojiPicker value={emoji} onChange={setEmoji} color={team.color} />
+          <FineIconField name={name} custom={custom} onCustom={setCustom} />
           <FI value={name} onChange={e=>setName(e.target.value)} placeholder="Nome (ex: Atraso)" />
           <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Valor em € (ex: 5)" />
           <div style={{ display:"flex", gap:8 }}>
