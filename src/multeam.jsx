@@ -2158,20 +2158,24 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
   const teams = act.data.teams;
   const nq = normTxt(q);
   const filtering = nq !== "" || filter !== "all";
-  const keep = m => {
-    if (nq && !normTxt(m.name).includes(nq) && !normTxt(m.email).includes(nq)) return false;
+  const keepText = m => !nq || normTxt(m.name).includes(nq) || normTxt(m.email).includes(nq);
+  const keepAge = m => {
     const age = adminAgeMs(m.last);
     if (filter === "a7") return age <= 7 * ADMIN_DAY;
     if (filter === "i30") return !(age <= 30 * ADMIN_DAY);
     return true;
   };
-  const shown = teams.map(tm => ({ tm, ms: tm.members.filter(keep) })).filter(x => !filtering || x.ms.length > 0);
+  // pesquisa pelo nome da equipa: mostra a equipa com todos os membros (o filtro de atividade continua a aplicar-se)
+  const shown = teams.map(tm => {
+    const byTeam = nq !== "" && normTxt(tm.name).includes(nq);
+    return { tm, byTeam, ms: tm.members.filter(m => keepAge(m) && (byTeam || keepText(m))) };
+  }).filter(x => !filtering || x.ms.length > 0 || (x.byTeam && filter === "all"));
   const chips = [["all","Todos"],["a7","Ativos 7 dias"],["i30","Inativos 30+ dias"]];
   const isOpen = id => id in open ? open[id] : filtering;
   return (
     <>
       {cards}
-      <FI type="search" placeholder="Pesquisar por nome ou email" aria-label="Pesquisar por nome ou email" value={q} onChange={e=>{ setQ(e.target.value); setOpen({}); }} style={{ marginBottom:8 }} />
+      <FI type="search" placeholder="Pesquisar por nome, email ou equipa" aria-label="Pesquisar por nome, email ou equipa" value={q} onChange={e=>{ setQ(e.target.value); setOpen({}); }} style={{ marginBottom:8 }} />
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
         {chips.map(([id,label]) => (
           <button key={id} aria-pressed={filter===id} onClick={()=>{ setFilter(id); setOpen({}); }} style={{ minHeight:44, padding:"0 14px", borderRadius:22, border:`1.5px solid ${filter===id?T.navy:T.border}`, background:filter===id?T.navy:"transparent", color:filter===id?"#fff":T.sub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
