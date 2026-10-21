@@ -2250,13 +2250,13 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
 };
 
 // ── APP ADMIN TAB ─────────────────────────────────────────────
-const AppAdminTab = ({ token, onBack, onOpenTeam }) => {
+const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }) => {
   const [stats, setStats] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null); // hora local da última carga dos dados
-  const [teams, setTeams] = useState([]);
-  const [section, setSection] = useState("stats");
+  const [teams, setTeams] = useState(Array.isArray(initialTeams) ? initialTeams : []); // initialTeams: lista já conhecida (ao voltar do modo leitura); é atualizada na mesma
+  const [section, setSection] = useState(initialSection || "stats");
   const [selectedTeam, setSelectedTeam] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(Array.isArray(initialTeams) && initialTeams.length));
   // aba Users: pede as duas rpc uma vez, ao abrir a aba (com a base de dados a validar o super admin)
   const [act, setAct] = useState({ status:"idle", data:null, error:"" });
   const loadActivity = async () => {
@@ -3684,6 +3684,11 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [adminView, setAdminView] = useState(false); // modo super admin: só em memória
   const [adminErr, setAdminErr] = useState(null);     // { msg, id } quando um pedido do modo falha
+  const [adminStart, setAdminStart] = useState(null);   // separador com que o painel abre ("teams" ao voltar do modo leitura)
+  const [adminTeamsCache, setAdminTeamsCache] = useState(null); // lista de equipas do painel (get_all_teams_admin), para voltar sem esperar
+  const roHistoryRef = React.useRef(false);  // há uma entrada de histórico do modo leitura (só em memória; o URL não muda)
+  const ignorePopRef = React.useRef(0);      // popstate provocados por nós (ao consumir a entrada) que devem ser ignorados
+  const exitRoRef = React.useRef(null);      // última versão de exitAdminView, para o botão "atrás" do navegador
 
   const team = teams.find(t=>t.id===teamId);
   // modo leitura só existe para o super admin (profile.isAppAdmin); aí ninguém é admin da equipa aberta
@@ -3773,14 +3778,24 @@ export default function App() {
   const openAdminTeam = async (id, list) => {
     if (!profile?.isAppAdmin || !token) return;
     RO.on = true;
+    setAdminTeamsCache(Array.isArray(list) ? list : null);
+    // o botão "atrás" do telemóvel/navegador passa a ser "Voltar às equipas" (entrada sem mudar o URL)
+    try { window.history.pushState({ multeamRO:true }, "", window.location.href); roHistoryRef.current = true; } catch(e) {}
     setAdminView(true); setSub(null); setModal(null); setTab("home");
     setTeams((Array.isArray(list) ? list : []).filter(t => t && t.id != null).map(aTeam));
     setTeamId(id);
     await loadAdmin(id);
   };
   // saída: volta ao painel e recarrega as equipas e os dados normais do utilizador
-  const exitAdminView = async () => {
+  // exitAdminView({ toTeams:true }) abre o painel na aba Equipas (Voltar às equipas); sem argumento = Sair (abre o painel como antes)
+  const exitAdminView = async opts => {
+    const toTeams = !!(opts && opts.toTeams);
     RO.on = false;
+    if (roHistoryRef.current) {
+      roHistoryRef.current = false;
+      if (!(opts && opts.fromPop)) { ignorePopRef.current++; try { window.history.back(); } catch(e) { ignorePopRef.current--; } } // consome a entrada de histórico do modo
+    }
+    setAdminStart(toTeams ? "teams" : null);
     setAdminView(false); setAdminErr(null); setSub(null); setModal(null);
     setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null);
     setTab("appadmin");
@@ -3788,6 +3803,18 @@ export default function App() {
     setTab("appadmin"); // o initApp pode ter posto o separador Geral (super admin sem equipas)
     if (ok === false) showToast("Não foi possível recarregar as tuas equipas", T.brand);
   };
+  exitRoRef.current = exitAdminView;
+  // botão "atrás" do telemóvel/navegador no modo leitura = Voltar às equipas (em vez de sair da app)
+  useEffect(() => {
+    const onPop = () => {
+      if (ignorePopRef.current > 0) { ignorePopRef.current--; return; }
+      if (!roHistoryRef.current) return;
+      roHistoryRef.current = false;
+      if (exitRoRef.current) exitRoRef.current({ toTeams:true, fromPop:true });
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // Init app after login
   const initApp = async (tok, uid) => {
@@ -3931,7 +3958,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => { RO.on = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
+  const handleLogout = () => { RO.on = false; roHistoryRef.current = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
 
   // Data actions
   const addFine = async d => {
@@ -4471,9 +4498,12 @@ export default function App() {
   if (loading) return <Spinner />;
 
   const roBanner = roMode ? (
-    <div role="status" style={{ position:"sticky", top:0, zIndex:300, background:"#3D2B00", color:"#FFE9B0", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"6px 14px", fontSize:13, fontWeight:700 }}>
+    <div role="status" style={{ position:"sticky", top:0, zIndex:300, background:"#3D2B00", color:"#FFE9B0", display:"flex", alignItems:"center", flexWrap:"wrap", justifyContent:"space-between", gap:"6px 8px", padding:"6px 14px", fontSize:13, fontWeight:700 }}>
       <span>👁️ Modo leitura (super admin)</span>
-      <button onClick={exitAdminView} style={{ minHeight:36, padding:"0 16px", background:"#FFE9B0", color:"#3D2B00", border:"none", borderRadius:18, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Sair</button>
+      <span style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <button onClick={()=>exitAdminView({ toTeams:true })} style={{ minHeight:44, padding:"0 16px", background:"#FFE9B0", color:"#3D2B00", border:"none", borderRadius:22, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>← Voltar às equipas</button>
+        <button onClick={exitAdminView} style={{ minHeight:44, padding:"0 16px", background:"#FFE9B0", color:"#3D2B00", border:"none", borderRadius:22, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Sair</button>
+      </span>
     </div>
   ) : null;
   if (roMode && adminErr) return (
@@ -4482,6 +4512,7 @@ export default function App() {
       <p style={{ fontWeight:800, fontSize:18, margin:"8px 0 6px", textAlign:"center" }}>Não foi possível abrir a equipa</p>
       <div role="alert" style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", marginBottom:16, width:"100%", maxWidth:340, fontSize:14, color:"#8A0000", textAlign:"center", boxSizing:"border-box" }}>{adminErr.msg}</div>
       <button onClick={()=>loadAdmin(adminErr.id)} style={{ width:"100%", maxWidth:300, minHeight:48, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>Tentar novamente</button>
+      <button onClick={()=>exitAdminView({ toTeams:true })} style={{ width:"100%", maxWidth:300, minHeight:48, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>← Voltar às equipas</button>
       <button onClick={exitAdminView} style={{ width:"100%", maxWidth:300, minHeight:48, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Sair</button>
     </div>
   );
@@ -4499,8 +4530,8 @@ export default function App() {
         <p style={{ margin:0, fontSize:11, opacity:0.6, fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Multeam</p>
         <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Super admin</h2>
       </div>
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>setTab("appadmin")} />}
-      {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} />}
+      {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
       {tab!=="geral" && tab!=="appadmin" && (
         <div style={{ textAlign:"center", padding:"60px 24px 120px", color:T.sub }}>
           <p style={{ fontSize:40, margin:"0 0 8px" }}>⚽</p>
@@ -4574,8 +4605,8 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>setTab("appadmin")} />}
-      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} />}
+      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
