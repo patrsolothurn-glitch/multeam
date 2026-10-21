@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 
 // ── TOKENS ──────────────────────────────────────────────────
 const T = {
-  bg: "#F0F1F6", card: "#FFFFFF", brand: "#E63946", green: "#2DC653",
-  yellow: "#FFCC00", navy: "#1D3557", text: "#1D1D1F", sub: "#86868B",
+  bg: "#F0F1F6", card: "#FFFFFF", brand: "#E63946", green: "#147832",
+  yellow: "#FFCC00", navy: "#1D3557", text: "#1D1D1F", sub: "#6B6B72",
   border: "#E5E5EA", inputBg: "#F8F8FA",
 };
 
@@ -319,7 +319,7 @@ const RoleBadgeLight = ({ role }) => {
     admin:     { label:"Admin",     color:"#1D3557" },
     treinador: { label:"Treinador", color:"#2E7D32" },
     diretor:   { label:"Diretor",   color:"#7B1FA2" },
-    player:    { label:"Jogador",   color:"#86868B" },
+    player:    { label:"Jogador",   color:"#6B6B72" },
   };
   const c = cfg[role]||cfg.player;
   return (
@@ -329,7 +329,7 @@ const RoleBadgeLight = ({ role }) => {
   );
 };
 const Chip = ({ active, color, onClick, children }) => (
-  <button onClick={onClick} style={{ padding:"7px 14px", borderRadius:20, border:"none", cursor:"pointer", background:active ? color : T.card, color:active ? "#fff" : T.sub, fontWeight:600, fontSize:13, fontFamily:"inherit" }}>{children}</button>
+  <button onClick={onClick} style={{ padding:"7px 14px", minHeight:44, borderRadius:20, border:"none", cursor:"pointer", background:active ? color : T.card, color:active ? "#fff" : T.sub, fontWeight:600, fontSize:13, fontFamily:"inherit" }}>{children}</button>
 );
 const Sec = ({ label }) => (
   <p style={{ margin:"18px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>{label}</p>
@@ -1439,7 +1439,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
             <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:10 }}>
               <span style={{ fontSize:14, fontWeight:600, flex:1 }}>Vais?</span>
               {btn("✓ Sim", T.green, "present")}
-              {btn("✗ Não", "#FF6B00", "absent")}
+              {btn("✗ Não", "#C94F00", "absent")}
             </div>
           </div>
         );
@@ -1775,14 +1775,14 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
     <div style={{ paddingTop:10, marginTop:8, borderTop:`1px solid ${T.border}` }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
         <PresCounter count={ok}   color={T.green} />
-        <PresCounter count={no}   color="#FF6B00" />
+        <PresCounter count={no}   color="#C94F00" />
         <PresCounter count={pend} color={T.sub} />
         {unav > 0 && <div title="Indisponíveis" style={{ minWidth:26, height:26, padding:"0 6px", boxSizing:"border-box", borderRadius:7, background:"#7B6CD9", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:800, gap:3 }}>🤕 {unav}</div>}
         <button onClick={() => setExpanded(e=>!e)} style={{ background:"none", border:`1px solid ${T.border}`, borderRadius:8, padding:"3px 8px", fontSize:11, color:T.sub, cursor:"pointer", fontFamily:"inherit", flexShrink:0 }}>{expanded ? "▲" : "▼ Ver"}</button>
         {!isPast(t.date) && myMember && (
           <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
-            <button onClick={() => onSetPresence(t.id, myMember.id, me==="present" ? null : "present")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid ${T.green}`, background:me==="present"?T.green:"transparent", color:me==="present"?"#fff":T.green, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Presente</button>
-            <button onClick={() => onSetPresence(t.id, myMember.id, me==="absent" ? null : "absent")} style={{ padding:"6px 12px", borderRadius:18, border:`1.5px solid #FF6B00`, background:me==="absent"?"#FF6B00":"transparent", color:me==="absent"?"#fff":"#FF6B00", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✗ Ausente</button>
+            <button onClick={() => onSetPresence(t.id, myMember.id, me==="present" ? null : "present")} style={{ padding:"6px 12px", minHeight:44, borderRadius:18, border:`1.5px solid ${T.green}`, background:me==="present"?T.green:"transparent", color:me==="present"?"#fff":T.green, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✓ Presente</button>
+            <button onClick={() => onSetPresence(t.id, myMember.id, me==="absent" ? null : "absent")} style={{ padding:"6px 12px", minHeight:44, borderRadius:18, border:`1.5px solid #C94F00`, background:me==="absent"?"#C94F00":"transparent", color:me==="absent"?"#fff":"#C94F00", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>✗ Ausente</button>
           </div>
         )}
       </div>
@@ -1791,7 +1791,7 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence }) => {
           {tm.map(m => {
             const st = pres[m.id];
             const isUnav = m.unavailable && !st;
-            const color = st==="present" ? T.green : st==="absent" ? "#FF6B00" : isUnav ? "#7B6CD9" : T.sub;
+            const color = st==="present" ? T.green : st==="absent" ? "#C94F00" : isUnav ? "#7B6CD9" : T.sub;
             const icon = st==="present" ? "✓" : st==="absent" ? "✗" : isUnav ? (m.unavailableEmoji||"🤕") : "?";
             return (
               <div key={m.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -1895,22 +1895,22 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
       </div>
 
       {/* Filter bar */}
-      <div style={{ background:T.card, padding:"10px 16px", display:"flex", gap:8, alignItems:"center", borderBottom:`1px solid ${T.border}`, overflowX:"auto" }}>
-        <button onClick={() => setShowPast(!showPast)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", borderRadius:20, border:`1px solid ${T.border}`, background:showPast?T.navy:"transparent", color:showPast?"#fff":T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+      <div style={{ background:T.card, padding:"10px 16px", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={() => setShowPast(!showPast)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${T.border}`, background:showPast?T.navy:"transparent", color:showPast?"#fff":T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
           🕐 Passado
         </button>
         {isAdmin && (<>
-          <button onClick={() => setModal("treino")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
+          <button onClick={() => setModal("treino")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
             ⚽ Treino
           </button>
-          <button onClick={() => setModal("recorrente")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+          <button onClick={() => setModal("recorrente")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
             🔄
           </button>
-          <button onClick={() => setModal("jogo")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+          <button onClick={() => setModal("jogo")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
             🏆
           </button>
         </>)}
-        <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", borderRadius:20, border:`1px solid ${filterType?team.color:T.border}`, background:filterType?`${team.color}15`:"transparent", color:filterType?team.color:T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, marginLeft:"auto" }}>
+        <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${filterType?team.color:T.border}`, background:filterType?`${team.color}15`:"transparent", color:filterType?team.color:T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, marginLeft:"auto" }}>
           ≡ Filtros{filterType?" •":""}
         </button>
       </div>
@@ -1954,7 +1954,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
               <button onClick={() => toggleMonth(month)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"14px 0 8px", fontFamily:"inherit" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <span style={{ fontSize:15, fontWeight:900, color:team.color, textTransform:"uppercase", letterSpacing:0.8 }}>{month}</span>
-                  <span style={{ fontSize:12, color:T.sub, fontWeight:600 }}>{totalSessions} sessão{totalSessions!==1?"ões":""}</span>
+                  <span style={{ fontSize:12, color:T.sub, fontWeight:600 }}>{plural(totalSessions, "sessão", "sessões")}</span>
                   {totalPresent>0 && <span style={{ fontSize:12, color:T.green, fontWeight:700 }}>· {totalPresent} ✓</span>}
                 </div>
                 <span style={{ fontSize:16, color:T.sub }}>{isCollapsed ? "▶" : "▼"}</span>
@@ -2349,12 +2349,12 @@ const AppAdminTab = ({ token, onBack, onOpenTeam }) => {
         <button onClick={onBack} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12, fontSize:13 }}>← Voltar</button>
         <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Gestão</p>
         <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Visão Geral</h2>
-        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.4)" }}>Monitorização da plataforma</p>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.7)" }}>Monitorização da plataforma</p>
         {updatedAt && <p style={{ margin:"2px 0 0", fontSize:12, color:"rgba(255,255,255,0.7)" }}>Atualizado às {String(updatedAt.getHours()).padStart(2,"0")}:{String(updatedAt.getMinutes()).padStart(2,"0")}</p>}
       </div>
       <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
         {tabs.map(([id,label]) => (
-          <button key={id} onClick={()=>setSection(id)} style={{ flex:1, padding:"8px 4px", borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          <button key={id} onClick={()=>setSection(id)} style={{ flex:1, padding:"8px 4px", minHeight:44, borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
       </div>
       <div style={{ padding:"16px" }}>
@@ -3087,7 +3087,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {m.userId !== myUserId && (
                 <>
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                    {[["admin","🛡 Admin","#1D3557"],["player","👤 Jogador","#86868B"]].map(([r,l,c]) => (
+                    {[["admin","🛡 Admin","#1D3557"],["player","👤 Jogador","#6B6B72"]].map(([r,l,c]) => (
                       <button key={r} onClick={() => m.role!==r && changeRole(m, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
@@ -3129,11 +3129,11 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           <p style={{ margin:"0 0 10px", fontSize:13, color:T.sub }}>Partilha o convite com os teus jogadores:</p>
           <div style={{ display:"flex", gap:8 }}>
             <a href={`https://wa.me/?text=${encodeURIComponent(`🟥 *Multeam* — Junta-te à equipa *${team.name}*!\n\n1. Abre o link: https://patrsolothurn-glitch.github.io/multeam?invite=${team.inviteCode}\n2. Cria conta\n3. O código entra automaticamente!\n\nCódigo manual: *${team.inviteCode}*`)}`}
-               target="_blank" rel="noopener" style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", borderRadius:12, background:"#25D366", color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
+               target="_blank" rel="noopener" style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", minHeight:44, borderRadius:12, background:"#0E7A3E", color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
               📱 WhatsApp
             </a>
             <a href={`mailto:?subject=Convite para ${team.name}&body=${encodeURIComponent(`Olá!\n\nEstou a convidar-te para a equipa ${team.name} no Multeam.\n\nAbre este link para entrares diretamente:\nhttps://patrsolothurn-glitch.github.io/multeam?invite=${team.inviteCode}\n\nOu entra no app e usa o código: ${team.inviteCode}\n\nAté já!`)}`}
-               style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", borderRadius:12, background:T.navy, color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
+               style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", minHeight:44, borderRadius:12, background:T.navy, color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
               ✉️ Email
             </a>
           </div>
@@ -3371,7 +3371,7 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
       <div style={{ width:"100%", maxWidth:340 }}>
         <div style={{ display:"flex", background:"rgba(255,255,255,0.1)", borderRadius:14, padding:4, marginBottom:20 }}>
           {[["login","Entrar"],["register","Criar conta"]].map(([m,l])=>(
-            <button key={m} onClick={()=>setMode(m)} style={{ flex:1, padding:"10px", borderRadius:10, border:"none", background:mode===m?"#fff":"transparent", color:mode===m?T.navy:"rgba(255,255,255,0.6)", fontWeight:700, cursor:"pointer", fontSize:14, fontFamily:"inherit" }}>{l}</button>
+            <button key={m} onClick={()=>setMode(m)} style={{ flex:1, padding:"10px", minHeight:44, borderRadius:10, border:"none", background:mode===m?"#fff":"transparent", color:mode===m?T.navy:"rgba(255,255,255,0.6)", fontWeight:700, cursor:"pointer", fontSize:14, fontFamily:"inherit" }}>{l}</button>
           ))}
         </div>
         {mode==="register" && <input style={inp} placeholder="Nome completo" value={name} onChange={e=>setName(e.target.value)} />}
@@ -3386,8 +3386,8 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         <button disabled={loading} onClick={()=>mode==="login"?onLogin(email,pass):onRegister(email,pass,name)} style={{ width:"100%", padding:16, borderRadius:14, border:"none", background:loading?T.sub:T.brand, color:"#fff", fontSize:17, fontWeight:800, cursor:loading?"default":"pointer", fontFamily:"inherit", marginTop:4 }}>
           {loading?"A carregar...":(mode==="login"?"Entrar":"Criar conta")}
         </button>
-        {mode==="login" && <p onClick={async()=>{ if(!email){alert("Escreve o teu email primeiro");return;} await api.resetPassword(email); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13, marginTop:14, cursor:"pointer", textDecoration:"underline" }}>Esqueceste a password?</p>}
-        {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.35)", fontSize:13, marginTop:14, cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
+        {mode==="login" && <p onClick={async()=>{ if(!email){alert("Escreve o teu email primeiro");return;} await api.resetPassword(email); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueceste a password?</p>}
+        {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
       </div>
     </div>
   );
@@ -3876,6 +3876,14 @@ export default function App() {
     setRefreshing(false);
   }, [token, teamId, refreshing, roMode]);
   useEffect(() => { window.__multeamRefresh = refresh; }, [refresh]);
+  // área de toque mínima de 44 px: o botão não muda de tamanho nem de aspeto, só a zona que responde ao toque (não nos botões vizinhos uns dos outros, para não sobrepor zonas)
+  useEffect(() => {
+    if (document.getElementById("multeam-hit-area")) return;
+    const st = document.createElement("style");
+    st.id = "multeam-hit-area";
+    st.textContent = "button:not(:has(+ button)):not(button + button) { position: relative; } button:not(:has(+ button)):not(button + button)::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }";
+    document.head.appendChild(st);
+  }, []);
 
   // Auth
   const handleLogin = async (email, pass) => {
@@ -4547,7 +4555,7 @@ export default function App() {
           {isAdmin && <AdminHeaderBadge teamColor={team.color} />}
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={()=>roMode ? refresh() : window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:36, height:36, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
+          <button onClick={()=>roMode ? refresh() : window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:44, minWidth:44, flexShrink:0, height:44, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
           <button onClick={()=>setModal("picker")} style={{ background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
         </div>
       </div>

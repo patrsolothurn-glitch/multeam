@@ -33,11 +33,11 @@ var T = {
   bg: "#F0F1F6",
   card: "#FFFFFF",
   brand: "#E63946",
-  green: "#2DC653",
+  green: "#147832",
   yellow: "#FFCC00",
   navy: "#1D3557",
   text: "#1D1D1F",
-  sub: "#86868B",
+  sub: "#6B6B72",
   border: "#E5E5EA",
   inputBg: "#F8F8FA"
 };
@@ -1085,7 +1085,7 @@ var RoleBadgeLight = function RoleBadgeLight(_ref0) {
     },
     player: {
       label: "Jogador",
-      color: "#86868B"
+      color: "#6B6B72"
     }
   };
   var c = cfg[role] || cfg.player;
@@ -1116,6 +1116,7 @@ var Chip = function Chip(_ref1) {
     onClick: onClick,
     style: {
       padding: "7px 14px",
+      minHeight: 44,
       borderRadius: 20,
       border: "none",
       cursor: "pointer",
@@ -5214,7 +5215,7 @@ var HomeTab = function HomeTab(_ref64) {
         fontWeight: 600,
         flex: 1
       }
-    }, "Vais?"), btn("✓ Sim", T.green, "present"), btn("✗ Não", "#FF6B00", "absent")));
+    }, "Vais?"), btn("✓ Sim", T.green, "present"), btn("✗ Não", "#C94F00", "absent")));
   }(), isAdmin && React.createElement("button", {
     onClick: onAddFine,
     style: {
@@ -6320,7 +6321,7 @@ var PresBar = function PresBar(_ref73) {
     color: T.green
   }), React.createElement(PresCounter, {
     count: no,
-    color: "#FF6B00"
+    color: "#C94F00"
   }), React.createElement(PresCounter, {
     count: pend,
     color: T.sub
@@ -6370,6 +6371,7 @@ var PresBar = function PresBar(_ref73) {
     },
     style: {
       padding: "6px 12px",
+      minHeight: 44,
       borderRadius: 18,
       border: "1.5px solid ".concat(T.green),
       background: me === "present" ? T.green : "transparent",
@@ -6385,10 +6387,11 @@ var PresBar = function PresBar(_ref73) {
     },
     style: {
       padding: "6px 12px",
+      minHeight: 44,
       borderRadius: 18,
-      border: "1.5px solid #FF6B00",
-      background: me === "absent" ? "#FF6B00" : "transparent",
-      color: me === "absent" ? "#fff" : "#FF6B00",
+      border: "1.5px solid #C94F00",
+      background: me === "absent" ? "#C94F00" : "transparent",
+      color: me === "absent" ? "#fff" : "#C94F00",
       fontSize: 12,
       fontWeight: 700,
       cursor: "pointer",
@@ -6404,7 +6407,7 @@ var PresBar = function PresBar(_ref73) {
   }, tm.map(function (m) {
     var st = pres[m.id];
     var isUnav = m.unavailable && !st;
-    var color = st === "present" ? T.green : st === "absent" ? "#FF6B00" : isUnav ? "#7B6CD9" : T.sub;
+    var color = st === "present" ? T.green : st === "absent" ? "#C94F00" : isUnav ? "#7B6CD9" : T.sub;
     var icon = st === "present" ? "✓" : st === "absent" ? "✗" : isUnav ? m.unavailableEmoji || "🤕" : "?";
     return React.createElement("div", {
       key: m.id,
@@ -6757,8 +6760,8 @@ var TreinosPage = function TreinosPage(_ref77) {
       display: "flex",
       gap: 8,
       alignItems: "center",
-      borderBottom: "1px solid ".concat(T.border),
-      overflowX: "auto"
+      flexWrap: "wrap",
+      borderBottom: "1px solid ".concat(T.border)
     }
   }, React.createElement("button", {
     onClick: function onClick() {
@@ -6769,6 +6772,7 @@ var TreinosPage = function TreinosPage(_ref77) {
       alignItems: "center",
       gap: 5,
       padding: "8px 14px",
+      minHeight: 44,
       borderRadius: 20,
       border: "1px solid ".concat(T.border),
       background: showPast ? T.navy : "transparent",
@@ -6789,6 +6793,7 @@ var TreinosPage = function TreinosPage(_ref77) {
       alignItems: "center",
       gap: 4,
       padding: "8px 14px",
+      minHeight: 44,
       borderRadius: 20,
       border: "none",
       background: team.color,
@@ -6810,6 +6815,7 @@ var TreinosPage = function TreinosPage(_ref77) {
       alignItems: "center",
       gap: 4,
       padding: "8px 14px",
+      minHeight: 44,
       borderRadius: 20,
       border: "1px solid ".concat(team.color),
       background: "transparent",
@@ -6830,6 +6836,7 @@ var TreinosPage = function TreinosPage(_ref77) {
       alignItems: "center",
       gap: 4,
       padding: "8px 14px",
+      minHeight: 44,
       borderRadius: 20,
       border: "1px solid ".concat(team.color),
       background: "transparent",
@@ -6850,6 +6857,7 @@ var TreinosPage = function TreinosPage(_ref77) {
       alignItems: "center",
       gap: 5,
       padding: "8px 14px",
+      minHeight: 44,
       borderRadius: 20,
       border: "1px solid ".concat(filterType ? team.color : T.border),
       background: filterType ? "".concat(team.color, "15") : "transparent",
@@ -7031,7 +7039,7 @@ var TreinosPage = function TreinosPage(_ref77) {
         color: T.sub,
         fontWeight: 600
       }
-    }, totalSessions, " sess\xE3o", totalSessions !== 1 ? "ões" : ""), totalPresent > 0 && React.createElement("span", {
+    }, plural(totalSessions, "sessão", "sessões")), totalPresent > 0 && React.createElement("span", {
       style: {
         fontSize: 12,
         color: T.green,
@@ -8455,7 +8463,7 @@ var AppAdminTab = function AppAdminTab(_ref90) {
     style: {
       margin: "4px 0 0",
       fontSize: 13,
-      color: "rgba(255,255,255,0.4)"
+      color: "rgba(255,255,255,0.7)"
     }
   }, "Monitoriza\xE7\xE3o da plataforma"), updatedAt && React.createElement("p", {
     style: {
@@ -8483,6 +8491,7 @@ var AppAdminTab = function AppAdminTab(_ref90) {
       style: {
         flex: 1,
         padding: "8px 4px",
+        minHeight: 44,
         borderRadius: 10,
         border: "1.5px solid ".concat(section === id ? T.navy : T.border),
         background: section === id ? T.navy : "transparent",
@@ -11106,7 +11115,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref127) {
         gap: 4,
         flexWrap: "wrap"
       }
-    }, [["admin", "🛡 Admin", "#1D3557"], ["player", "👤 Jogador", "#86868B"]].map(function (_ref131) {
+    }, [["admin", "🛡 Admin", "#1D3557"], ["player", "👤 Jogador", "#6B6B72"]].map(function (_ref131) {
       var _ref132 = _slicedToArray(_ref131, 3),
         r = _ref132[0],
         l = _ref132[1],
@@ -11268,8 +11277,9 @@ var ManageTeamScreen = function ManageTeamScreen(_ref127) {
       justifyContent: "center",
       gap: 6,
       padding: "11px",
+      minHeight: 44,
       borderRadius: 12,
-      background: "#25D366",
+      background: "#0E7A3E",
       color: "#fff",
       fontWeight: 700,
       fontSize: 14,
@@ -11284,6 +11294,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref127) {
       justifyContent: "center",
       gap: 6,
       padding: "11px",
+      minHeight: 44,
       borderRadius: 12,
       background: T.navy,
       color: "#fff",
@@ -12307,6 +12318,7 @@ var AuthScreen = function AuthScreen(_ref139) {
       style: {
         flex: 1,
         padding: "10px",
+        minHeight: 44,
         borderRadius: 10,
         border: "none",
         background: mode === m ? "#fff" : "transparent",
@@ -12416,9 +12428,10 @@ var AuthScreen = function AuthScreen(_ref139) {
     })),
     style: {
       textAlign: "center",
-      color: "rgba(255,255,255,0.35)",
+      color: "rgba(255,255,255,0.7)",
       fontSize: 13,
-      marginTop: 14,
+      marginTop: 0,
+      padding: "14px 0",
       cursor: "pointer",
       textDecoration: "underline"
     }
@@ -12454,9 +12467,10 @@ var AuthScreen = function AuthScreen(_ref139) {
     })),
     style: {
       textAlign: "center",
-      color: "rgba(255,255,255,0.35)",
+      color: "rgba(255,255,255,0.7)",
       fontSize: 13,
-      marginTop: 14,
+      marginTop: 0,
+      padding: "14px 0",
       cursor: "pointer",
       textDecoration: "underline"
     }
@@ -13940,6 +13954,13 @@ function App() {
   useEffect(function () {
     window.__multeamRefresh = refresh;
   }, [refresh]);
+  useEffect(function () {
+    if (document.getElementById("multeam-hit-area")) return;
+    var st = document.createElement("style");
+    st.id = "multeam-hit-area";
+    st.textContent = "button:not(:has(+ button)):not(button + button) { position: relative; } button:not(:has(+ button)):not(button + button)::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }";
+    document.head.appendChild(st);
+  }, []);
   var handleLogin = function () {
     var _ref162 = _asyncToGenerator(_regenerator().m(function _callee54(email, pass) {
       var _d$session, _d$user, d, tok, uid, _t59;
@@ -16660,8 +16681,10 @@ function App() {
       border: "none",
       color: "#fff",
       borderRadius: 20,
-      width: 36,
-      height: 36,
+      width: 44,
+      minWidth: 44,
+      flexShrink: 0,
+      height: 44,
       fontSize: 18,
       cursor: "pointer",
       display: "flex",
