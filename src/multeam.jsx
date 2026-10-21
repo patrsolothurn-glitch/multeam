@@ -139,6 +139,10 @@ const errPt = (e, fallback) => {
   if (/Failed to fetch|NetworkError|Load failed|network request failed/i.test(raw)) return out("Sem ligação. Verifica a rede e tenta outra vez.");
   if (/duplicate key|already registered|already exists/i.test(raw)) return out("Esse registo já existe.");
   if (/Invalid login credentials|invalid_grant/i.test(raw)) return out("Email ou password incorretos.");
+  if (/Email not confirmed|email_not_confirmed/i.test(raw)) return out("Confirma primeiro o teu email (vê a caixa de entrada) e depois entra.");
+  { const pw = /Password should be at least (\d+)/i.exec(raw); if (pw) return out(`A password tem de ter pelo menos ${pw[1]} caracteres.`); }
+  if (/Unable to validate email address|invalid format|email_address_invalid/i.test(raw)) return out("O email não é válido. Confirma como o escreveste.");
+  if (/rate limit|too many requests|over_.*_rate_limit|\b429\b/i.test(raw)) return out("Demasiadas tentativas. Espera um pouco e tenta outra vez.");
   // já está em português (acentos ou palavras próprias das mensagens da app)? fica igual
   if (/[À-ÿ]/.test(raw) || /\b(erro|sem|tenta|equipa|registo|multa|incorret|escreve|mete|coincidem|obrigat|permiss|membro|guardar|apagar|administradores|ficou|continua)/i.test(raw)) return raw;
   return out(ERR_GENERIC);
@@ -1012,11 +1016,11 @@ const EditRecurringModal = ({ team, training, onEdit, onClose }) => {
   );
 };
 
-const POSITIONS = ["Guarda-redes","Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Libero","Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante","Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro","Fixo","Ala","Pivot","Universal","Treinador","Treinador Desportivo","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Diretor Desportivo","Presidente","Massagista / Fisioterapeuta","Delegado","Team Manager","Médico","Outro"];
+const POSITIONS = ["Guarda-redes","Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Líbero","Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante","Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro","Fixo","Ala","Pivot","Universal","Treinador","Treinador Desportivo","Treinador Adjunto","Treinador de Guarda-redes","Preparador Físico","Diretor Desportivo","Presidente","Massagista / Fisioterapeuta","Delegado","Team Manager","Médico","Outro"];
 
 const POSITIONS_GROUPED = {
   "🥅 Guarda-redes":       ["Guarda-redes"],
-  "🛡 Defesa":              ["Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Libero"],
+  "🛡 Defesa":              ["Defesa Central","Lateral Direito","Lateral Esquerdo","Defesa Líbero"],
   "⚙️ Médio":               ["Médio Defensivo","Médio Centro","Médio Box-to-Box","Médio Ofensivo","Meia Atacante"],
   "⚡ Atacante":            ["Extremo Direito","Extremo Esquerdo","Segundo Avançado","Ponta de Lança","Avançado Centro"],
   "🏟 Futsal / Praia":      ["Fixo","Ala","Pivot","Universal"],
@@ -2976,6 +2980,19 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
 
 
 
+// Privacidade (fim de Geral): texto fixo, sem promessas que a app não possa verificar
+const PrivacySection = () => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-privacy style={{ marginTop:12, borderTop:`1px solid ${T.border}`, paddingTop:8 }}>
+      <button aria-expanded={open} onClick={()=>setOpen(o=>!o)} style={{ width:"100%", minHeight:44, background:"transparent", border:"none", textAlign:"left", fontSize:14, fontWeight:800, color:"#1a1a1f", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
+        <span>🔒 Privacidade</span><span style={{ marginLeft:"auto", color:"#5F5F66" }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && <p data-privacy-text style={{ margin:"4px 0 8px", fontSize:14, lineHeight:1.5, color:"#1a1a1f" }}>O administrador da plataforma tem acesso de leitura aos dados da app para manutenção, suporte e segurança.</p>}
+    </div>
+  );
+};
+
 const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts }) => {
   // modo leitura (super admin): só a equipa aberta, sem ser membro
   const myTeams = readOnly ? teams : teams.filter(t => 
@@ -3127,6 +3144,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
       <button onClick={onLogout} style={{ width:"100%", background:"transparent", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:T.brand, marginTop:8, fontFamily:"inherit" }}>
         Terminar sessão
       </button>
+      <PrivacySection />
     </div>
   );
 };
@@ -4262,6 +4280,7 @@ export default function App() {
   const [trainings, setTrainings] = useState([]);
   const [absences, setAbsences] = useState([]); // null = não foi possível carregar (só admins leem a tabela)
   const [presences, setPresences] = useState({});
+  const [loadWarn, setLoadWarn] = useState(false);
   const [teamId, setTeamId]     = useState(null);
   const [tab, setTab]           = useState("home");
   const [sub, setSub]           = useState(null);
@@ -4289,16 +4308,19 @@ export default function App() {
 
   // Load team data from DB
   const loadTeam = async (tok, tid) => {
+    const failedParts = []; // presenças/cartões/ausências que não carregaram (em vez de listas vazias em silêncio)
+    const soft = (name, empty, perm) => e => { if (!(perm && /permission|policy|42501|not authorized|403/i.test(String(e && e.message)))) failedParts.push(name); return empty; };
     const [mRaw, ftData, fData, eData, tData, pData, cData, aData] = await Promise.all([
       api.get(`team_members?team_id=eq.${tid}&select=*`, tok),
       api.get(`fine_types?team_id=eq.${tid}&order=amount.asc`, tok),
       api.get(`fines?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`expenses?team_id=eq.${tid}&order=created_at.desc`, tok),
       api.get(`trainings?team_id=eq.${tid}&order=date.asc,time.asc`, tok),
-      api.get(`presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.${tid}`, tok).catch(()=>[]),
-      api.get(`cards?team_id=eq.${tid}&order=match_date.desc,created_at.desc`, tok).catch(()=>[]),
-      api.get(`member_absences?team_id=eq.${tid}&order=start_date.desc,created_at.desc`, tok).catch(()=>null),
+      api.get(`presences?select=*,trainings!inner(team_id)&trainings.team_id=eq.${tid}`, tok).catch(soft('presenças', [])),
+      api.get(`cards?team_id=eq.${tid}&order=match_date.desc,created_at.desc`, tok).catch(soft('cartões', [])),
+      api.get(`member_absences?team_id=eq.${tid}&order=start_date.desc,created_at.desc`, tok).catch(soft('ausências', null, true)),
     ]);
+    setLoadWarn(failedParts.length > 0);
     // Fetch profiles via SECURITY DEFINER RPC (bypasses RLS - todos os membros podem ver)
     let profilesMap = {};
     try {
@@ -5161,7 +5183,13 @@ export default function App() {
   const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
-  const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{roBanner}{ch}</div>;
+  const loadWarnBox = (loadWarn && !roMode) ? (
+    <div role="alert" data-load-warn style={{ margin:"8px 12px 0", background:"#FFF8E1", border:"2px solid #8A5A00", borderRadius:12, padding:"10px 12px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+      <p style={{ margin:0, flex:1, minWidth:180, fontSize:13, fontWeight:800, color:"#1a1a1f" }}>Não foi possível carregar presenças, cartões ou ausências.</p>
+      <button onClick={()=>refresh()} style={{ minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:"#1a1a1f", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
+    </div>
+  ) : null;
+  const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{roBanner}{loadWarnBox}{ch}</div>;
 
   // Super admin sem equipa própria: ecrã principal só com Geral e o painel de super admin (ver "Abrir equipa")
   if (!team && profile?.isAppAdmin) return (
@@ -5215,6 +5243,7 @@ export default function App() {
   if (tab==="treinos") return (
     <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {roBanner}
+      {loadWarnBox}
       {toastBox}
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div>
@@ -5228,6 +5257,7 @@ export default function App() {
   return (
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {roBanner}
+      {loadWarnBox}
       {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
       {toastBox}
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
