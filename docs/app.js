@@ -4406,6 +4406,48 @@ var claimStatus = function claimStatus(c) {
     color: T.sub
   };
 };
+var CLAIM_NAMES_KEY = "multeam-claim-names";
+var claimNamesMem = {};
+var claimNamesGet = function claimNamesGet() {
+  try {
+    var j = JSON.parse(window.localStorage.getItem(CLAIM_NAMES_KEY) || "{}");
+    return _objectSpread(_objectSpread({}, claimNamesMem), j && _typeof(j) === "object" ? j : {});
+  } catch (e) {
+    return _objectSpread({}, claimNamesMem);
+  }
+};
+var claimNamesRemember = function claimNamesRemember(list, nameKey, avatarKey) {
+  try {
+    var cur = claimNamesGet();
+    var changed = false;
+    (Array.isArray(list) ? list : []).forEach(function (c) {
+      if (c && c.id && c.status === "pendente" && c[nameKey] && !(cur[c.id] && cur[c.id].name === c[nameKey])) {
+        cur[c.id] = {
+          name: c[nameKey],
+          avatar: c[avatarKey] || null
+        };
+        changed = true;
+      }
+    });
+    if (!changed) return;
+    var ids = Object.keys(cur);
+    if (ids.length > 200) ids.slice(0, ids.length - 200).forEach(function (k) {
+      return delete cur[k];
+    });
+    claimNamesMem = cur;
+    try {
+      window.localStorage.setItem(CLAIM_NAMES_KEY, JSON.stringify(cur));
+    } catch (e) {}
+  } catch (e) {}
+};
+var claimHistoryWho = function claimHistoryWho(c, stored) {
+  var who = c.requester_name || "Sem nome";
+  var st = stored && stored.name;
+  if (st) return st === who ? "".concat(who, " assumiu um perfil") : "".concat(who, " \u2192 ").concat(st);
+  if (c.status === "aprovado") return "".concat(who, " assumiu um perfil");
+  var mem = c.member_name || "Sem nome";
+  return mem === who ? "".concat(who, " (perfil com o mesmo nome)") : "".concat(who, " \u2192 ").concat(mem);
+};
 var claimDay = function claimDay(d) {
   var x = d ? new Date(d) : null;
   return x && !isNaN(x) ? x.toLocaleDateString("pt-PT") : "";
@@ -4503,6 +4545,9 @@ var MyClaimsCard = function MyClaimsCard(_ref64) {
   var list = (claims || []).filter(function (c) {
     return c.status === "pendente" || c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14 * 86400000;
   }).slice(0, 3);
+  useEffect(function () {
+    claimNamesRemember(claims, "member_name", "avatar_url");
+  }, [claims]);
   if (!list.length) return null;
   var run = function () {
     var _ref65 = _asyncToGenerator(_regenerator().m(function _callee24(id, fn) {
@@ -4560,7 +4605,7 @@ var MyClaimsCard = function MyClaimsCard(_ref64) {
         fontWeight: 700,
         color: "#5F5F66"
       }
-    }, c.team_name), React.createElement(ClaimWho, {
+    }, c.team_name), c.status !== "aprovado" && React.createElement(ClaimWho, {
       name: c.member_name,
       avatar: c.avatar_url
     }, React.createElement("p", {
@@ -4571,12 +4616,12 @@ var MyClaimsCard = function MyClaimsCard(_ref64) {
       }
     }, "Perfil pedido \xB7 ", claimDay(c.created_at))), React.createElement("p", {
       style: {
-        margin: "10px 0 0",
+        margin: c.status === "aprovado" ? "0" : "10px 0 0",
         fontSize: 15,
         fontWeight: 900,
         color: st.color
       }
-    }, c.status === "rejeitado" && c.decision_note ? "Rejeitado: ".concat(c.decision_note) : st.label), c.note && React.createElement("p", {
+    }, c.status === "rejeitado" && c.decision_note ? "Rejeitado: ".concat(c.decision_note) : c.status === "aprovado" ? "Aprovado. Já és este perfil na equipa" : st.label), c.note && React.createElement("p", {
       style: {
         margin: "6px 0 0",
         fontSize: 13,
@@ -4712,6 +4757,7 @@ var ClaimsAdminSection = function ClaimsAdminSection(_ref66) {
             }, token);
           case 2:
             r = _context25.v;
+            claimNamesRemember(r, "member_name", "member_avatar");
             setSt({
               status: "ok",
               list: Array.isArray(r) ? r : [],
@@ -4947,7 +4993,15 @@ var ClaimsAdminSection = function ClaimsAdminSection(_ref66) {
         fontWeight: 700,
         color: "#1a1a1f"
       }
-    }, "A conta de ", c.requester_name || "esta pessoa", " passa a ser o perfil ", c.member_name || "escolhido", ". As multas e presen\xE7as mant\xEAm-se."), isAdm && React.createElement("p", {
+    }, "A conta de ", c.requester_name || "esta pessoa", " passa a ser o perfil ", c.member_name || "escolhido", ". As multas e presen\xE7as mant\xEAm-se."), React.createElement("p", {
+      "data-claim-link-warning": true,
+      style: {
+        margin: "0 0 8px",
+        fontSize: 14,
+        fontWeight: 900,
+        color: "#B42318"
+      }
+    }, "Isto liga a conta ao perfil de forma real. O perfil passa a mostrar o nome e a foto desta conta. S\xF3 aprova se tiveres confirmado com a pessoa."), isAdm && React.createElement("p", {
       "data-claim-warning": true,
       style: {
         margin: "0 0 8px",
@@ -5030,6 +5084,7 @@ var ClaimsAdminSection = function ClaimsAdminSection(_ref66) {
     }
   }, "\xDAltimas decis\xF5es"), done.map(function (c) {
     var s2 = claimStatus(c);
+    var stored = claimNamesGet()[c.id];
     return React.createElement("p", {
       key: c.id,
       "data-claim": c.status,
@@ -5043,7 +5098,7 @@ var ClaimsAdminSection = function ClaimsAdminSection(_ref66) {
       style: {
         color: s2.color
       }
-    }, s2.label), " \xB7 ", c.requester_name || "Sem nome", " \u2192 ", c.member_name || "Sem nome", " \xB7 ", claimDay(c.decided_at || c.created_at), c.decision_note ? " \xB7 ".concat(c.decision_note) : "");
+    }, s2.label), " \xB7 ", claimHistoryWho(c, stored), " \xB7 ", claimDay(c.decided_at || c.created_at), c.decision_note ? " \xB7 ".concat(c.decision_note) : "");
   })));
 };
 var JoinTeamModal = function JoinTeamModal(_ref69) {
@@ -17643,6 +17698,7 @@ function App() {
                       }, token);
                     case 1:
                       _r4 = _context96.v;
+                      claimNamesRemember(_r4, "member_name", "member_avatar");
                       counts[id] = (Array.isArray(_r4) ? _r4 : []).filter(function (c) {
                         return c.status === "pendente";
                       }).length;
