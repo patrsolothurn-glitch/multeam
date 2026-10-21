@@ -1264,6 +1264,30 @@ const CLAIM_STATUS = {
   cancelado: { label:"Cancelado",         color:"#5F5F66" },
 };
 const claimStatus = c => CLAIM_STATUS[c && c.status] || { label:String((c && c.status) || ""), color:T.sub };
+// Depois de aprovado, o membro passa a ter o nome da conta de quem pediu. Por isso o nome/foto do perfil pedido guardam-se neste dispositivo
+// enquanto o pedido está pendente (por id do pedido). Só apresentação: nada é gravado na base.
+const CLAIM_NAMES_KEY = "multeam-claim-names";
+let claimNamesMem = {};
+const claimNamesGet = () => { try { const j = JSON.parse(window.localStorage.getItem(CLAIM_NAMES_KEY) || "{}"); return { ...claimNamesMem, ...(j && typeof j === "object" ? j : {}) }; } catch(e) { return { ...claimNamesMem }; } };
+const claimNamesRemember = (list, nameKey, avatarKey) => {
+  try {
+    const cur = claimNamesGet(); let changed = false;
+    (Array.isArray(list) ? list : []).forEach(c => { if (c && c.id && c.status === "pendente" && c[nameKey] && !(cur[c.id] && cur[c.id].name === c[nameKey])) { cur[c.id] = { name:c[nameKey], avatar:c[avatarKey] || null }; changed = true; } });
+    if (!changed) return;
+    const ids = Object.keys(cur); if (ids.length > 200) ids.slice(0, ids.length - 200).forEach(k => delete cur[k]);
+    claimNamesMem = cur;
+    try { window.localStorage.setItem(CLAIM_NAMES_KEY, JSON.stringify(cur)); } catch(e) {}
+  } catch(e) {}
+};
+// texto do histórico: "quem pede → perfil" só quando o nome do perfil é fiável
+const claimHistoryWho = (c, stored) => {
+  const who = c.requester_name || "Sem nome";
+  const st = stored && stored.name;
+  if (st) return st === who ? `${who} assumiu um perfil` : `${who} → ${st}`;
+  if (c.status === "aprovado") return `${who} assumiu um perfil`;
+  const mem = c.member_name || "Sem nome";
+  return mem === who ? `${who} (perfil com o mesmo nome)` : `${who} → ${mem}`;
+};
 const claimDay = d => { const x = d ? new Date(d) : null; return x && !isNaN(x) ? x.toLocaleDateString("pt-PT") : ""; };
 const CountBadge = ({ n, style }) => (
   <span style={{ position:"absolute", top:-4, right:-9, minWidth:15, height:15, borderRadius:8, background:"#B00020", color:"#fff", fontSize:10, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 3px", boxSizing:"border-box", ...style }}>{n}</span>
@@ -1284,6 +1308,7 @@ const MyClaimsCard = ({ claims, onEditNote, onCancel }) => {
   const [editing, setEditing] = useState(null); const [note, setNote] = useState("");
   const [busy, setBusy] = useState(null); const [err, setErr] = useState("");
   const list = (claims || []).filter(c => c.status === "pendente" || (c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14*86400000)).slice(0, 3);
+  useEffect(() => { claimNamesRemember(claims, "member_name", "avatar_url"); }, [claims]);
   if (!list.length) return null;
   const run = async (id, fn) => { setBusy(id); setErr(""); try { await fn(); setEditing(null); } catch(e) { setErr(errPt(e)); } setBusy(null); };
   return (
@@ -1292,10 +1317,12 @@ const MyClaimsCard = ({ claims, onEditNote, onCancel }) => {
       {list.map(c => { const st = claimStatus(c); return (
         <div key={c.id} data-claim={c.status} style={{ background:T.card, border:`2px solid ${st.color}`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
           <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#5F5F66" }}>{c.team_name}</p>
-          <ClaimWho name={c.member_name} avatar={c.avatar_url}>
-            <p style={{ margin:"2px 0 0", fontSize:12, color:"#5F5F66" }}>Perfil pedido · {claimDay(c.created_at)}</p>
-          </ClaimWho>
-          <p style={{ margin:"10px 0 0", fontSize:15, fontWeight:900, color:st.color }}>{c.status === "rejeitado" && c.decision_note ? `Rejeitado: ${c.decision_note}` : st.label}</p>
+          {c.status !== "aprovado" && (
+            <ClaimWho name={c.member_name} avatar={c.avatar_url}>
+              <p style={{ margin:"2px 0 0", fontSize:12, color:"#5F5F66" }}>Perfil pedido · {claimDay(c.created_at)}</p>
+            </ClaimWho>
+          )}
+          <p style={{ margin:c.status === "aprovado" ? "0" : "10px 0 0", fontSize:15, fontWeight:900, color:st.color }}>{c.status === "rejeitado" && c.decision_note ? `Rejeitado: ${c.decision_note}` : (c.status === "aprovado" ? "Aprovado. Já és este perfil na equipa" : st.label)}</p>
           {c.note && <p style={{ margin:"6px 0 0", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>A tua mensagem: {c.note}</p>}
           {c.status === "pendente" && (
             editing === c.id ? (
@@ -1328,7 +1355,7 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
   const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const load = async () => {
     setSt(s0 => ({ ...s0, status:"loading", error:"" }));
-    try { const r = await rpcCall("list_team_claims", { p_team_id:team.id }, token); setSt({ status:"ok", list:Array.isArray(r) ? r : [], error:"" }); }
+    try { const r = await rpcCall("list_team_claims", { p_team_id:team.id }, token); claimNamesRemember(r, "member_name", "member_avatar"); setSt({ status:"ok", list:Array.isArray(r) ? r : [], error:"" }); }
     catch(e) { setSt({ status:"error", list:[], error:errPt(e) }); }
   };
   useEffect(() => { load(); }, [team.id]);
@@ -1378,6 +1405,7 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
             <div data-claim-panel={panel.kind} style={{ marginTop:10, padding:"10px 12px", borderRadius:12, background:"#F4F4F8", border:"1.5px solid #1a1a1f" }}>
               {panel.kind === "aprovar" ? (<>
                 <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>A conta de {c.requester_name || "esta pessoa"} passa a ser o perfil {c.member_name || "escolhido"}. As multas e presenças mantêm-se.</p>
+                <p data-claim-link-warning style={{ margin:"0 0 8px", fontSize:14, fontWeight:900, color:"#B42318" }}>Isto liga a conta ao perfil de forma real. O perfil passa a mostrar o nome e a foto desta conta. Só aprova se tiveres confirmado com a pessoa.</p>
                 {isAdm && <p data-claim-warning style={{ margin:"0 0 8px", fontSize:14, fontWeight:900, color:"#B42318" }}>Este perfil é ADMIN. Quem for aprovado fica admin.</p>}
               </>) : (<>
                 <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>Motivo (opcional):</p>
@@ -1396,9 +1424,9 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
       {done.length > 0 && (
         <div data-claims="history" style={{ marginTop:4 }}>
           <p style={{ margin:"6px 0 4px", fontSize:11, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>Últimas decisões</p>
-          {done.map(c => { const s2 = claimStatus(c); return (
+          {done.map(c => { const s2 = claimStatus(c); const stored = claimNamesGet()[c.id]; return (
             <p key={c.id} data-claim={c.status} style={{ margin:"0 0 4px", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>
-              <strong style={{ color:s2.color }}>{s2.label}</strong> · {c.requester_name || "Sem nome"} → {c.member_name || "Sem nome"} · {claimDay(c.decided_at || c.created_at)}{c.decision_note ? ` · ${c.decision_note}` : ""}
+              <strong style={{ color:s2.color }}>{s2.label}</strong> · {claimHistoryWho(c, stored)} · {claimDay(c.decided_at || c.created_at)}{c.decision_note ? ` · ${c.decision_note}` : ""}
             </p>
           ); })}
         </div>
@@ -4877,7 +4905,7 @@ export default function App() {
       try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) {}
       const counts = {};
       await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
-        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente").length; } catch(e) { counts[id] = 0; }
+        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente").length; } catch(e) { counts[id] = 0; }
       }));
       setClaimCounts(counts);
     } catch(e) { console.warn("claim counts failed:", e && e.message); }
