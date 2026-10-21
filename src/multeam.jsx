@@ -16,7 +16,7 @@ const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRF
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -1255,8 +1255,162 @@ const EditMemberModal = ({ member, team, onSave, onClose }) => {
 };
 
 // ── MODAL: JOIN TEAM ──────────────────────────────────────────
-const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode="" }) => {
+// ── ASSUMIR PERFIL: um jogador pede para ficar ligado a um perfil criado pelo admin (rpc do Supabase; o admin aprova ou rejeita) ──
+const CLAIM_STATUS = {
+  pendente:  { label:"À espera do admin", color:"#8A5A00" },
+  aprovado:  { label:"Aprovado",          color:"#147832" },
+  rejeitado: { label:"Rejeitado",         color:"#B42318" },
+  cancelado: { label:"Cancelado",         color:"#5F5F66" },
+};
+const claimStatus = c => CLAIM_STATUS[c && c.status] || { label:String((c && c.status) || ""), color:T.sub };
+const claimDay = d => { const x = d ? new Date(d) : null; return x && !isNaN(x) ? x.toLocaleDateString("pt-PT") : ""; };
+const CountBadge = ({ n, style }) => (
+  <span style={{ position:"absolute", top:-4, right:-9, minWidth:15, height:15, borderRadius:8, background:"#B00020", color:"#fff", fontSize:10, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 3px", boxSizing:"border-box", ...style }}>{n}</span>
+);
+const ClaimWho = ({ name, avatar, size = 40, children }) => (
+  <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+    <Avatar initials={mk(name || "")} photo={avatar} name={name} size={size} />
+    <div style={{ minWidth:0, flex:1 }}>
+      <p style={{ margin:0, fontWeight:800, fontSize:15, color:"#1a1a1f", overflowWrap:"anywhere" }}>{name || "Sem nome"}</p>
+      {children}
+    </div>
+  </div>
+);
+const claimBtn = (bg, fg, border) => ({ minHeight:44, padding:"0 16px", borderRadius:12, border:`2px solid ${border || bg}`, background:bg, color:fg, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" });
+
+// jogador: "O meu pedido" (estado, editar a mensagem, cancelar)
+const MyClaimsCard = ({ claims, onEditNote, onCancel }) => {
+  const [editing, setEditing] = useState(null); const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(null); const [err, setErr] = useState("");
+  const list = (claims || []).filter(c => c.status === "pendente" || (c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14*86400000)).slice(0, 3);
+  if (!list.length) return null;
+  const run = async (id, fn) => { setBusy(id); setErr(""); try { await fn(); setEditing(null); } catch(e) { setErr(errPt(e)); } setBusy(null); };
+  return (
+    <div data-claims="mine" style={{ marginBottom:14 }}>
+      <Sec label="O meu pedido" />
+      {list.map(c => { const st = claimStatus(c); return (
+        <div key={c.id} data-claim={c.status} style={{ background:T.card, border:`2px solid ${st.color}`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+          <p style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#5F5F66" }}>{c.team_name}</p>
+          <ClaimWho name={c.member_name} avatar={c.avatar_url}>
+            <p style={{ margin:"2px 0 0", fontSize:12, color:"#5F5F66" }}>Perfil pedido · {claimDay(c.created_at)}</p>
+          </ClaimWho>
+          <p style={{ margin:"10px 0 0", fontSize:15, fontWeight:900, color:st.color }}>{c.status === "rejeitado" && c.decision_note ? `Rejeitado: ${c.decision_note}` : st.label}</p>
+          {c.note && <p style={{ margin:"6px 0 0", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>A tua mensagem: {c.note}</p>}
+          {c.status === "pendente" && (
+            editing === c.id ? (
+              <div style={{ marginTop:10 }}>
+                <textarea aria-label="Mensagem ao admin" value={note} maxLength={200} onChange={e=>setNote(e.target.value)} rows={3} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
+                <p style={{ margin:"2px 0 8px", fontSize:11, color:"#5F5F66", textAlign:"right" }}>{note.length}/200</p>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  <button disabled={busy===c.id} onClick={()=>run(c.id, ()=>onEditNote(c.id, note.trim()))} style={claimBtn("#1a1a1f","#fff")}>{busy===c.id ? "A guardar..." : "Guardar mensagem"}</button>
+                  <button onClick={()=>setEditing(null)} style={claimBtn("#fff","#1a1a1f","#1a1a1f")}>Voltar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:10 }}>
+                <button onClick={()=>{ setEditing(c.id); setNote(c.note || ""); setErr(""); }} style={claimBtn("#fff","#1a1a1f","#1a1a1f")}>Editar mensagem</button>
+                <button disabled={busy===c.id} onClick={()=>{ if (window.confirm("Cancelar o pedido?")) run(c.id, ()=>onCancel(c.id)); }} style={claimBtn("#fff","#B42318","#B42318")}>Cancelar pedido</button>
+              </div>
+            )
+          )}
+        </div>
+      ); })}
+      {err && <p role="alert" style={{ margin:"4px 0 0", fontSize:13, fontWeight:700, color:"#B42318" }}>{err}</p>}
+    </div>
+  );
+};
+
+// admin: "Pedidos de perfil (N)": aprovar, rejeitar e histórico. readOnly (modo leitura do super admin): só mostra
+const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
+  const [st, setSt] = useState({ status:"loading", list:[], error:"" });
+  const [panel, setPanel] = useState(null); // { id, kind:"aprovar"|"rejeitar" }
+  const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const load = async () => {
+    setSt(s0 => ({ ...s0, status:"loading", error:"" }));
+    try { const r = await rpcCall("list_team_claims", { p_team_id:team.id }, token); setSt({ status:"ok", list:Array.isArray(r) ? r : [], error:"" }); }
+    catch(e) { setSt({ status:"error", list:[], error:errPt(e) }); }
+  };
+  useEffect(() => { load(); }, [team.id]);
+  const roleOf = c => ((members || []).find(m => m.id === c.member_id) || {}).role;
+  const decide = async c => {
+    setBusy(true); setErr("");
+    try {
+      if (panel.kind === "aprovar") await rpcCall("approve_claim", { p_claim_id:c.id }, token);
+      else await rpcCall("reject_claim", { p_claim_id:c.id, p_note:note.trim() || null }, token);
+      setPanel(null); setNote("");
+      await load();
+      if (onChanged) await onChanged();
+    } catch(e) { setErr(errPt(e)); }
+    setBusy(false);
+  };
+  const pend = st.list.filter(c => c.status === "pendente");
+  const done = st.list.filter(c => c.status !== "pendente").slice(0, 5);
+  return (
+    <div data-claims="admin" style={{ marginBottom:16 }}>
+      <Sec label={`Pedidos de perfil (${pend.length})`} />
+      {st.status === "loading" && <p role="status" style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#5F5F66" }}>A carregar pedidos...</p>}
+      {st.status === "error" && (
+        <div role="alert" style={{ background:T.card, border:"2px solid #B42318", borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+          <p style={{ margin:"0 0 8px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>Não foi possível carregar os pedidos: {st.error}</p>
+          {readOnly && <p style={{ margin:"0 0 8px", fontSize:12, color:"#5F5F66" }}>Os pedidos só são visíveis ao admin desta equipa.</p>}
+          <button onClick={load} style={claimBtn("#1a1a1f","#fff")}>Tentar novamente</button>
+        </div>
+      )}
+      {st.status === "ok" && pend.length === 0 && <p style={{ margin:"0 0 8px", fontSize:13, color:"#5F5F66" }}>Sem pedidos pendentes.</p>}
+      {pend.map(c => { const role = roleOf(c); const isAdm = role === "admin"; return (
+        <div key={c.id} data-claim="pendente" style={{ background:T.card, border:`2px solid ${isAdm ? "#B42318" : "#1a1a1f"}`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+          <ClaimWho name={c.requester_name} avatar={c.requester_avatar}>
+            <p style={{ margin:"2px 0 0", fontSize:12, color:"#5F5F66" }}>pede · {claimDay(c.created_at)}</p>
+          </ClaimWho>
+          <p style={{ margin:"10px 0 6px", fontSize:12, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>Quer ser este perfil</p>
+          <ClaimWho name={c.member_name} avatar={c.member_avatar}>
+            <span data-role={isAdm ? "admin" : "player"} style={{ display:"inline-block", marginTop:3, padding:"2px 8px", borderRadius:6, fontSize:12, fontWeight:900, background:isAdm ? "#B42318" : "#E8E8EE", color:isAdm ? "#fff" : "#1a1a1f" }}>{isAdm ? "ADMIN" : "Jogador"}</span>
+          </ClaimWho>
+          {c.note && <p style={{ margin:"10px 0 0", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>Mensagem: {c.note}</p>}
+          {!readOnly && panel?.id !== c.id && (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:10 }}>
+              <button onClick={()=>{ setPanel({ id:c.id, kind:"aprovar" }); setErr(""); }} style={claimBtn("#147832","#fff")}>Aprovar</button>
+              <button onClick={()=>{ setPanel({ id:c.id, kind:"rejeitar" }); setNote(""); setErr(""); }} style={claimBtn("#fff","#B42318","#B42318")}>Rejeitar</button>
+            </div>
+          )}
+          {!readOnly && panel?.id === c.id && (
+            <div data-claim-panel={panel.kind} style={{ marginTop:10, padding:"10px 12px", borderRadius:12, background:"#F4F4F8", border:"1.5px solid #1a1a1f" }}>
+              {panel.kind === "aprovar" ? (<>
+                <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>A conta de {c.requester_name || "esta pessoa"} passa a ser o perfil {c.member_name || "escolhido"}. As multas e presenças mantêm-se.</p>
+                {isAdm && <p data-claim-warning style={{ margin:"0 0 8px", fontSize:14, fontWeight:900, color:"#B42318" }}>Este perfil é ADMIN. Quem for aprovado fica admin.</p>}
+              </>) : (<>
+                <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>Motivo (opcional):</p>
+                <textarea aria-label="Motivo da rejeição" value={note} maxLength={200} onChange={e=>setNote(e.target.value)} rows={2} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
+                <p style={{ margin:"2px 0 8px", fontSize:11, color:"#5F5F66", textAlign:"right" }}>{note.length}/200</p>
+              </>)}
+              {err && <p role="alert" style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#B42318" }}>{err}</p>}
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                <button disabled={busy} onClick={()=>decide(c)} style={claimBtn(panel.kind === "aprovar" ? "#147832" : "#B42318","#fff")}>{busy ? "A guardar..." : (panel.kind === "aprovar" ? "Confirmar aprovação" : "Confirmar rejeição")}</button>
+                <button disabled={busy} onClick={()=>{ setPanel(null); setErr(""); }} style={claimBtn("#fff","#1a1a1f","#1a1a1f")}>Voltar</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ); })}
+      {done.length > 0 && (
+        <div data-claims="history" style={{ marginTop:4 }}>
+          <p style={{ margin:"6px 0 4px", fontSize:11, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>Últimas decisões</p>
+          {done.map(c => { const s2 = claimStatus(c); return (
+            <p key={c.id} data-claim={c.status} style={{ margin:"0 0 4px", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>
+              <strong style={{ color:s2.color }}>{s2.label}</strong> · {c.requester_name || "Sem nome"} → {c.member_name || "Sem nome"} · {claimDay(c.decided_at || c.created_at)}{c.decision_note ? ` · ${c.decision_note}` : ""}
+            </p>
+          ); })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode="", onListClaimable, onRequestClaim }) => {
   const [code, setCode] = useState(initialCode.toUpperCase()); const [found, setFound] = useState(null); const [joined, setJoined] = useState(false); const [searching, setSearching] = useState(false);
+  // assumir perfil: perfis sem conta da equipa encontrada (se falhar ou vier vazio, a entrada segue como sempre)
+  const [claimable, setClaimable] = useState([]); const [claimNote, setClaimNote] = useState(""); const [claimBusy, setClaimBusy] = useState(null);
+  const [claimErr, setClaimErr] = useState(""); const [requested, setRequested] = useState(false); const [searchedCode, setSearchedCode] = useState("");
   
   useEffect(() => {
     if (initialCode) { setTimeout(() => search(initialCode), 500); }
@@ -1265,16 +1419,33 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
   const search = async (c) => {
     const q = (c || code).trim().toUpperCase();
     if (!q) return;
-    setSearching(true);
+    setSearching(true); setClaimable([]); setClaimErr(""); setSearchedCode(q);
     const t = onFindByCode ? await onFindByCode(q) : teams.find(t => t.inviteCode?.toUpperCase() === q);
     setFound(t || "notfound");
+    if (t && onListClaimable && !teams.some(x => x.id === t.id)) {
+      try { const l = await onListClaimable(q); setClaimable(Array.isArray(l) ? l : []); } catch(e) { setClaimable([]); }
+    }
     setSearching(false);
+  };
+  const askClaim = async m => {
+    setClaimBusy(m.member_id); setClaimErr("");
+    try { await onRequestClaim(searchedCode, m.member_id, claimNote.trim()); setRequested(true); }
+    catch(e) { setClaimErr(errPt(e)); }
+    setClaimBusy(null);
   };
   const alreadyMember = found && found !== "notfound" && teams.some(t => t.id === found.id);
   const accept = async () => { await onJoin(found); setJoined(true); };
+  const offerClaims = claimable.length > 0 && !alreadyMember && !!onRequestClaim;
   return (
     <Sheet title="🔗 Entrar numa equipa" onClose={onClose}>
-      {!joined ? (
+      {requested ? (
+        <div style={{ textAlign:"center", padding:"20px 0 10px" }}>
+          <p style={{ fontSize:52 }}>⏳</p>
+          <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px", color:"#1a1a1f" }}>Pedido enviado. À espera do admin.</p>
+          <p style={{ color:"#5F5F66", fontSize:14, margin:"0 0 16px" }}>Vais ver o estado do pedido em Geral. Quando o admin aprovar, a equipa aparece na tua conta.</p>
+          <PrimaryBtn onClick={onClose} color={T.navy}>Fechar</PrimaryBtn>
+        </div>
+      ) : !joined ? (
         <>
           <div style={{ background:`${T.navy}10`, borderRadius:14, padding:"14px 16px", marginBottom:16 }}>
             <p style={{ margin:0, fontSize:13, color:T.navy, fontWeight:600 }}>Pede ao admin da equipa o código de convite e introduz aqui abaixo.</p>
@@ -1312,8 +1483,26 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
             </div>
           )}
 
+          {offerClaims && (
+            <div data-claim-offer style={{ background:T.card, border:"2px solid #1a1a1f", borderRadius:14, padding:"12px 14px", marginBottom:16 }}>
+              <p style={{ margin:"0 0 4px", fontWeight:900, fontSize:16, color:"#1a1a1f" }}>Já és um destes jogadores?</p>
+              <p style={{ margin:"0 0 10px", fontSize:13, color:"#5F5F66" }}>O admin já criou estes perfis. Escolhe o teu e ele confirma: as tuas multas e presenças mantêm-se.</p>
+              {claimable.map(m => (
+                <div key={m.member_id} data-claim-profile style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, flexWrap:"wrap" }}>
+                  <div style={{ flex:1, minWidth:150 }}><ClaimWho name={m.name} avatar={m.avatar_url} /></div>
+                  {m.requested_by_me
+                    ? <span style={{ minHeight:44, display:"inline-flex", alignItems:"center", padding:"0 12px", fontSize:13, fontWeight:800, color:"#8A5A00" }}>Pedido enviado</span>
+                    : <button disabled={claimBusy !== null} onClick={()=>askClaim(m)} style={claimBtn("#1a1a1f","#fff")}>{claimBusy===m.member_id ? "A enviar..." : "Este sou eu"}</button>}
+                </div>
+              ))}
+              <FL>Mensagem ao admin (opcional)</FL>
+              <textarea aria-label="Mensagem ao admin" value={claimNote} maxLength={200} onChange={e=>setClaimNote(e.target.value)} rows={2} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
+              <p style={{ margin:"2px 0 0", fontSize:11, color:"#5F5F66", textAlign:"right" }}>{claimNote.length}/200</p>
+              {claimErr && <p role="alert" style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, color:"#B42318" }}>{claimErr}</p>}
+            </div>
+          )}
           <PrimaryBtn onClick={accept} disabled={!found || found==="notfound"} color={found && found!=="notfound" ? found.color : T.border}>
-            {alreadyMember ? `⚡ Ir para ${found?.name}` : "✓ Aceitar convite e entrar"}
+            {alreadyMember ? `⚡ Ir para ${found?.name}` : (offerClaims ? "Nenhum sou eu, entrar como novo" : "✓ Aceitar convite e entrar")}
           </PrimaryBtn>
         </>
       ) : (
@@ -2697,7 +2886,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
 
 
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly }) => {
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, claimCounts }) => {
   // modo leitura (super admin): só a equipa aberta, sem ser membro
   const myTeams = readOnly ? teams : teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
@@ -2794,6 +2983,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         </div>
       </div>}
 
+      {!readOnly && <MyClaimsCard claims={myClaims} onEditNote={onEditClaimNote} onCancel={onCancelClaim} />}
       {/* Teams */}
       <Sec label={`Equipas (${myTeams.length})`} />
       {myTeams.map(t => {
@@ -2811,12 +3001,13 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
                 </div>
               </div>
               {admin && (
-                <button onClick={() => onManageTeam(t.id)} style={{ background:`${t.color}15`, border:"none", borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:t.color, fontFamily:"inherit" }}>Gerir →</button>
+                <button onClick={() => onManageTeam(t.id)} style={{ position:"relative", background:`${t.color}15`, border:"none", borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:t.color, fontFamily:"inherit" }}>Gerir →{(claimCounts && claimCounts[t.id] > 0) ? <span data-badge="claims-team"><CountBadge n={claimCounts[t.id]} /></span> : null}</button>
               )}
             </div>
             <button onClick={() => openTeamMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               👥 Ver membros da equipa
             </button>
+            {readOnly && <div style={{ marginTop:10 }}><ClaimsAdminSection team={t} members={members} token={token} readOnly /></div>}
             {!admin && !readOnly && (
               <button onClick={() => { if(window.confirm(`Sair de "${t.name}"? Perdes o acesso à equipa.`)) onLeaveTeam(t.id); }} style={{ width:"100%", marginTop:6, background:"transparent", border:`1px solid ${T.brand}`, borderRadius:10, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer", color:T.brand, fontFamily:"inherit" }}>
                 🚪 Sair desta equipa
@@ -3280,7 +3471,7 @@ const UnavailableControl = ({ m, record, color, onOpen, onClose, onUpdate, onLeg
   );
 };
 
-const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes }) => {
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes, onClaimsChanged }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [showDelete, setShowDelete] = useState(false);
   // ao abrir Gerir, volta a pedir os tipos de multa (o estado pode estar desatualizado); se falhar, fica a lista atual
@@ -3437,6 +3628,8 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         </div>
 
         {/* Role hierarchy info */}
+        {!RO.on && <ClaimsAdminSection team={team} members={members} token={token} onChanged={onClaimsChanged} />}
+
         <div style={{ background:`${T.yellow}15`, borderRadius:14, padding:"12px 14px", marginBottom:16, display:"flex", gap:10, alignItems:"flex-start" }}>
           <span style={{ fontSize:20 }}>👑</span>
           <div>
@@ -4652,6 +4845,52 @@ export default function App() {
       }
     } catch(e) { console.error('deleteTeam error:', e); }
   };
+  // ── Assumir perfil (rpc do Supabase; a funcionalidade nunca bloqueia a entrada nem a app) ──
+  const [myClaims, setMyClaims] = useState(null);
+  const [claimCounts, setClaimCounts] = useState({});
+  const teamsRef = React.useRef(teams); teamsRef.current = teams;
+  const handledApprovedRef = React.useRef(new Set());
+  const claimsTotal = Object.values(claimCounts).reduce((a, n) => a + (Number(n) || 0), 0);
+  const refreshClaims = async () => {
+    if (!token || !myUserId || RO.on) return;
+    try {
+      const mine = await rpcCall('my_claims', {}, token);
+      const list = Array.isArray(mine) ? mine : [];
+      setMyClaims(list);
+      // aprovado e a equipa ainda não está na conta: recarregar as equipas do jogador
+      const fresh = list.find(c => c.status === "aprovado" && !teamsRef.current.some(t => t.id === c.team_id) && !handledApprovedRef.current.has(c.id));
+      if (fresh) { handledApprovedRef.current.add(fresh.id); await initApp(token, myUserId); showToast(`O admin aprovou: és o perfil ${fresh.member_name || ""}`.trim(), T.navy); }
+    } catch(e) { console.warn("my_claims failed:", e && e.message); }
+    try {
+      const ids = new Set(teamsRef.current.filter(t => t.createdBy === myUserId).map(t => t.id));
+      try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) {}
+      const counts = {};
+      await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
+        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente").length; } catch(e) { counts[id] = 0; }
+      }));
+      setClaimCounts(counts);
+    } catch(e) { console.warn("claim counts failed:", e && e.message); }
+  };
+  useEffect(() => {
+    if (!appReady || !token || !myUserId || RO.on) return;
+    refreshClaims();
+    const onVis = () => { if (document.visibilityState === "visible") refreshClaims(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [appReady, token, myUserId, teams.length]);
+  const listClaimable = async code => {
+    try { const r = await rpcCall('list_claimable_members', { p_code:String(code || "").trim().toUpperCase() }, token); return Array.isArray(r) ? r : []; }
+    catch(e) { console.warn("list_claimable_members failed:", e && e.message); return []; }
+  };
+  const requestClaim = async (code, memberId, note) => {
+    await rpcCall('request_claim', { p_code:String(code || "").trim().toUpperCase(), p_member_id:memberId, p_note:note ? note : null }, token);
+    await refreshClaims();
+  };
+  const editClaimNote = async (id, note) => { await rpcCall('update_claim_note', { p_claim_id:id, p_note:note ? note : null }, token); await refreshClaims(); showToast("Mensagem atualizada", T.navy); };
+  const cancelClaim = async id => { await rpcCall('cancel_claim', { p_claim_id:id }, token); await refreshClaims(); showToast("Pedido cancelado", T.navy); };
+  // depois de aprovar/rejeitar (admin): recarregar os membros da equipa e os contadores
+  const claimsChanged = async () => { await refresh(); await refreshClaims(); };
+
   const joinTeam = async t => {
     try {
       await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
@@ -4847,7 +5086,7 @@ export default function App() {
         ))}
       </div>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
         try { needRows(await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token)); }
         catch(e){ writeFailed("guardar o perfil", e); return; }
@@ -4861,11 +5100,12 @@ export default function App() {
       <p style={{ fontSize:40 }}>⚽</p>
       <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px" }}>Sem equipas ainda</p>
       <p style={{ color:T.sub, marginBottom:16 }}>Cria ou junta-te a uma equipa</p>
+      <div style={{ width:"100%", maxWidth:340 }}><MyClaimsCard claims={myClaims} onEditNote={editClaimNote} onCancel={cancelClaim} /></div>
       {teamError && <div style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", marginBottom:16, width:"100%", maxWidth:340, fontSize:13, color:"#C00", wordBreak:"break-all" }}>{teamError}</div>}
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
   );
 
@@ -4879,7 +5119,7 @@ export default function App() {
   if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
   }
 
   return (
@@ -4904,13 +5144,13 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} claimCounts={roMode ? {} : claimCounts} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
           <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit" }}>
-            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <span style={{ position:"absolute", top:-4, right:-9, minWidth:15, height:15, borderRadius:8, background:"#B00020", color:"#fff", fontSize:10, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 3px", boxSizing:"border-box" }}>{atRiskCount}</span>}</span>
+            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <CountBadge n={atRiskCount} />}{item.id==="geral" && !roMode && claimsTotal>0 && <span data-badge="claims"><CountBadge n={claimsTotal} /></span>}</span>
             <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?team.color:T.sub }}>{item.label}</span>
           </button>
         ))}
@@ -4929,7 +5169,7 @@ export default function App() {
         setProfile(p=>({...p,...u}));
         await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
       }} onClose={()=>setModal(null)} />}
-      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
   );
 }
