@@ -1304,8 +1304,9 @@ const ClaimWho = ({ name, avatar, size = 40, children }) => (
 const claimBtn = (bg, fg, border) => ({ minHeight:44, padding:"0 16px", borderRadius:12, border:`2px solid ${border || bg}`, background:bg, color:fg, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" });
 
 // jogador: "O meu pedido" (estado, editar a mensagem, cancelar)
-const MyClaimsCard = ({ claims, onEditNote, onCancel }) => {
+const MyClaimsCard = ({ claims, onEditNote, onCancel, onAnswer }) => {
   const [editing, setEditing] = useState(null); const [note, setNote] = useState("");
+  const [ans, setAns] = useState({}); const [ansEditing, setAnsEditing] = useState(null);
   const [busy, setBusy] = useState(null); const [err, setErr] = useState("");
   const list = (claims || []).filter(c => c.status === "pendente" || (c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14*86400000)).slice(0, 3);
   useEffect(() => { claimNamesRemember(claims, "member_name", "avatar_url"); }, [claims]);
@@ -1324,6 +1325,27 @@ const MyClaimsCard = ({ claims, onEditNote, onCancel }) => {
           )}
           <p style={{ margin:c.status === "aprovado" ? "0" : "10px 0 0", fontSize:15, fontWeight:900, color:st.color }}>{c.status === "rejeitado" && c.decision_note ? `Rejeitado: ${c.decision_note}` : (c.status === "aprovado" ? "Aprovado. Já és este perfil na equipa" : st.label)}</p>
           {c.note && <p style={{ margin:"6px 0 0", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>A tua mensagem: {c.note}</p>}
+          {c.status === "pendente" && c.question && onAnswer && (
+            <div data-claim-question style={{ marginTop:10, padding:"10px 12px", borderRadius:12, background:"#FFF8E1", border:"2px solid #8A5A00" }}>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>O admin pergunta:</p>
+              <p style={{ margin:"2px 0 8px", fontSize:15, fontWeight:800, color:"#1a1a1f", overflowWrap:"anywhere" }}>{c.question}</p>
+              {(!c.answer || ansEditing === c.id) ? (<>
+                <textarea aria-label="A tua resposta" value={ans[c.id] ?? (ansEditing === c.id ? (c.answer || "") : "")} maxLength={200} onChange={e=>setAns(a0 => ({ ...a0, [c.id]:e.target.value }))} rows={2} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
+                <p style={{ margin:"2px 0 8px", fontSize:11, color:"#5F5F66", textAlign:"right" }}>{(ans[c.id] ?? (ansEditing === c.id ? (c.answer || "") : "")).length}/200</p>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  <button disabled={busy===c.id || !String(ans[c.id] ?? (ansEditing === c.id ? (c.answer || "") : "")).trim()} onClick={()=>run(c.id, async ()=>{ await onAnswer(c.id, String(ans[c.id] ?? (c.answer || "")).trim()); setAns(a0 => { const n0 = { ...a0 }; delete n0[c.id]; return n0; }); setAnsEditing(null); })} style={claimBtn("#1a1a1f","#fff")}>{busy===c.id ? "A enviar..." : (c.answer ? "Guardar resposta" : "Enviar resposta")}</button>
+                  {c.answer && <button onClick={()=>{ setAnsEditing(null); setAns(a0 => { const n0 = { ...a0 }; delete n0[c.id]; return n0; }); }} style={claimBtn("#fff","#1a1a1f","#1a1a1f")}>Voltar</button>}
+                </div>
+              </>) : (<>
+                <p style={{ margin:0, fontSize:12, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>A tua resposta</p>
+                <p data-claim-answer style={{ margin:"2px 0 8px", fontSize:15, fontWeight:700, color:"#1a1a1f", overflowWrap:"anywhere" }}>{c.answer}</p>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  <button onClick={()=>{ setAnsEditing(c.id); setAns(a0 => ({ ...a0, [c.id]:c.answer || "" })); setErr(""); }} style={claimBtn("#fff","#1a1a1f","#1a1a1f")}>Editar resposta</button>
+                  <button disabled={busy===c.id} onClick={()=>{ if (window.confirm("Apagar a tua resposta?")) run(c.id, ()=>onAnswer(c.id, "")); }} style={claimBtn("#fff","#B42318","#B42318")}>Apagar resposta</button>
+                </div>
+              </>)}
+            </div>
+          )}
           {c.status === "pendente" && (
             editing === c.id ? (
               <div style={{ marginTop:10 }}>
@@ -1351,8 +1373,9 @@ const MyClaimsCard = ({ claims, onEditNote, onCancel }) => {
 // admin: "Pedidos de perfil (N)": aprovar, rejeitar e histórico. readOnly (modo leitura do super admin): só mostra
 const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
   const [st, setSt] = useState({ status:"loading", list:[], error:"" });
-  const [panel, setPanel] = useState(null); // { id, kind:"aprovar"|"rejeitar" }
+  const [panel, setPanel] = useState(null); // { id, kind:"aprovar"|"rejeitar"|"perguntar" }
   const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const [rowErr, setRowErr] = useState(null); // erro de uma ação fora do painel (ex.: retirar pergunta)
   const load = async () => {
     setSt(s0 => ({ ...s0, status:"loading", error:"" }));
     try { const r = await rpcCall("list_team_claims", { p_team_id:team.id }, token); claimNamesRemember(r, "member_name", "member_avatar"); setSt({ status:"ok", list:Array.isArray(r) ? r : [], error:"" }); }
@@ -1364,6 +1387,7 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
     setBusy(true); setErr("");
     try {
       if (panel.kind === "aprovar") await rpcCall("approve_claim", { p_claim_id:c.id }, token);
+      else if (panel.kind === "perguntar") await rpcCall("ask_claim_question", { p_claim_id:c.id, p_question:note.trim() }, token);
       else await rpcCall("reject_claim", { p_claim_id:c.id, p_note:note.trim() || null }, token);
       setPanel(null); setNote("");
       await load();
@@ -1371,8 +1395,16 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
     } catch(e) { setErr(errPt(e)); }
     setBusy(false);
   };
+  const withdraw = async c => {
+    if (!window.confirm("Retirar a pergunta (e a resposta, se houver)?")) return;
+    setBusy(true); setRowErr(null);
+    try { await rpcCall("withdraw_claim_question", { p_claim_id:c.id }, token); await load(); if (onChanged) await onChanged(); }
+    catch(e) { setRowErr({ id:c.id, msg:errPt(e) }); }
+    setBusy(false);
+  };
   const pend = st.list.filter(c => c.status === "pendente");
   const done = st.list.filter(c => c.status !== "pendente").slice(0, 5);
+  const QUESTION_EXAMPLES = ["Qual é o teu número de camisola?", "Onde jogaste na época passada?"];
   return (
     <div data-claims="admin" style={{ marginBottom:16 }}>
       <Sec label={`Pedidos de perfil (${pend.length})`} />
@@ -1385,7 +1417,10 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
         </div>
       )}
       {st.status === "ok" && pend.length === 0 && <p style={{ margin:"0 0 8px", fontSize:13, color:"#5F5F66" }}>Sem pedidos pendentes.</p>}
-      {pend.map(c => { const role = roleOf(c); const isAdm = role === "admin"; return (
+      {pend.map(c => { const role = roleOf(c); const isAdm = role === "admin";
+        const canAsk = "question" in c; // as rpc novas devolvem a chave (mesmo a null); sem ela, nada muda
+        const hasQ = !!c.question, answered = hasQ && !!c.answer, openQ = hasQ && !c.answer;
+        const qCount = Number(c.question_count) || 0; return (
         <div key={c.id} data-claim="pendente" style={{ background:T.card, border:`2px solid ${isAdm ? "#B42318" : "#1a1a1f"}`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
           <ClaimWho name={c.requester_name} avatar={c.requester_avatar}>
             <p style={{ margin:"2px 0 0", fontSize:12, color:"#5F5F66" }}>pede · {claimDay(c.created_at)}</p>
@@ -1395,10 +1430,28 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
             <span data-role={isAdm ? "admin" : "player"} style={{ display:"inline-block", marginTop:3, padding:"2px 8px", borderRadius:6, fontSize:12, fontWeight:900, background:isAdm ? "#B42318" : "#E8E8EE", color:isAdm ? "#fff" : "#1a1a1f" }}>{isAdm ? "ADMIN" : "Jogador"}</span>
           </ClaimWho>
           {c.note && <p style={{ margin:"10px 0 0", fontSize:13, color:"#1a1a1f", overflowWrap:"anywhere" }}>Mensagem: {c.note}</p>}
+          {canAsk && hasQ && (
+            <div data-claim-question style={{ marginTop:10, padding:"10px 12px", borderRadius:12, background:"#FFF8E1", border:"2px solid #8A5A00" }}>
+              <p style={{ margin:0, fontSize:12, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>A tua pergunta · {qCount}/3</p>
+              <p style={{ margin:"2px 0 0", fontSize:14, fontWeight:700, color:"#1a1a1f", overflowWrap:"anywhere" }}>{c.question}</p>
+              {openQ && <p data-claim-waiting style={{ margin:"6px 0 0", fontSize:14, fontWeight:900, color:"#8A5A00" }}>À espera da resposta</p>}
+              {answered && (<>
+                <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:800, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>Resposta do jogador</p>
+                <p data-claim-answer style={{ margin:"2px 0 0", fontSize:16, fontWeight:900, color:"#1a1a1f", overflowWrap:"anywhere" }}>{c.answer}</p>
+                <p data-claim-answer-warning style={{ margin:"6px 0 0", fontSize:13, fontWeight:800, color:"#B42318" }}>A resposta não prova identidade. Confirma também por fora da app.</p>
+              </>)}
+              {!readOnly && <button disabled={busy} onClick={()=>withdraw(c)} style={{ ...claimBtn("#fff","#B42318","#B42318"), marginTop:8 }}>Retirar pergunta</button>}
+            </div>
+          )}
+          {rowErr && rowErr.id === c.id && <p role="alert" style={{ margin:"8px 0 0", fontSize:13, fontWeight:700, color:"#B42318" }}>{rowErr.msg}</p>}
           {!readOnly && panel?.id !== c.id && (
             <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:10 }}>
               <button onClick={()=>{ setPanel({ id:c.id, kind:"aprovar" }); setErr(""); }} style={claimBtn("#147832","#fff")}>Aprovar</button>
               <button onClick={()=>{ setPanel({ id:c.id, kind:"rejeitar" }); setNote(""); setErr(""); }} style={claimBtn("#fff","#B42318","#B42318")}>Rejeitar</button>
+              {canAsk && !openQ && (
+                <button disabled={qCount >= 3} onClick={()=>{ setPanel({ id:c.id, kind:"perguntar" }); setNote(""); setErr(""); }} style={{ ...claimBtn("#fff","#1a1a1f","#1a1a1f"), opacity:qCount >= 3 ? 0.5 : 1 }}>Pedir confirmação</button>
+              )}
+              {canAsk && !openQ && qCount >= 3 && <p style={{ flexBasis:"100%", margin:0, fontSize:12, color:"#5F5F66" }}>Já fizeste 3 perguntas neste pedido.</p>}
             </div>
           )}
           {!readOnly && panel?.id === c.id && (
@@ -1407,6 +1460,14 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
                 <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>A conta de {c.requester_name || "esta pessoa"} passa a ser o perfil {c.member_name || "escolhido"}. As multas e presenças mantêm-se.</p>
                 <p data-claim-link-warning style={{ margin:"0 0 8px", fontSize:14, fontWeight:900, color:"#B42318" }}>Isto liga a conta ao perfil de forma real. O perfil passa a mostrar o nome e a foto desta conta. Só aprova se tiveres confirmado com a pessoa.</p>
                 {isAdm && <p data-claim-warning style={{ margin:"0 0 8px", fontSize:14, fontWeight:900, color:"#B42318" }}>Este perfil é ADMIN. Quem for aprovado fica admin.</p>}
+              </>) : panel.kind === "perguntar" ? (<>
+                <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>Escreve uma pergunta concreta ao jogador:</p>
+                <textarea aria-label="Pergunta ao jogador" value={note} maxLength={200} onChange={e=>setNote(e.target.value)} rows={2} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
+                <p style={{ margin:"2px 0 8px", fontSize:11, color:"#5F5F66", textAlign:"right" }}>{note.length}/200</p>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
+                  {QUESTION_EXAMPLES.map(q => <button key={q} type="button" data-claim-example onClick={()=>setNote(q)} style={{ ...claimBtn("#fff","#1a1a1f","#1a1a1f"), fontSize:13, padding:"0 12px", textAlign:"left" }}>{q}</button>)}
+                </div>
+                <p style={{ margin:"0 0 8px", fontSize:12, color:"#5F5F66" }}>Pergunta {qCount + 1}/3. A aprovação continua a ser tua: a resposta é só uma ajuda.</p>
               </>) : (<>
                 <p style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>Motivo (opcional):</p>
                 <textarea aria-label="Motivo da rejeição" value={note} maxLength={200} onChange={e=>setNote(e.target.value)} rows={2} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
@@ -1414,7 +1475,7 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
               </>)}
               {err && <p role="alert" style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#B42318" }}>{err}</p>}
               <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                <button disabled={busy} onClick={()=>decide(c)} style={claimBtn(panel.kind === "aprovar" ? "#147832" : "#B42318","#fff")}>{busy ? "A guardar..." : (panel.kind === "aprovar" ? "Confirmar aprovação" : "Confirmar rejeição")}</button>
+                <button disabled={busy || (panel.kind === "perguntar" && !note.trim())} onClick={()=>decide(c)} style={claimBtn(panel.kind === "aprovar" ? "#147832" : (panel.kind === "perguntar" ? "#1a1a1f" : "#B42318"),"#fff")}>{busy ? "A guardar..." : (panel.kind === "aprovar" ? "Confirmar aprovação" : (panel.kind === "perguntar" ? "Enviar pergunta" : "Confirmar rejeição"))}</button>
                 <button disabled={busy} onClick={()=>{ setPanel(null); setErr(""); }} style={claimBtn("#fff","#1a1a1f","#1a1a1f")}>Voltar</button>
               </div>
             </div>
@@ -2915,7 +2976,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
 
 
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, claimCounts }) => {
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts }) => {
   // modo leitura (super admin): só a equipa aberta, sem ser membro
   const myTeams = readOnly ? teams : teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
@@ -3022,7 +3083,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         </div>
       </div>}
 
-      {!readOnly && <MyClaimsCard claims={myClaims} onEditNote={onEditClaimNote} onCancel={onCancelClaim} />}
+      {!readOnly && <MyClaimsCard claims={myClaims} onEditNote={onEditClaimNote} onCancel={onCancelClaim} onAnswer={onAnswerClaim} />}
       {/* Teams */}
       <Sec label={`Equipas (${myTeams.length})`} />
       {myTeams.map(t => {
@@ -4905,7 +4966,7 @@ export default function App() {
       try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) {}
       const counts = {};
       await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
-        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente").length; } catch(e) { counts[id] = 0; }
+        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente" && (!c.question || !!c.answer)).length; } catch(e) { counts[id] = 0; }
       }));
       setClaimCounts(counts);
     } catch(e) { console.warn("claim counts failed:", e && e.message); }
@@ -4917,6 +4978,7 @@ export default function App() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [appReady, token, myUserId, teams.length]);
+  useEffect(() => { if (tab === "geral" && appReady && token && myUserId && !RO.on) refreshClaims(); }, [tab]);
   const listClaimable = async code => {
     try { const r = await rpcCall('list_claimable_members', { p_code:String(code || "").trim().toUpperCase() }, token); return Array.isArray(r) ? r : []; }
     catch(e) { console.warn("list_claimable_members failed:", e && e.message); return []; }
@@ -4926,6 +4988,8 @@ export default function App() {
     await refreshClaims();
   };
   const editClaimNote = async (id, note) => { await rpcCall('update_claim_note', { p_claim_id:id, p_note:note ? note : null }, token); await refreshClaims(); showToast("Mensagem atualizada", T.navy); };
+  const answerClaim = async (id, text) => { await rpcCall('answer_claim_question', { p_claim_id:id, p_answer:text }, token); await refreshClaims(); showToast(text ? "Resposta enviada" : "Resposta apagada", T.navy); };
+  const myQuestionCount = Array.isArray(myClaims) ? myClaims.filter(c => c.status === "pendente" && c.question && !c.answer).length : 0;
   const cancelClaim = async id => { await rpcCall('cancel_claim', { p_claim_id:id }, token); await refreshClaims(); showToast("Pedido cancelado", T.navy); };
   // depois de aprovar/rejeitar (admin): recarregar os membros da equipa e os contadores
   const claimsChanged = async () => { await refresh(); await refreshClaims(); };
@@ -5139,7 +5203,7 @@ export default function App() {
       <p style={{ fontSize:40 }}>⚽</p>
       <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px" }}>Sem equipas ainda</p>
       <p style={{ color:T.sub, marginBottom:16 }}>Cria ou junta-te a uma equipa</p>
-      <div style={{ width:"100%", maxWidth:340 }}><MyClaimsCard claims={myClaims} onEditNote={editClaimNote} onCancel={cancelClaim} /></div>
+      <div style={{ width:"100%", maxWidth:340 }}><MyClaimsCard claims={myClaims} onEditNote={editClaimNote} onCancel={cancelClaim} onAnswer={answerClaim} /></div>
       {teamError && <div style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", marginBottom:16, width:"100%", maxWidth:340, fontSize:13, color:"#C00", wordBreak:"break-all" }}>{teamError}</div>}
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>
@@ -5183,13 +5247,13 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} claimCounts={roMode ? {} : claimCounts} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
           <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit" }}>
-            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <CountBadge n={atRiskCount} />}{item.id==="geral" && !roMode && claimsTotal>0 && <span data-badge="claims"><CountBadge n={claimsTotal} /></span>}</span>
+            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <CountBadge n={atRiskCount} />}{item.id==="geral" && !roMode && (claimsTotal + myQuestionCount)>0 && <span data-badge="claims"><CountBadge n={claimsTotal + myQuestionCount} /></span>}</span>
             <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?team.color:T.sub }}>{item.label}</span>
           </button>
         ))}
