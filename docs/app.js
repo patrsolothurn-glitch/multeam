@@ -13961,6 +13961,13 @@ function App() {
     st.textContent = "button:not(:has(+ button)):not(button + button) { position: relative; } button:not(:has(+ button)):not(button + button)::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }";
     document.head.appendChild(st);
   }, []);
+  useEffect(function () {
+    if (document.getElementById("multeam-scroll-fix")) return;
+    var st = document.createElement("style");
+    st.id = "multeam-scroll-fix";
+    st.textContent = "#root * { overscroll-behavior: auto; }";
+    document.head.appendChild(st);
+  }, []);
   var handleLogin = function () {
     var _ref162 = _asyncToGenerator(_regenerator().m(function _callee54(email, pass) {
       var _d$session, _d$user, d, tok, uid, _t59;
