@@ -61,6 +61,7 @@ const aFine = f => {
 // Regras por palavra-chave, por prioridade (nome sem maiúsculas nem acentos). Cartão amarelo/vermelho/expulsão primeiro, para nunca mudar o 🟥 desses nomes.
 const ICON_RULES = [
   [/cartao\s+amarelo/, "🟨"], [/cartao\s+vermelho|\bvermelho\b|expuls/, "🟥"],
+  [/\bfum(ar|o)\b|cigarro|tabaco/, "🚭"],
   [/\bbolos?\b|aniversar/, "🎂"],
   [/atras|chegar.*(tarde|depois)|ultimo a entrar|\bchegar tarde/, "⏰"],
   [/falt\w*.*\bjogos?\b/, "⚽"],
@@ -311,9 +312,48 @@ const cardStatus = y => y>=5 ? {label:"SUSPENSO", color:"#B00020"}
                    : null;
 const age = d => d ? Math.floor((new Date() - new Date(d)) / (365.25*24*3600*1000)) : null;
 
-const Avatar = ({ initials, color = T.navy, size = 38, photo }) => (
+// ── FOTO AMPLIADA (lightbox): um único componente partilhado por todos os avatares com foto ──
+// LB.n: lightbox aberto; LB.guard: popstate provocado por nós (o botão "atrás" do modo leitura não deve reagir a eles)
+const LB = { n:0, guard:0 };
+const PhotoLightbox = ({ src, name, onClose }) => {
+  const closeRef = React.useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    LB.n++;
+    let byPop = false, pushed = false;
+    try { window.history.pushState({ multeamLB:true }, "", window.location.href); pushed = true; } catch(e) {}
+    const onPop = () => { byPop = true; closeRef.current(); };
+    const onKey = e => { if (e.key === "Escape") closeRef.current(); };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+      setTimeout(() => { LB.n = Math.max(0, LB.n - 1); }, 0);
+      if (pushed && !byPop) { LB.guard++; try { window.history.back(); } catch(e) { LB.guard--; } } // consome a entrada de histórico
+    };
+  }, []);
+  const stop = e => e.stopPropagation();
+  const node = (
+    <div role="dialog" aria-label={`Foto de ${name || "jogador"}`} data-photo-lightbox onClick={e => { e.stopPropagation(); closeRef.current(); }} onMouseDown={stop} onTouchStart={stop}
+      style={{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,0.94)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px", boxSizing:"border-box" }}>
+      <button aria-label="Fechar foto" onClick={e => { e.stopPropagation(); closeRef.current(); }} style={{ position:"absolute", top:12, right:12, width:48, height:48, borderRadius:24, border:"2px solid #fff", background:"#000", color:"#fff", fontSize:22, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>✕</button>
+      <img src={src} alt={name || ""} onClick={stop} style={{ maxWidth:"92vw", maxHeight:"72vh", objectFit:"contain", borderRadius:12, boxShadow:"0 8px 40px rgba(0,0,0,0.6)" }} />
+      {name && <p style={{ margin:"16px 0 0", color:"#fff", fontSize:20, fontWeight:900, textAlign:"center", maxWidth:"92vw", overflowWrap:"anywhere" }}>{name}</p>}
+    </div>
+  );
+  return (typeof ReactDOM !== "undefined" && ReactDOM.createPortal) ? ReactDOM.createPortal(node, document.body) : node;
+};
+// foto do jogador: tocar abre a foto ampliada (sem abrir/fechar o cartão onde está); sem foto, quem a usa mostra só iniciais
+const ZoomPhoto = ({ src, name, style }) => {
+  const [open, setOpen] = useState(false);
+  return (<>
+    <img src={src} alt={name || ""} onClick={e => { e.stopPropagation(); setOpen(true); }} style={{ ...style, cursor:"zoom-in" }} />
+    {open && <PhotoLightbox src={src} name={name} onClose={() => setOpen(false)} />}
+  </>);
+};
+const Avatar = ({ initials, color = T.navy, size = 38, photo, name }) => (
   photo
-    ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><img src={photo} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
+    ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><ZoomPhoto src={photo} name={name} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
     : <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
 );
 const Badge = ({ label, color }) => (
@@ -1348,7 +1388,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
     <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 6px 20px ${T.brand}55`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
       <div style={{ padding:isTop?"15px 16px":"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
         {member.avatarUrl
-          ? <img src={member.avatarUrl} style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, objectFit:"cover", flexShrink:0, border:isTop?"3px solid rgba(255,255,255,0.4)":"none" }} />
+          ? <ZoomPhoto src={member.avatarUrl} name={member.name} style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, objectFit:"cover", flexShrink:0, border:isTop?"3px solid rgba(255,255,255,0.4)":"none" }} />
           : <div style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:isTop?16:14, fontWeight:800, flexShrink:0 }}>{member.initials}</div>
         }
         <div style={{ flex:1, minWidth:0 }}>
@@ -1386,7 +1426,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
       <div onClick={() => setOpen(o=>!o)} style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
-        <Avatar initials={group.initials||"?"} color={color} photo={group.avatarUrl} />
+        <Avatar initials={group.initials||"?"} color={color} photo={group.avatarUrl} name={group.name} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:15, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
           <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{group.total.toFixed(1)}€{group.unpaid>0?` · ${group.unpaid.toFixed(1)}€ por pagar`:""}</span></p>
@@ -1447,7 +1487,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
           {devedores.map((m,i) => (
             <div key={m.id} style={{ background:i===0?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12, border:i===0?"none":`1px solid ${T.border}` }}>
               {m.avatarUrl
-                ? <img src={m.avatarUrl} style={{ width:40, height:40, borderRadius:20, objectFit:"cover" }} />
+                ? <ZoomPhoto src={m.avatarUrl} name={m.name} style={{ width:40, height:40, borderRadius:20, objectFit:"cover" }} />
                 : <div style={{ width:40, height:40, borderRadius:20, background:i===0?"rgba(255,255,255,0.25)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:14 }}>{m.initials}</div>
               }
               <div style={{ flex:1 }}>
@@ -1550,7 +1590,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                 return (
                   <div key={m.id} style={{ flexShrink:0, display:"flex", alignItems:"center", gap:5, background:isToday?"linear-gradient(135deg,#FF6B35,#FFB347)":"#fff", borderRadius:16, padding:"4px 8px 4px 4px", border:isToday?"none":"1px solid #FFE0A0" }}>
                     {m.avatarUrl
-                      ? <img src={m.avatarUrl} style={{ width:22, height:22, borderRadius:11, objectFit:"cover" }} />
+                      ? <ZoomPhoto src={m.avatarUrl} name={m.name} style={{ width:22, height:22, borderRadius:11, objectFit:"cover" }} />
                       : <div style={{ width:22, height:22, borderRadius:11, background:isToday?"rgba(255,255,255,0.3)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:8, fontWeight:800 }}>{m.initials}</div>
                     }
                     <span style={{ fontSize:11, fontWeight:700, color:isToday?"#fff":"#8B6914", whiteSpace:"nowrap" }}>{m.name.split(" ")[0]}</span>
@@ -1646,7 +1686,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                     <div key={m.id} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                       <span style={{ fontSize:isFirst?36:24 }}>{medal}</span>
                       {m.avatarUrl
-                        ? <img src={m.avatarUrl} style={{ width:sz, height:sz, borderRadius:sz/2, objectFit:"cover", border:`3px solid ${pc}`, boxShadow:`0 4px 20px ${pc}66`, flexShrink:0 }} />
+                        ? <ZoomPhoto src={m.avatarUrl} name={m.name} style={{ width:sz, height:sz, borderRadius:sz/2, objectFit:"cover", border:`3px solid ${pc}`, boxShadow:`0 4px 20px ${pc}66`, flexShrink:0 }} />
                         : <div style={{ width:sz, height:sz, borderRadius:sz/2, background:ag, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:sz*0.3, boxShadow:`0 4px 20px ${pc}66` }}>{m.initials}</div>
                       }
                       <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#fff" }}>{m.name.split(" ")[0]}</p>
@@ -2701,7 +2741,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         {tm.map(m => (
           <div key={m.id} style={{ background:T.card, borderRadius:16, padding:"14px", marginBottom:10, display:"flex", alignItems:"center", gap:14 }}>
             {m.avatarUrl
-              ? <img src={m.avatarUrl} style={{ width:54, height:54, borderRadius:27, objectFit:"cover", flexShrink:0 }} />
+              ? <ZoomPhoto src={m.avatarUrl} name={m.name} style={{ width:54, height:54, borderRadius:27, objectFit:"cover", flexShrink:0 }} />
               : <div style={{ width:54, height:54, borderRadius:27, background:t?.color||T.navy, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:18, flexShrink:0 }}>{m.initials}</div>
             }
             <div style={{ flex:1, minWidth:0 }}>
@@ -2725,7 +2765,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18, paddingRight:80 }}>
           <div onClick={handleAvatarTap} style={{ cursor: isAppAdmin ? "pointer" : "default" }}>
-            <Avatar initials={user.initials} color={T.navy} size={54} photo={user.avatarUrl} />
+            <Avatar initials={user.initials} color={T.navy} size={54} photo={user.avatarUrl} name={user.name} />
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <h2 style={{ margin:0, fontSize:20, fontWeight:900 }}>{user.name}</h2>
@@ -3294,7 +3334,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         {/* Collapsed header - always visible */}
         <div onClick={() => setExpandedMember(expanded ? null : m.id)}
           style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
-          <Avatar initials={m.initials} color={team.color} size={44} photo={m.avatarUrl} />
+          <Avatar initials={m.initials} color={team.color} size={44} photo={m.avatarUrl} name={m.name} />
           <div style={{ flex:1 }}>
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
               <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</p>
@@ -3475,7 +3515,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
           <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"6px 12px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>← Voltar</button>
         </div>
-        <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} photo={member.avatarUrl} />
+        <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} photo={member.avatarUrl} name={member.name} />
         <h2 style={{ margin:"12px 0 2px", fontSize:24, fontWeight:800 }}>{member.name}</h2>
         <p style={{ margin:0, opacity:0.7, fontSize:14 }}>{member.position} · {member.role==="admin"?"Admin":"Jogador"}</p>
         {member.phone && <p style={{ margin:"4px 0 0", opacity:0.6, fontSize:13 }}>📱 {member.phone}</p>}
@@ -3690,7 +3730,7 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
     <Sheet onClose={onClose} title="Lançar cartão">
       {sel && (
         <div style={{ display:"flex", alignItems:"center", gap:12, background:`${T.navy}12`, border:`2px solid ${T.navy}`, borderRadius:14, padding:"10px 12px", marginBottom:14 }}>
-          <Avatar initials={sel.initials} photo={sel.avatarUrl} color={team.color} size={44} />
+          <Avatar initials={sel.initials} photo={sel.avatarUrl} color={team.color} size={44} name={sel.name} />
           <div>
             <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Cartão para</p>
             <p style={{ margin:0, fontSize:17, fontWeight:900 }}>{sel.name}</p>
@@ -3701,7 +3741,7 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
       <div style={{ maxHeight:200, overflowY:"auto", marginBottom:14, border:`1.5px solid ${T.border}`, borderRadius:12 }}>
         {tm.map(m => (
           <div key={m.id} onClick={()=>setMid(m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", background:String(mid)===String(m.id)?`${T.navy}18`:"transparent", borderBottom:`1px solid ${T.border}` }}>
-            <Avatar initials={m.initials} photo={m.avatarUrl} color={team.color} size={32} />
+            <Avatar initials={m.initials} photo={m.avatarUrl} color={team.color} size={32} name={m.name} />
             <span style={{ flex:1, fontWeight:String(mid)===String(m.id)?800:600, fontSize:14 }}>{m.name}</span>
             {String(mid)===String(m.id) && <span style={{ color:T.navy, fontWeight:800 }}>✓</span>}
           </div>
@@ -3829,7 +3869,7 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
     return (
       <div key={r.m.id} style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`4px solid ${st?st.color:T.border}` }}>
         <div onClick={()=>setOpen(isOpen?null:r.m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", cursor:"pointer" }}>
-          <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={team.color} size={38} />
+          <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={team.color} size={38} name={r.m.name} />
           <div style={{ flex:1, minWidth:0 }}>
             <p style={{ margin:"0 0 3px", fontWeight:800, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.m.name}</p>
             <p style={{ margin:0, fontSize:13, lineHeight:1.4 }}>
@@ -3863,7 +3903,7 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
           <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:900, letterSpacing:1 }}>🚨 EM RISCO</p>
           {risk.map(r => (
             <div key={r.m.id} style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.15)", borderRadius:12, padding:"8px 10px", marginBottom:6 }}>
-              <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={T.navy} size={36} />
+              <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={T.navy} size={36} name={r.m.name} />
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{r.m.name}</p>
                 <p style={{ margin:0, fontSize:12, opacity:0.95 }}>{r.yellows>=5 ? "Suspende 1 jogo" : "A 1 amarelo da suspensão"}</p>
@@ -4056,6 +4096,8 @@ export default function App() {
   // botão "atrás" do telemóvel/navegador no modo leitura = Voltar às equipas (em vez de sair da app)
   useEffect(() => {
     const onPop = () => {
+      if (LB.guard > 0) { LB.guard--; return; }          // popstate provocado por nós ao fechar a foto
+      if (LB.n > 0) return;                              // foto ampliada aberta: o "atrás" só a fecha
       if (ignorePopRef.current > 0) { ignorePopRef.current--; return; }
       if (!roHistoryRef.current) return;
       roHistoryRef.current = false;
