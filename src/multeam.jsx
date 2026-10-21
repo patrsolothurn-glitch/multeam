@@ -95,6 +95,22 @@ const rpcCall = async (fn, body, tok) => {
   if (!r.ok) throw new Error((j && j.message) || `Erro ${r.status}`);
   return j;
 };
+// Mensagens de erro para o utilizador: sempre em português claro e curto. O texto original (da base de dados, do Supabase ou do
+// navegador) fica só no console.error. Mensagens que já estão em português passam iguais.
+const ERR_GENERIC = "Ocorreu um erro. Tenta outra vez.";
+const errPt = (e, fallback) => {
+  const raw = e == null ? "" : (typeof e === "string" ? e : (e.message !== undefined && e.message !== null ? String(e.message) : ""));
+  const out = (txt) => { if (txt !== raw && raw) { try { console.error("[erro original]", raw); } catch (x) { /* sem console */ } } return txt; };
+  if (!raw.trim()) return fallback || ERR_GENERIC;
+  if (/JWT|token is expired|session expired/i.test(raw)) return out("A sessão expirou. Entra outra vez.");
+  if (/row-level security|violates .*polic|permission denied|not authorized|\b42501\b/i.test(raw)) return out("Sem permissão.");
+  if (/Failed to fetch|NetworkError|Load failed|network request failed/i.test(raw)) return out("Sem ligação. Verifica a rede e tenta outra vez.");
+  if (/duplicate key|already registered|already exists/i.test(raw)) return out("Esse registo já existe.");
+  if (/Invalid login credentials|invalid_grant/i.test(raw)) return out("Email ou password incorretos.");
+  // já está em português (acentos ou palavras próprias das mensagens da app)? fica igual
+  if (/[À-ÿ]/.test(raw) || /\b(erro|sem|tenta|equipa|registo|multa|incorret|escreve|mete|coincidem|obrigat|permiss|membro|guardar|apagar|administradores|ficou|continua)/i.test(raw)) return raw;
+  return out(ERR_GENERIC);
+};
 // uma escrita bloqueada por RLS responde com sucesso mas sem linhas: tratar como erro
 const needRows = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
 // "YYYY-MM-DD" -> dias do calendário (UTC só como contador, sem fuso)
@@ -390,7 +406,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       setTft(p => p.map(x => x.id===editingFt.id ? {...x, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji} : x));
       if (sft?.id===editingFt.id) setSft(f => ({...f, name:editName.trim(), amount:Number(editAmount), emoji:editEmoji}));
       setEditingFt(null);
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
     setSavingEdit(false);
   };
 
@@ -403,7 +419,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       if (still.length) throw new Error("sem permissão (o registo continua a existir)");
       setTft(p => p.filter(x => x.id !== ft.id));
       if (sft?.id===ft.id) setSft(null);
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
   };
 
   const QUICK_EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤"];
@@ -442,7 +458,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         id: String(ft.id), name: ft.name, amount: Number(ft.amount), emoji: ft.emoji || '🟥'
       })));
       setLoading(false);
-    }).catch(e => { setErr(e.message); setLoading(false); });
+    }).catch(e => { setErr(errPt(e)); setLoading(false); });
   }, []);
 
   const saveNewType = async () => {
@@ -457,7 +473,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         setSft(newFt);
       }
       setAddingType(false); setNewName(""); setNewAmount(""); setNewEmoji("🟥");
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
     setSavingType(false);
   };
 
@@ -469,7 +485,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     try {
       await onAdd({ teamId: team.id, memberId: mid, amount: sft.amount, reason: reason || sft.name, emoji: sft.emoji, paid: false });
       onClose();
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
   };
 
   return (
@@ -708,7 +724,7 @@ const AddSingleTrainingModal = ({ team, onAdd, onClose }) => {
       <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Principal, Selzach" />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos do treino..." />
       {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"treino", recurring:false, date, time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); } }} disabled={!ok} color={team.color}>Agendar treino</PrimaryBtn>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"treino", recurring:false, date, time, location:loc, notes }); onClose(); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={team.color}>Agendar treino</PrimaryBtn>
     </Sheet>
   );
 };
@@ -740,7 +756,7 @@ const AddRecurringModal = ({ team, onAdd, onClose }) => {
         </p>
       </div>
       {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"recorrente", recurring:true, days:days.sort(), time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); } }} disabled={!ok} color={team.color}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"recorrente", recurring:true, days:days.sort(), time, location:loc, notes }); onClose(); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={team.color}>
         Criar treino recorrente
       </PrimaryBtn>
     </Sheet>
@@ -784,7 +800,7 @@ const AddMatchModal = ({ team, members, onAdd, onClose }) => {
         ))}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10 }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:loc||"A definir", notes, opponent, homeAway, squad }); } catch(e){ setErr(e.message); } }} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:loc||"A definir", notes, opponent, homeAway, squad }); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={T.brand}>
         ⚽ Criar jogo vs {opponent||"..."}
       </PrimaryBtn>
     </Sheet>
@@ -806,7 +822,7 @@ const EditSingleTrainingModal = ({ team, training, onEdit, onClose }) => {
       <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Municipal..." />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos..." />
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); }}} disabled={!ok} color={team.color}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc, notes }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={team.color}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -849,7 +865,7 @@ const EditMatchModal = ({ team, members, training, onEdit, onClose }) => {
         ))}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc||"A definir", notes, opponent, homeAway, squad }); onClose(); } catch(e){ setErr(e.message); }}} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc||"A definir", notes, opponent, homeAway, squad }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -882,7 +898,7 @@ const EditRecurringModal = ({ team, training, onEdit, onClose }) => {
         </p>
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { recurring:true, days:days.sort(), time, location:loc, notes }); onClose(); } catch(e){ setErr(e.message); }}} disabled={!ok} color={team.color}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { recurring:true, days:days.sort(), time, location:loc, notes }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={team.color}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -2091,7 +2107,7 @@ const adminErrPt = e => {
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem ligação à internet";
   if (/JWT|expired/i.test(m)) return "A sessão expirou: volta a entrar";
   if (/resposta inválida/i.test(m)) return "Resposta inválida do servidor";
-  return m || "erro desconhecido";
+  return errPt(e, "erro desconhecido");
 };
 const ROLE_PT = { admin:"admin", player:"jogador", treinador:"treinador", diretor:"diretor" };
 const eur = c => `${(c / 100).toFixed(2)}€`; // montantes em cêntimos inteiros
@@ -2603,7 +2619,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
       const ft = needRows(await api.post(`fine_types`, { team_id: team.id, name: name.trim(), amount: Number(amount), emoji }, token))[0];
       onAdded(ft);
       setName(""); setAmount(""); setEmoji("🟥"); setAdding(false);
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
     setSaving(false);
   };
 
@@ -2618,7 +2634,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
       needRows(await api.patch(`fine_types?id=eq.${id}`, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) }, token));
       onUpdated(id, { emoji: editEmoji, name: editName.trim(), amount: Number(editAmount) });
       setEditingId(null);
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
     setSaving(false);
   };
 
@@ -2628,7 +2644,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
       const still = await api.get(`fine_types?id=eq.${id}&select=id`, token);
       if (still.length) throw new Error("sem permissão (o registo continua a existir)");
       onDeleted(id);
-    } catch(e) { setErr(e.message); }
+    } catch(e) { setErr(errPt(e)); }
   };
 
   return (
@@ -2702,7 +2718,7 @@ const TeamDataSection = ({ team, onSave }) => {
     if (!Object.keys(patch).length) { setEditing(false); return; }
     setBusy(true); setErr("");
     try { await onSave(team.id, patch); setEditing(false); }
-    catch(e) { setErr(e.message || "Erro ao guardar"); } // mantém os campos preenchidos
+    catch(e) { setErr(errPt(e, "Erro ao guardar")); } // mantém os campos preenchidos
     setBusy(false);
   };
   const Val = ({ label, v }) => (
@@ -2938,7 +2954,7 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
     if (!match || busy) return;
     setBusy(true); setErr("");
     try { await onDelete(); }
-    catch(e) { setErr(e.message || "Erro ao apagar a equipa"); setBusy(false); }
+    catch(e) { setErr(errPt(e, "Erro ao apagar a equipa")); setBusy(false); }
   };
   return (
     <Sheet title={`Apagar ${team.name}?`} onClose={busy ? ()=>{} : onClose}>
@@ -3016,7 +3032,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const changeRole = async (m, r) => {
     setRoleErr(null);
     try { await onToggleRole(m.id, r); }
-    catch(e) { setRoleErr({ id:m.id, msg:e.message || "Erro ao alterar o papel" }); }
+    catch(e) { setRoleErr({ id:m.id, msg:errPt(e, "Erro ao alterar o papel") }); }
   };
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [removeBusy, setRemoveBusy] = useState(false);
@@ -3026,7 +3042,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
     if (removeBusy) return;
     setRemoveBusy(true); setRemoveErr("");
     try { await onRemoveMember(confirmRemove.id); closeRemove(); }
-    catch(e) { setRemoveErr(e.message || "Erro ao remover"); }
+    catch(e) { setRemoveErr(errPt(e, "Erro ao remover")); }
     setRemoveBusy(false);
   };
   const [editingMember, setEditingMember] = useState(null);
@@ -3323,7 +3339,7 @@ const ResetPasswordScreen = ({ accessToken, onDone }) => {
     if (pass !== pass2) return setErr("As passwords não coincidem");
     setLoading(true); setErr("");
     try { await api.updatePassword(pass, accessToken); setDone(true); setTimeout(onDone, 2500); }
-    catch(e) { setErr(e.message); }
+    catch(e) { setErr(errPt(e)); }
     setLoading(false);
   };
   return (
@@ -3435,7 +3451,7 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
     if (!mid || !date || saving) return;
     setSaving(true); setErr("");
     try { await onAdd({ teamId:team.id, memberId:mid, kind, date, opponent:opponent.trim(), note:note.trim() }); onClose(); }
-    catch(e) { setErr(e.message); setSaving(false); }
+    catch(e) { setErr(errPt(e)); setSaving(false); }
   };
   return (
     <Sheet onClose={onClose} title="Lançar cartão">
@@ -3746,7 +3762,7 @@ export default function App() {
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem ligação à internet";
     if (/JWT|expired/i.test(m)) return "A sessão expirou: volta a entrar";
     if (/resposta inválida/i.test(m)) return "Resposta inválida do servidor";
-    return m || "erro desconhecido";
+    return errPt(e, "erro desconhecido");
   };
   const loadTeamAdmin = async (tok, tid) => {
     const raw = await rpcCall('get_team_as_admin', { p_team_id: tid }, tok);
@@ -3866,7 +3882,7 @@ export default function App() {
       setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
       setAppReady(true);
       return true;
-    } catch(e) { setAuthError(`Erro: ${e.message}`); return false; }
+    } catch(e) { setAuthError(`Erro: ${errPt(e)}`); return false; }
     finally { setLoading(false); }
   };
 
@@ -3931,7 +3947,7 @@ export default function App() {
       const uid = d.user?.id;
       if (!tok || !uid) throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
       setToken(tok); setMyUserId(uid); await initApp(tok, uid);
-    } catch(e) { setAuthError(e.message); setLoading(false); }
+    } catch(e) { setAuthError(errPt(e)); setLoading(false); }
   };
 
   const handleRegister = async (email, pass, name) => {
@@ -3954,7 +3970,7 @@ export default function App() {
       } else {
         setAuthError("Erro ao criar conta. Tenta novamente.");
       }
-    } catch(e) { setAuthError(e.message); }
+    } catch(e) { setAuthError(errPt(e)); }
     setLoading(false);
   };
 
@@ -3967,7 +3983,7 @@ export default function App() {
   };
   // Escritas verificadas: um UPDATE/DELETE bloqueado por RLS responde com sucesso sem alterar nada,
   // por isso só se atualiza o ecrã depois de confirmar o resultado; se falhar, toast vermelho.
-  const writeFailed = (what, e) => showToast(`⚠️ Não foi possível ${what}: ${e && e.message ? e.message : "erro"}`, T.brand);
+  const writeFailed = (what, e) => showToast(`⚠️ Não foi possível ${what}: ${errPt(e, "erro")}`, T.brand);
   const updated = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
   const confirmGone = async path => { const still = await api.get(path, token); if (still.length) throw new Error("sem permissão (o registo continua a existir)"); };
   const togglePaid = async id => {
@@ -4326,7 +4342,7 @@ export default function App() {
       const newTeam = aTeam(tr[0] || { id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season, invite_code:invCode });
       setTeams(p=>[...p, newTeam]);
       await switchTeam(tid);
-    } catch(e){ setTeamError(e.message||JSON.stringify(e)); }
+    } catch(e){ setTeamError(errPt(e)); }
   };
   const editTeam = async (id, patch) => {
     const res = await api.patch(`teams?id=eq.${id}`, patch, token);
@@ -4358,7 +4374,7 @@ export default function App() {
       await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
     } catch(e) {
       if (!e.message?.includes('duplicate key')) {
-        alert(`Erro ao entrar na equipa: ${e.message||"tenta novamente"}`);
+        alert(`Erro ao entrar na equipa: ${errPt(e, "tenta novamente")}`);
         return;
       }
       // duplicate key = já és membro, continua

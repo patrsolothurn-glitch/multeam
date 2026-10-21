@@ -646,6 +646,26 @@ var rpcCall = function () {
     return _ref.apply(this, arguments);
   };
 }();
+var ERR_GENERIC = "Ocorreu um erro. Tenta outra vez.";
+var errPt = function errPt(e, fallback) {
+  var raw = e == null ? "" : typeof e === "string" ? e : e.message !== undefined && e.message !== null ? String(e.message) : "";
+  var out = function out(txt) {
+    if (txt !== raw && raw) {
+      try {
+        console.error("[erro original]", raw);
+      } catch (x) {}
+    }
+    return txt;
+  };
+  if (!raw.trim()) return fallback || ERR_GENERIC;
+  if (/JWT|token is expired|session expired/i.test(raw)) return out("A sessão expirou. Entra outra vez.");
+  if (/row-level security|violates .*polic|permission denied|not authorized|\b42501\b/i.test(raw)) return out("Sem permissão.");
+  if (/Failed to fetch|NetworkError|Load failed|network request failed/i.test(raw)) return out("Sem ligação. Verifica a rede e tenta outra vez.");
+  if (/duplicate key|already registered|already exists/i.test(raw)) return out("Esse registo já existe.");
+  if (/Invalid login credentials|invalid_grant/i.test(raw)) return out("Email ou password incorretos.");
+  if (/[À-ÿ]/.test(raw) || /\b(erro|sem|tenta|equipa|registo|multa|incorret|escreve|mete|coincidem|obrigat|permiss|membro|guardar|apagar|administradores|ficou|continua)/i.test(raw)) return raw;
+  return out(ERR_GENERIC);
+};
 var needRows = function needRows(res) {
   if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe");
   return res;
@@ -1407,7 +1427,7 @@ var AddFineModal = function AddFineModal(_ref16) {
           case 4:
             _context10.p = 4;
             _t19 = _context10.v;
-            setErr(_t19.message);
+            setErr(errPt(_t19));
           case 5:
             setSavingEdit(false);
           case 6:
@@ -1457,7 +1477,7 @@ var AddFineModal = function AddFineModal(_ref16) {
           case 5:
             _context11.p = 5;
             _t20 = _context11.v;
-            setErr(_t20.message);
+            setErr(errPt(_t20));
           case 6:
             return _context11.a(2);
         }
@@ -1575,7 +1595,7 @@ var AddFineModal = function AddFineModal(_ref16) {
         return _ref20.apply(this, arguments);
       };
     }()).catch(function (e) {
-      setErr(e.message);
+      setErr(errPt(e));
       setLoading(false);
     });
   }, []);
@@ -1625,7 +1645,7 @@ var AddFineModal = function AddFineModal(_ref16) {
           case 4:
             _context13.p = 4;
             _t23 = _context13.v;
-            setErr(_t23.message);
+            setErr(errPt(_t23));
           case 5:
             setSavingType(false);
           case 6:
@@ -1668,7 +1688,7 @@ var AddFineModal = function AddFineModal(_ref16) {
           case 4:
             _context14.p = 4;
             _t24 = _context14.v;
-            setErr(_t24.message);
+            setErr(errPt(_t24));
           case 5:
             return _context14.a(2);
         }
@@ -2518,7 +2538,7 @@ var AddSingleTrainingModal = function AddSingleTrainingModal(_ref30) {
           case 4:
             _context17.p = 4;
             _t25 = _context17.v;
-            setErr(_t25.message);
+            setErr(errPt(_t25));
           case 5:
             return _context17.a(2);
         }
@@ -2665,7 +2685,7 @@ var AddRecurringModal = function AddRecurringModal(_ref32) {
           case 4:
             _context18.p = 4;
             _t26 = _context18.v;
-            setErr(_t26.message);
+            setErr(errPt(_t26));
           case 5:
             return _context18.a(2);
         }
@@ -2872,7 +2892,7 @@ var AddMatchModal = function AddMatchModal(_ref34) {
           case 4:
             _context19.p = 4;
             _t27 = _context19.v;
-            setErr(_t27.message);
+            setErr(errPt(_t27));
           case 5:
             return _context19.a(2);
         }
@@ -2974,7 +2994,7 @@ var EditSingleTrainingModal = function EditSingleTrainingModal(_ref38) {
           case 4:
             _context20.p = 4;
             _t28 = _context20.v;
-            setErr(_t28.message);
+            setErr(errPt(_t28));
           case 5:
             return _context20.a(2);
         }
@@ -3183,7 +3203,7 @@ var EditMatchModal = function EditMatchModal(_ref40) {
           case 4:
             _context21.p = 4;
             _t29 = _context21.v;
-            setErr(_t29.message);
+            setErr(errPt(_t29));
           case 5:
             return _context21.a(2);
         }
@@ -3329,7 +3349,7 @@ var EditRecurringModal = function EditRecurringModal(_ref44) {
           case 4:
             _context22.p = 4;
             _t30 = _context22.v;
-            setErr(_t30.message);
+            setErr(errPt(_t30));
           case 5:
             return _context22.a(2);
         }
@@ -7593,7 +7613,7 @@ var adminErrPt = function adminErrPt(e) {
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem ligação à internet";
   if (/JWT|expired/i.test(m)) return "A sessão expirou: volta a entrar";
   if (/resposta inválida/i.test(m)) return "Resposta inválida do servidor";
-  return m || "erro desconhecido";
+  return errPt(e, "erro desconhecido");
 };
 var ROLE_PT = {
   admin: "admin",
@@ -9299,7 +9319,7 @@ var FineTypesManager = function FineTypesManager(_ref105) {
           case 4:
             _context32.p = 4;
             _t39 = _context32.v;
-            setErr(_t39.message);
+            setErr(errPt(_t39));
           case 5:
             setSaving(false);
           case 6:
@@ -9351,7 +9371,7 @@ var FineTypesManager = function FineTypesManager(_ref105) {
           case 4:
             _context33.p = 4;
             _t41 = _context33.v;
-            setErr(_t41.message);
+            setErr(errPt(_t41));
           case 5:
             setSaving(false);
           case 6:
@@ -9389,7 +9409,7 @@ var FineTypesManager = function FineTypesManager(_ref105) {
           case 4:
             _context34.p = 4;
             _t42 = _context34.v;
-            setErr(_t42.message);
+            setErr(errPt(_t42));
           case 5:
             return _context34.a(2);
         }
@@ -9680,7 +9700,7 @@ var TeamDataSection = function TeamDataSection(_ref109) {
           case 5:
             _context35.p = 5;
             _t43 = _context35.v;
-            setErr(_t43.message || "Erro ao guardar");
+            setErr(errPt(_t43, "Erro ao guardar"));
           case 6:
             setBusy(false);
           case 7:
@@ -10559,7 +10579,7 @@ var DeleteTeamModal = function DeleteTeamModal(_ref122) {
           case 4:
             _context38.p = 4;
             _t44 = _context38.v;
-            setErr(_t44.message || "Erro ao apagar a equipa");
+            setErr(errPt(_t44, "Erro ao apagar a equipa"));
             setBusy(false);
           case 5:
             return _context38.a(2);
@@ -10865,7 +10885,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref127) {
             _t45 = _context39.v;
             setRoleErr({
               id: m.id,
-              msg: _t45.message || "Erro ao alterar o papel"
+              msg: errPt(_t45, "Erro ao alterar o papel")
             });
           case 4:
             return _context39.a(2);
@@ -10916,7 +10936,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref127) {
           case 4:
             _context40.p = 4;
             _t46 = _context40.v;
-            setRemoveErr(_t46.message || "Erro ao remover");
+            setRemoveErr(errPt(_t46, "Erro ao remover"));
           case 5:
             setRemoveBusy(false);
           case 6:
@@ -12064,7 +12084,7 @@ var ResetPasswordScreen = function ResetPasswordScreen(_ref137) {
           case 5:
             _context41.p = 5;
             _t47 = _context41.v;
-            setErr(_t47.message);
+            setErr(errPt(_t47));
           case 6:
             setLoading(false);
           case 7:
@@ -12636,7 +12656,7 @@ var AddCardModal = function AddCardModal(_ref148) {
           case 4:
             _context44.p = 4;
             _t48 = _context44.v;
-            setErr(_t48.message);
+            setErr(errPt(_t48));
             setSaving(false);
           case 5:
             return _context44.a(2);
@@ -13535,7 +13555,7 @@ function App() {
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Sem ligação à internet";
     if (/JWT|expired/i.test(m)) return "A sessão expirou: volta a entrar";
     if (/resposta inválida/i.test(m)) return "Resposta inválida do servidor";
-    return m || "erro desconhecido";
+    return errPt(e, "erro desconhecido");
   };
   var loadTeamAdmin = function () {
     var _ref155 = _asyncToGenerator(_regenerator().m(function _callee47(tok, tid) {
@@ -13882,7 +13902,7 @@ function App() {
           case 14:
             _context51.p = 14;
             _t54 = _context51.v;
-            setAuthError("Erro: ".concat(_t54.message));
+            setAuthError("Erro: ".concat(errPt(_t54)));
             return _context51.a(2, false);
           case 15:
             _context51.p = 15;
@@ -14051,7 +14071,7 @@ function App() {
           case 5:
             _context54.p = 5;
             _t59 = _context54.v;
-            setAuthError(_t59.message);
+            setAuthError(errPt(_t59));
             setLoading(false);
           case 6:
             return _context54.a(2);
@@ -14144,7 +14164,7 @@ function App() {
           case 18:
             _context55.p = 18;
             _t62 = _context55.v;
-            setAuthError(_t62.message);
+            setAuthError(errPt(_t62));
           case 19:
             setLoading(false);
           case 20:
@@ -14211,7 +14231,7 @@ function App() {
     };
   }();
   var writeFailed = function writeFailed(what, e) {
-    return showToast("\u26A0\uFE0F N\xE3o foi poss\xEDvel ".concat(what, ": ").concat(e && e.message ? e.message : "erro"), T.brand);
+    return showToast("\u26A0\uFE0F N\xE3o foi poss\xEDvel ".concat(what, ": ").concat(errPt(e, "erro")), T.brand);
   };
   var updated = function updated(res) {
     if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe");
@@ -15634,7 +15654,7 @@ function App() {
           case 8:
             _context87.p = 8;
             _t103 = _context87.v;
-            setTeamError(_t103.message || JSON.stringify(_t103));
+            setTeamError(errPt(_t103));
           case 9:
             return _context87.a(2);
         }
@@ -15757,7 +15777,7 @@ function App() {
               _context90.n = 3;
               break;
             }
-            alert("Erro ao entrar na equipa: ".concat(_t105.message || "tenta novamente"));
+            alert("Erro ao entrar na equipa: ".concat(errPt(_t105, "tenta novamente")));
             return _context90.a(2);
           case 3:
             setTeams(function (prev) {
