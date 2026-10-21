@@ -7759,20 +7759,26 @@ var AdminUsersSection = function AdminUsersSection(_ref86) {
   var teams = act.data.teams;
   var nq = normTxt(q);
   var filtering = nq !== "" || filter !== "all";
-  var keep = function keep(m) {
-    if (nq && !normTxt(m.name).includes(nq) && !normTxt(m.email).includes(nq)) return false;
+  var keepText = function keepText(m) {
+    return !nq || normTxt(m.name).includes(nq) || normTxt(m.email).includes(nq);
+  };
+  var keepAge = function keepAge(m) {
     var age = adminAgeMs(m.last);
     if (filter === "a7") return age <= 7 * ADMIN_DAY;
     if (filter === "i30") return !(age <= 30 * ADMIN_DAY);
     return true;
   };
   var shown = teams.map(function (tm) {
+    var byTeam = nq !== "" && normTxt(tm.name).includes(nq);
     return {
       tm: tm,
-      ms: tm.members.filter(keep)
+      byTeam: byTeam,
+      ms: tm.members.filter(function (m) {
+        return keepAge(m) && (byTeam || keepText(m));
+      })
     };
   }).filter(function (x) {
-    return !filtering || x.ms.length > 0;
+    return !filtering || x.ms.length > 0 || x.byTeam && filter === "all";
   });
   var chips = [["all", "Todos"], ["a7", "Ativos 7 dias"], ["i30", "Inativos 30+ dias"]];
   var isOpen = function isOpen(id) {
@@ -7780,8 +7786,8 @@ var AdminUsersSection = function AdminUsersSection(_ref86) {
   };
   return React.createElement(React.Fragment, null, cards, React.createElement(FI, {
     type: "search",
-    placeholder: "Pesquisar por nome ou email",
-    "aria-label": "Pesquisar por nome ou email",
+    placeholder: "Pesquisar por nome, email ou equipa",
+    "aria-label": "Pesquisar por nome, email ou equipa",
     value: q,
     onChange: function onChange(e) {
       setQ(e.target.value);
