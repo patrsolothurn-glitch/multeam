@@ -503,13 +503,19 @@ var aFine = function aFine(f) {
     date: f.date || localDate
   };
 };
+var fineTypeIcon = function fineTypeIcon(name, emoji) {
+  var e = emoji || '🟥';
+  if (e !== '🟥') return e;
+  var n = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return /(^|[^a-z])bolos?([^a-z]|$)/.test(n) ? '🎂' : e;
+};
 var aFineType = function aFineType(ft) {
   return {
     id: ft.id,
     teamId: ft.team_id,
     name: ft.name,
     amount: Number(ft.amount),
-    emoji: ft.emoji || '🟥'
+    emoji: fineTypeIcon(ft.name, ft.emoji)
   };
 };
 var aCard = function aCard(c) {
@@ -1582,7 +1588,7 @@ var AddFineModal = function AddFineModal(_ref16) {
                   id: String(ft.id),
                   name: ft.name,
                   amount: Number(ft.amount),
-                  emoji: ft.emoji || '🟥'
+                  emoji: fineTypeIcon(ft.name, ft.emoji)
                 };
               }));
               setLoading(false);
@@ -1629,7 +1635,7 @@ var AddFineModal = function AddFineModal(_ref16) {
                 id: String(ft.id),
                 name: ft.name,
                 amount: Number(ft.amount),
-                emoji: ft.emoji || '🟥'
+                emoji: fineTypeIcon(ft.name, ft.emoji)
               };
               setTft(function (p) {
                 return [].concat(_toConsumableArray(p), [newFt]);
@@ -1813,46 +1819,6 @@ var AddFineModal = function AddFineModal(_ref16) {
       }
     }, React.createElement("div", {
       style: {
-        position: "absolute",
-        top: 6,
-        right: 6,
-        display: "flex",
-        gap: 2
-      }
-    }, React.createElement("button", {
-      onClick: function onClick(e) {
-        return startEdit(ft, e);
-      },
-      style: {
-        background: "rgba(0,0,0,0.06)",
-        border: "none",
-        borderRadius: 6,
-        width: 24,
-        height: 24,
-        fontSize: 11,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center"
-      }
-    }, "\u270F\uFE0F"), React.createElement("button", {
-      onClick: function onClick(e) {
-        return deleteFt(ft, e);
-      },
-      style: {
-        background: "rgba(0,0,0,0.06)",
-        border: "none",
-        borderRadius: 6,
-        width: 24,
-        height: 24,
-        fontSize: 11,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center"
-      }
-    }, "\uD83D\uDDD1\uFE0F")), React.createElement("div", {
-      style: {
         fontSize: 26,
         marginBottom: 4
       }
@@ -1862,7 +1828,7 @@ var AddFineModal = function AddFineModal(_ref16) {
         fontWeight: 700,
         fontSize: 12,
         color: (sft === null || sft === void 0 ? void 0 : sft.id) === ft.id ? T.brand : T.text,
-        paddingRight: 52
+        overflowWrap: "anywhere"
       }
     }, ft.name), React.createElement("p", {
       style: {
@@ -1871,7 +1837,55 @@ var AddFineModal = function AddFineModal(_ref16) {
         fontSize: 16,
         color: (sft === null || sft === void 0 ? void 0 : sft.id) === ft.id ? T.brand : T.navy
       }
-    }, ft.amount, "\u20AC"));
+    }, ft.amount, "\u20AC"), React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 16,
+        marginTop: 8
+      }
+    }, React.createElement("button", {
+      "aria-label": "Editar ".concat(ft.name),
+      onClick: function onClick(e) {
+        return startEdit(ft, e);
+      },
+      style: {
+        background: "rgba(0,0,0,0.08)",
+        border: "1.5px solid ".concat(T.border),
+        borderRadius: 10,
+        width: 44,
+        height: 44,
+        padding: 0,
+        fontSize: 18,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxSizing: "border-box"
+      }
+    }, "\u270F\uFE0F"), React.createElement("button", {
+      "aria-label": "Apagar ".concat(ft.name),
+      onClick: function onClick(e) {
+        return deleteFt(ft, e);
+      },
+      style: {
+        background: "#FDECEC",
+        border: "1.5px solid #B42318",
+        borderRadius: 10,
+        width: 44,
+        height: 44,
+        padding: 0,
+        fontSize: 18,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxSizing: "border-box"
+      }
+    }, React.createElement("span", {
+      style: {
+        filter: "grayscale(1) brightness(0.35)"
+      }
+    }, "\uD83D\uDDD1\uFE0F"))));
   }), React.createElement("button", {
     onClick: function onClick() {
       return setAddingType(true);
