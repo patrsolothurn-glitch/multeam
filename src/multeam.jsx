@@ -37,7 +37,7 @@ if (typeof window !== "undefined" && typeof window.fetch === "function" && !wind
 
 const api = {
   h(tok) { return { 'apikey':SB_KEY, 'Authorization':`Bearer ${tok||SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' }; },
-  async get(p,tok)      { const r=await fetch(`${SB_URL}/rest/v1/${p}`,{headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
+  async get(p,tok)      { const r=await fetch(`${SB_URL}/rest/v1/${p}`,p.startsWith('fine_types')?{headers:this.h(tok),cache:'no-store'}:{headers:this.h(tok)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
   async post(p,b,tok)   { roCheck(`${SB_URL}/rest/v1/${p}`, 'POST'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
   async insert(p,b,tok) { roCheck(`${SB_URL}/rest/v1/${p}`, 'POST'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'POST',headers:{...this.h(tok),'Prefer':'return=minimal'},body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.status; },
   async patch(p,b,tok)  { roCheck(`${SB_URL}/rest/v1/${p}`, 'PATCH'); const r=await fetch(`${SB_URL}/rest/v1/${p}`,{method:'PATCH',headers:this.h(tok),body:JSON.stringify(b)}); if(!r.ok)throw new Error((await r.json()).message||'Erro'); return r.json(); },
@@ -57,13 +57,15 @@ const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
   return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:f.emoji||'🟥', paid:f.paid, paidAt:f.paid_at||null, date:f.date||localDate };
 };
-// ícone do tipo de multa: é o campo emoji de fine_types (o utilizador escolhe-o). Só quando está por escolher (vazio ou o 🟥 por defeito),
-// um nome com a palavra "bolo" (sem maiúsculas nem acentos) mostra 🎂. Nada é gravado; outros nomes (ex.: "Cartão"/"Cartao") não mudam.
+// ícone do tipo de multa: manda sempre o campo emoji de fine_types, se existir e não estiver vazio. Só quando está vazio há um
+// fallback por nome (sem maiúsculas nem acentos): "bolo" → 🎂; "cartão/cartao amarelo" → 🟨; "cartão/cartao vermelho" → 🟥; senão 🟥. Nada é gravado.
 const fineTypeIcon = (name, emoji) => {
-  const e = emoji || '🟥';
-  if (e !== '🟥') return e;
+  const e = String(emoji == null ? '' : emoji).trim();
+  if (e) return e;
   const n = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return /(^|[^a-z])bolos?([^a-z]|$)/.test(n) ? '🎂' : e;
+  if (/(^|[^a-z])bolos?([^a-z]|$)/.test(n)) return '🎂';
+  if (/(^|[^a-z])cartao([^a-z]|$)/.test(n)) return /amarelo/.test(n) ? '🟨' : '🟥';
+  return '🟥';
 };
 const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Number(ft.amount), emoji:fineTypeIcon(ft.name, ft.emoji) });
 const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
@@ -436,7 +438,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
     Promise.all([
       fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, { headers: H }).then(r => r.json()),
-      fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H }).then(r => r.json()),
+      fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H, cache: 'no-store' }).then(r => r.json()),
     ]).then(async ([mRaw, ftRaw]) => {
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
       let profMap = {};
@@ -3184,6 +3186,15 @@ const UnavailableControl = ({ m, record, color, onOpen, onClose, onUpdate, onLeg
 const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [showDelete, setShowDelete] = useState(false);
+  // ao abrir Gerir, volta a pedir os tipos de multa (o estado pode estar desatualizado); se falhar, fica a lista atual
+  useEffect(() => {
+    if (!setFineTypes || !token || RO.on) return;
+    let alive = true;
+    api.get(`fine_types?team_id=eq.${team.id}&order=amount.asc`, token).then(rows => {
+      if (alive && Array.isArray(rows)) setFineTypes(p => [...p.filter(x => x.teamId !== team.id), ...rows.map(aFineType)]);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [team.id]);
   const isCreator = team.createdBy === myUserId;
   const myRoleHere = (tm.find(x=>x.userId===myUserId)||{}).role;
   // só admin: a política de escrita de team_members é is_admin_of(team_id)
