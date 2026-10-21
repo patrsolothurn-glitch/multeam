@@ -16,7 +16,7 @@ const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRF
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -2265,6 +2265,125 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
   );
 };
 
+// ── ABA STATS: cartões de crescimento (só agregados; rpc get_app_growth_stats) ──
+const MESES_CURTOS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const eurPt = n => `${Number(n).toLocaleString("pt-PT", { minimumFractionDigits:2, maximumFractionDigits:2 })}€`;
+// valida e normaliza a resposta; forma inesperada lança "resposta inválida" (nunca números inventados)
+const parseGrowth = raw => {
+  const bad = () => new Error("resposta inválida");
+  const g = Array.isArray(raw) ? raw[0] : raw;
+  if (!g || typeof g !== "object") throw bad();
+  const num = (v, required) => {
+    if (v === null || v === undefined || v === "") { if (required) throw bad(); return 0; }
+    const n = Number(v); if (!Number.isFinite(n)) throw bad(); return n;
+  };
+  const bm = g.by_month == null ? [] : g.by_month;
+  if (!Array.isArray(bm)) throw bad();
+  // últimos 6 meses, o mais recente primeiro
+  const months = bm.map(m => {
+    if (!m || typeof m.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(m.month)) throw bad();
+    return { month:m.month, users:num(m.new_users), teams:num(m.new_teams) };
+  }).sort((a, b) => a.month < b.month ? 1 : -1).slice(0, 6);
+  const finesTotal = num(g.fines_total), finesUnpaid = num(g.fines_unpaid), amountTotal = num(g.amount_total), amountUnpaid = num(g.amount_unpaid);
+  const pct = (given, a, b) => (given === null || given === undefined || given === "") ? (b > 0 ? a / b * 100 : 0) : num(given);
+  return {
+    activeTeams:num(g.active_teams_30d, true), newTeams:num(g.new_teams_30d, true), newUsers:num(g.new_users_30d, true), push:num(g.push_subscriptions, true),
+    finesTotal, finesUnpaid, pctCount:Math.round(pct(g.unpaid_pct_count, finesUnpaid, finesTotal)),
+    amountTotal, amountUnpaid, pctAmount:Math.round(pct(g.unpaid_pct_amount, amountUnpaid, amountTotal)), months,
+  };
+};
+const GrowthSection = ({ g, onRetry, StatCard }) => {
+  const head = <p style={{ margin:"20px 0 8px", fontSize:12, fontWeight:700, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>📈 Crescimento</p>;
+  if (g.status === "idle" || g.status === "loading") return <>{head}<p role="status" style={{ margin:"4px 0", fontSize:14, color:"#5F5F66" }}>A carregar crescimento...</p></>;
+  if (g.status === "error") return (
+    <>
+      {head}
+      <div role="alert" style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", fontSize:14, color:"#8A0000", marginBottom:10 }}>Não foi possível carregar o crescimento: {g.error}</div>
+      <button onClick={onRetry} style={{ width:"100%", minHeight:48, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
+    </>
+  );
+  const d = g.data;
+  const pctCard = (label, pct, text) => (
+    <div data-growth="pct" style={{ background:T.card, borderRadius:14, padding:"clamp(10px, 3vw, 14px) clamp(10px, 3vw, 16px)", marginBottom:8 }}>
+      <p style={{ margin:"0 0 4px", fontSize:"clamp(10px, 2.9vw, 12px)", fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.4 }}>{label}</p>
+      <p style={{ margin:0, fontSize:"clamp(18.7px, 5.8vw, 26px)", lineHeight:1.15, fontWeight:900, color:"#C94F00" }}>{pct}%</p>
+      <p style={{ margin:"2px 0 0", fontSize:"clamp(11px, 3.2vw, 13px)", color:"#5F5F66", overflowWrap:"anywhere" }}>{text}</p>
+    </div>
+  );
+  return (
+    <>
+      {head}
+      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+        <StatCard label="Equipas ativas" value={d.activeTeams} color={T.navy} sub="últimos 30 dias" />
+        <StatCard label="Novas equipas" value={d.newTeams} color={T.green} sub="últimos 30 dias" />
+      </div>
+      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+        <StatCard label="Novos utilizadores" value={d.newUsers} color="#6c47ff" sub="últimos 30 dias" />
+        <StatCard label="Subscrições push" value={d.push} color={T.navy} />
+      </div>
+      {pctCard("% por pagar · nº de multas", d.pctCount, `${d.finesUnpaid} de ${d.finesTotal} multas por pagar`)}
+      {pctCard("% por pagar · valor", d.pctAmount, `${eurPt(d.amountUnpaid)} de ${eurPt(d.amountTotal)}`)}
+      <p style={{ margin:"16px 0 8px", fontSize:12, fontWeight:700, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>Últimos 6 meses</p>
+      {d.months.length === 0 && <p style={{ margin:"4px 0", fontSize:14, color:"#5F5F66" }}>Sem dados por mês.</p>}
+      {d.months.map(m => (
+        <div key={m.month} data-growth="month" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, flexWrap:"wrap", background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6 }}>
+          <span style={{ fontWeight:800, fontSize:14 }}>{MESES_CURTOS_PT[Number(m.month.slice(5)) - 1]} {m.month.slice(0, 4)}</span>
+          <span style={{ fontSize:13, color:"#5F5F66" }}>{plural(m.users, "novo utilizador", "novos utilizadores")} · {plural(m.teams, "nova equipa", "novas equipas")}</span>
+        </div>
+      ))}
+    </>
+  );
+};
+
+// ── ABA EQUIPAS: localização das equipas (rpc get_admin_teams_locations; só leitura, nada é gravado) ──
+const locNorm = v => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+const locKey = v => locNorm(v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const locTitle = v => locNorm(v).toLowerCase().split(" ").map((w, i) => (i > 0 && ["de","da","do","das","dos","e"].includes(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+// código postal só se parecer válido: 4 dígitos (sem 0 à frente), ou 4-3 dígitos em Portugal
+const locPostal = (postal, country) => {
+  const p = locNorm(postal); const c = locKey(country);
+  if (/^[1-9]\d{3}$/.test(p)) return p;
+  if ((c === "portugal" || c === "pt") && /^[1-9]\d{3}-\d{3}$/.test(p)) return p;
+  return "";
+};
+const parseLocations = raw => {
+  if (!Array.isArray(raw)) throw new Error("resposta inválida");
+  const map = {};
+  raw.forEach(r => {
+    if (!r || typeof r !== "object" || !r.id) return;
+    map[r.id] = { country:locNorm(r.country), city:locNorm(r.city), postal:locPostal(r.postal, r.country), sport:locNorm(r.sport) };
+  });
+  return map;
+};
+const locLine = l => {
+  if (!l) return "Sem localização";
+  const parts = [l.city, l.country].filter(Boolean).map(locTitle).join(", ");
+  return parts ? parts : "Sem localização";
+};
+// contagem por país / cidade, agrupando sem maiúsculas, acentos nem espaços a mais
+const locCount = (list, field) => {
+  const g = {};
+  list.forEach(l => { const k = locKey(l[field]); if (!k) return; if (!g[k]) g[k] = { label:locTitle(l[field]), n:0 }; g[k].n++; });
+  return Object.values(g).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, "pt"));
+};
+const LocationSummary = ({ locs, teams }) => {
+  const list = teams.map(t => locs[t.id]).filter(Boolean);
+  const row = (label, items, attr) => items.length > 0 && (
+    <p data-loc={attr} style={{ margin:"0 0 6px", fontSize:14, fontWeight:700, color:"#1a1a1f", lineHeight:1.5 }}>
+      <span style={{ color:"#5F5F66", fontWeight:800 }}>{label}: </span>
+      {items.slice(0, 10).map(x => `${x.label} ${x.n}`).join(" · ")}{items.length > 10 ? ` · +${items.length - 10}` : ""}
+    </p>
+  );
+  const countries = locCount(list, "country"), cities = locCount(list, "city");
+  if (!countries.length && !cities.length) return null;
+  return (
+    <div data-loc="summary" style={{ background:"#fff", border:"2px solid #1a1a1f", borderRadius:14, padding:"12px 14px", marginBottom:12 }}>
+      {row("Países", countries, "countries")}
+      {row("Cidades", cities, "cities")}
+    </div>
+  );
+};
+
 // ── APP ADMIN TAB ─────────────────────────────────────────────
 const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }) => {
   const [stats, setStats] = useState(null);
@@ -2283,6 +2402,23 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
     } catch(e) { setAct({ status:"error", data:null, error:adminErrPt(e) }); }
   };
   useEffect(() => { if (section === "users" && act.status === "idle") loadActivity(); }, [section]);
+  // aba Stats: cartões de crescimento, pedidos uma vez ao abrir a aba (em paralelo com os pedidos das Stats atuais; se falharem, as Stats atuais ficam)
+  const [growth, setGrowth] = useState({ status:"idle", data:null, error:"" });
+  const loadGrowth = async () => {
+    setGrowth({ status:"loading", data:null, error:"" });
+    try { setGrowth({ status:"ok", data:parseGrowth(await rpcCall('get_app_growth_stats', {}, token)), error:"" }); }
+    catch(e) { setGrowth({ status:"error", data:null, error:adminErrPt(e) }); }
+  };
+  useEffect(() => { if (section === "stats" && growth.status === "idle") loadGrowth(); }, [section]);
+  // aba Equipas: localização das equipas, pedida uma vez ao abrir a aba; se falhar, a lista de equipas fica igual, sem localização
+  const [locs, setLocs] = useState({ status:"idle", data:null, error:"" });
+  const [teamQ, setTeamQ] = useState("");
+  const loadLocs = async () => {
+    setLocs({ status:"loading", data:null, error:"" });
+    try { setLocs({ status:"ok", data:parseLocations(await rpcCall('get_admin_teams_locations', {}, token)), error:"" }); }
+    catch(e) { setLocs({ status:"error", data:null, error:adminErrPt(e) }); }
+  };
+  useEffect(() => { if (section === "teams" && locs.status === "idle") loadLocs(); }, [section]);
 
   useEffect(() => {
     const load = async () => {
@@ -2391,16 +2527,37 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
             </div>
           </>
         )}
+        {section==="stats" && <GrowthSection g={growth} onRetry={loadGrowth} StatCard={StatCard} />}
         {section==="teams" && (
           <>
             {teams.length===0 && <p style={{ color:T.sub, textAlign:"center", padding:"20px 0" }}>Nenhuma equipa ainda</p>}
-            {teams.map(t => (
+            {locs.status==="loading" && <p role="status" style={{ margin:"0 0 10px", fontSize:13, fontWeight:700, color:"#5F5F66" }}>A carregar localização...</p>}
+            {locs.status==="error" && (
+              <div role="alert" style={{ background:"#fff", border:"2px solid #C94F00", borderRadius:14, padding:"12px 14px", marginBottom:12 }}>
+                <p style={{ margin:"0 0 10px", fontSize:14, fontWeight:700, color:"#1a1a1f" }}>Não foi possível carregar a localização das equipas: {locs.error}</p>
+                <button onClick={loadLocs} style={{ minHeight:48, minWidth:44, padding:"0 18px", background:T.navy, color:"#fff", border:"none", borderRadius:12, fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
+              </div>
+            )}
+            {locs.status==="ok" && teams.length>0 && <LocationSummary locs={locs.data} teams={teams} />}
+            {teams.length>0 && (
+              <input type="search" aria-label="Pesquisar equipas por cidade ou país" placeholder="Pesquisar por cidade ou país" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
+                style={{ width:"100%", boxSizing:"border-box", minHeight:48, marginBottom:12, padding:"0 14px", fontSize:16, fontFamily:"inherit", border:"2px solid #1a1a1f", borderRadius:12, background:"#fff", color:"#1a1a1f" }} />
+            )}
+            {(() => {
+              const q = locKey(teamQ);
+              const shown = !q ? teams : teams.filter(t => { const l = locs.status==="ok" ? locs.data[t.id] : null; return locKey(t.name).includes(q) || (l && (locKey(l.city).includes(q) || locKey(l.country).includes(q))); });
+              return q && shown.length===0 ? <p role="status" style={{ color:T.sub, textAlign:"center", padding:"12px 0", fontWeight:700 }}>Nenhuma equipa encontrada</p> : null;
+            })()}
+            {(() => { const q = locKey(teamQ); return !q ? teams : teams.filter(t => { const l = locs.status==="ok" ? locs.data[t.id] : null; return locKey(t.name).includes(q) || (l && (locKey(l.city).includes(q) || locKey(l.country).includes(q))); }); })().map(t => (
               <div key={t.id} onClick={()=>{ setSection("teams"); setSelectedTeam(t); }} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", border:`1.5px solid ${T.border}` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
                   <span style={{ fontSize:28 }}>{t.emoji}</span>
                   <div style={{ flex:1 }}>
                     <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{t.name}</p>
                     <p style={{ margin:0, fontSize:12, color:T.sub }}>{t.season} · criada {new Date(t.created_at).toLocaleDateString("pt-PT")}</p>
+                    {locs.status==="ok" && (() => { const l = locs.data[t.id]; return (
+                      <p data-loc="team" style={{ margin:"4px 0 0", fontSize:13, fontWeight:700, color:"#1a1a1f" }}>📍 {locLine(l)}{l && l.postal ? ` · ${l.postal}` : ""}{l && l.sport ? ` · ${l.sport}` : ""}</p>
+                    ); })()}
                   </div>
                   <span style={{ color:T.sub, fontSize:18 }}>›</span>
                 </div>
