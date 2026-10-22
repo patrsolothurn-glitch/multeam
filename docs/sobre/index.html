@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multeam – multas, presenças e caixa da equipa</title>
+  <meta name="description" content="Multeam é a app gratuita para equipas amadoras: regista multas do balneário, controla presenças e vê a caixa da equipa no telemóvel." />
+  <meta name="theme-color" content="#1D3557" />
+  <link rel="canonical" href="https://multeam.ch/sobre/" />
+  <link rel="icon" type="image/png" href="../icon-192.png" />
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Multeam" />
+  <meta property="og:locale" content="pt_PT" />
+  <meta property="og:title" content="Multeam – as multas e a caixa do balneário, sem papel" />
+  <meta property="og:description" content="App gratuita para equipas amadoras: multas, presenças e caixa da equipa no telemóvel." />
+  <meta property="og:url" content="https://multeam.ch/sobre/" />
+  <meta property="og:image" content="https://multeam.ch/sobre/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Multeam: ecrãs da app com multas, caixa e treinos" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Multeam – as multas e a caixa do balneário, sem papel" />
+  <meta name="twitter:description" content="App gratuita para equipas amadoras: multas, presenças e caixa da equipa no telemóvel." />
+  <meta name="twitter:image" content="https://multeam.ch/sobre/og.jpg" />
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Multeam","applicationCategory":"SportsApplication","operatingSystem":"Android, iOS (web app)","inLanguage":"pt","url":"https://multeam.ch/","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"description":"App gratuita para equipas amadoras: multas, presenças e caixa da equipa."}
+  </script>
+  <style>
+    :root { --navy:#1D3557; --navy-d:#0d2040; --red:#C62828; --red-l:#E63946; --ink:#14213d; --mute:#475569; --bg:#F0F1F6; --card:#fff; --line:#dfe3ec; --green:#157a35; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); line-height:1.55; font-size:17px; -webkit-text-size-adjust:100%; }
+    img { max-width:100%; height:auto; display:block; }
+    a { color:inherit; }
+    .wrap { width:100%; max-width:1040px; margin:0 auto; padding:0 20px; }
+    h1,h2,h3 { line-height:1.15; margin:0; letter-spacing:-.02em; }
+    h2 { font-size:clamp(26px,5vw,36px); font-weight:900; color:var(--navy); }
+    p { margin:0; }
+
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:52px; padding:14px 28px; border-radius:14px; background:var(--red); color:#fff; font-weight:800; font-size:18px; text-decoration:none; box-shadow:0 8px 20px rgba(198,40,40,.35); border:2px solid transparent; transition:transform .15s, background .15s; }
+    .btn:hover { background:#a91f1f; transform:translateY(-1px); }
+    .btn:focus-visible, summary:focus-visible, a:focus-visible { outline:3px solid #ffd166; outline-offset:3px; }
+    .btn.light { background:#fff; color:var(--navy); box-shadow:0 8px 20px rgba(0,0,0,.2); }
+    .btn.light:hover { background:#eef1f8; }
+
+    header.top { background:var(--navy-d); }
+    header.top .wrap { display:flex; align-items:center; justify-content:space-between; min-height:64px; gap:12px; }
+    .brand { min-height:44px; display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; font-weight:900; font-size:22px; letter-spacing:-.03em; }
+    .brand img { width:36px; height:36px; border-radius:9px; }
+    .top .btn { min-height:44px; padding:8px 18px; font-size:15px; box-shadow:none; }
+
+    .hero { background:linear-gradient(160deg,var(--navy) 0%,var(--navy-d) 100%); color:#fff; padding:44px 0 64px; overflow:hidden; }
+    .hero .wrap { display:grid; gap:36px; align-items:center; }
+    .hero .tag { display:inline-block; background:rgba(255,255,255,.14); border-radius:999px; padding:6px 14px; font-weight:700; font-size:14px; margin-bottom:18px; }
+    .hero h1 { font-size:clamp(34px,7.5vw,54px); font-weight:900; }
+    .hero h1 em { font-style:normal; color:#ff8a93; }
+    .hero p.lead { margin-top:18px; font-size:clamp(18px,3.4vw,21px); color:#dbe4f3; max-width:34em; }
+    .hero .cta { margin-top:28px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+    .hero .cta small { color:#c3d0e6; font-size:15px; }
+    .phone { width:min(250px,64vw); margin:0 auto; border-radius:34px; padding:9px; background:#0a1628; border:2px solid rgba(255,255,255,.18); box-shadow:0 24px 50px rgba(0,0,0,.45); }
+    .phone img { border-radius:26px; width:100%; }
+
+    section.block { padding:60px 0; }
+    .lead2 { margin-top:12px; color:var(--mute); max-width:38em; font-size:18px; }
+    .feat { display:grid; gap:44px; margin-top:44px; }
+    .f { display:grid; gap:22px; align-items:center; }
+    .f .phone { width:min(230px,62vw); background:#14213d; border-color:#cdd5e4; box-shadow:0 14px 30px rgba(20,33,61,.22); }
+    .f h3 { font-size:clamp(23px,4.5vw,28px); font-weight:900; color:var(--navy); }
+    .f p { margin-top:10px; color:var(--mute); }
+    .f ul { margin:14px 0 0; padding:0; list-style:none; display:grid; gap:8px; }
+    .f li { padding-left:30px; position:relative; }
+    .f li::before { content:"✓"; position:absolute; left:0; top:0; width:22px; height:22px; border-radius:50%; background:#e1f3e7; color:var(--green); font-weight:900; font-size:14px; display:flex; align-items:center; justify-content:center; margin-top:3px; }
+
+    .steps { background:#fff; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+    .stepgrid { display:grid; gap:18px; margin-top:32px; counter-reset:s; }
+    .step { counter-increment:s; background:var(--bg); border-radius:18px; padding:22px 22px 22px 78px; position:relative; }
+    .step::before { content:counter(s); position:absolute; left:20px; top:20px; width:42px; height:42px; border-radius:50%; background:var(--navy); color:#fff; font-weight:900; font-size:20px; display:flex; align-items:center; justify-content:center; }
+    .step h3 { font-size:20px; font-weight:800; color:var(--navy); }
+    .step p { margin-top:6px; color:var(--mute); font-size:16.5px; }
+
+    .install { display:grid; gap:18px; margin-top:32px; }
+    .box { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:22px; }
+    .box h3 { font-size:20px; font-weight:800; color:var(--navy); margin-bottom:10px; }
+    .box ol { margin:0; padding-left:22px; display:grid; gap:6px; color:var(--mute); }
+    .box ol b { color:var(--ink); }
+
+    details { background:var(--card); border:1px solid var(--line); border-radius:14px; margin-top:12px; }
+    summary { cursor:pointer; list-style:none; padding:16px 52px 16px 20px; font-weight:800; color:var(--navy); position:relative; min-height:56px; display:flex; align-items:center; }
+    summary::-webkit-details-marker { display:none; }
+    summary::after { content:"+"; position:absolute; right:20px; top:50%; transform:translateY(-50%); font-size:26px; font-weight:700; color:var(--red); }
+    details[open] summary::after { content:"–"; }
+    details p { padding:0 20px 18px; color:var(--mute); }
+    .faq { max-width:760px; }
+
+    .final { background:linear-gradient(160deg,var(--navy) 0%,var(--navy-d) 100%); color:#fff; text-align:center; padding:60px 0; }
+    .final h2 { color:#fff; }
+    .final p { margin:14px auto 28px; color:#dbe4f3; max-width:30em; font-size:18px; }
+    footer { background:var(--navy-d); color:#b7c4dc; padding:26px 0; font-size:15px; text-align:center; }
+    footer a { color:#fff; display:inline-block; padding:12px 6px; min-height:44px; }
+
+    @media (min-width:760px) {
+      .hero { padding:72px 0 88px; }
+      .hero .wrap { grid-template-columns:1.2fr .8fr; gap:56px; }
+      .phone { width:270px; }
+      .f { grid-template-columns:260px 1fr; gap:48px; }
+      .f.rev { grid-template-columns:1fr 260px; }
+      .f.rev .phone { order:2; }
+      .f .phone { width:240px; }
+      .stepgrid { grid-template-columns:repeat(3,1fr); }
+      .step { padding:78px 22px 24px; }
+      .step::before { left:22px; top:22px; }
+      .install { grid-template-columns:1fr 1fr; }
+    }
+    @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .btn { transition:none; } }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/sobre/" aria-label="Multeam, início"><img src="../icon-192.png" alt="" width="36" height="36" />Multeam</a>
+      <a class="btn" href="https://multeam.ch/">Abrir a app</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div>
+          <span class="tag">⚽ Grátis para equipas amadoras</span>
+          <h1>As multas e a caixa do balneário, <em>sem papel e sem discussões.</em></h1>
+          <p class="lead">A Multeam regista as multas, controla as presenças nos treinos e jogos e mostra a caixa da equipa. Tudo no telemóvel, para todos verem.</p>
+          <div class="cta">
+            <a class="btn" href="https://multeam.ch/">Criar a minha equipa</a>
+            <small>Grátis e sem instalar nada da loja.</small>
+          </div>
+        </div>
+        <div class="phone"><img src="inicio.webp" width="390" height="780" alt="Ecrã inicial da Multeam com a caixa da equipa, o próximo treino e o botão Atribuir multa" fetchpriority="high" /></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="wrap">
+        <h2>Tudo o que a equipa precisa</h2>
+        <p class="lead2">Acaba o caderno, a folha de Excel e o &ldquo;quem é que ainda me deve?&rdquo;.</p>
+        <div class="feat">
+          <article class="f">
+            <div class="phone"><img src="multas.webp" width="390" height="780" loading="lazy" alt="Lista de multas por jogador, com o valor total e o que falta pagar" /></div>
+            <div>
+              <h3>Multas sem confusão</h3>
+              <p>Atribui a multa em poucos toques e cada jogador vê o que deve. Filtra por pagas, por pagar ou por mês.</p>
+              <ul>
+                <li>Tabela de multas da equipa, com valores e ícones</li>
+                <li>Marca como paga quando o dinheiro entra</li>
+                <li>Lista de devedores sempre à vista</li>
+              </ul>
+            </div>
+          </article>
+          <article class="f rev">
+            <div class="phone"><img src="caixa.webp" width="390" height="780" loading="lazy" alt="Caixa da equipa com o saldo, as entradas, as saídas e os movimentos do mês" /></div>
+            <div>
+              <h3>A caixa da equipa, transparente</h3>
+              <p>Vê quanto entrou, quanto saiu e quanto há em caixa. As multas pagas entram sozinhas e registas as despesas.</p>
+              <ul>
+                <li>Saldo, entradas e saídas por mês</li>
+                <li>Despesas com descrição e valor</li>
+                <li>Toda a equipa vê as contas</li>
+              </ul>
+            </div>
+          </article>
+          <article class="f">
+            <div class="phone"><img src="treinos.webp" width="390" height="780" loading="lazy" alt="Lista de treinos e jogos com os botões Presente e Ausente" /></div>
+            <div>
+              <h3>Treinos, jogos e presenças</h3>
+              <p>Marca os treinos e os jogos e cada jogador responde se vai ou não. Sabes logo com quantos podes contar.</p>
+              <ul>
+                <li>Treinos, jogos e treinos que se repetem</li>
+                <li>Presente ou ausente com um toque</li>
+                <li>Cartões amarelos e vermelhos registados</li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="block steps">
+      <div class="wrap">
+        <h2>Como começar</h2>
+        <div class="stepgrid">
+          <div class="step"><h3>Cria a equipa</h3><p>Faz a conta, dá um nome à equipa e escolhe o emoji e a cor.</p></div>
+          <div class="step"><h3>Convida os colegas</h3><p>Envias um link ou um código. Quem entra fica logo na equipa.</p></div>
+          <div class="step"><h3>Regista e pronto</h3><p>Atribui multas, marca presenças e acompanha a caixa.</p></div>
+        </div>
+        <div style="margin-top:34px"><a class="btn" href="https://multeam.ch/">Criar a minha equipa</a></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="wrap">
+        <h2>Põe a Multeam no telemóvel</h2>
+        <p class="lead2">Não precisas de loja de aplicações. Abres multeam.ch e adicionas ao ecrã principal.</p>
+        <div class="install">
+          <div class="box">
+            <h3>📱 Android (Chrome)</h3>
+            <ol><li>Abre <b>multeam.ch</b></li><li>Toca nos <b>três pontos</b> do canto</li><li>Escolhe <b>Instalar app</b> ou <b>Adicionar ao ecrã principal</b></li></ol>
+          </div>
+          <div class="box">
+            <h3>🍎 iPhone (Safari)</h3>
+            <ol><li>Abre <b>multeam.ch</b> no <b>Safari</b></li><li>Toca no botão <b>Partilhar</b> (quadrado com seta)</li><li>Escolhe <b>Adicionar ao ecrã principal</b></li></ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" style="padding-top:0">
+      <div class="wrap faq">
+        <h2>Perguntas frequentes</h2>
+        <details><summary>A Multeam é mesmo grátis?</summary><p>Sim. Podes criar a tua equipa e usar a app sem pagar.</p></details>
+        <details><summary>Todos os jogadores precisam de conta?</summary><p>Cada jogador entra com o link ou o código da equipa para ver as suas multas e responder aos treinos. O treinador também pode registar jogadores que ainda não entraram.</p></details>
+        <details><summary>Quem atribui as multas e regista as despesas?</summary><p>Quem gere a equipa. Os restantes jogadores consultam as suas multas, a caixa e os treinos.</p></details>
+        <details><summary>Posso ter mais do que uma equipa?</summary><p>Sim. Podes estar em várias equipas e trocar entre elas na app.</p></details>
+        <details><summary>Funciona no iPhone e no Android?</summary><p>Sim, em qualquer telemóvel com um browser atual. Instala-se a partir do browser, sem loja de aplicações.</p></details>
+      </div>
+    </section>
+
+    <section class="final">
+      <div class="wrap">
+        <h2>Pronto para acabar com o caderno?</h2>
+        <p>Cria a equipa, convida os colegas e deixa a Multeam fazer as contas.</p>
+        <a class="btn light" href="https://multeam.ch/">Criar a minha equipa</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">Multeam · multas, presenças e caixa para equipas amadoras · <a href="https://multeam.ch/">Abrir a app</a></div>
+  </footer>
+</body>
+</html>
