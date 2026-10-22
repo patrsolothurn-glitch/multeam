@@ -392,10 +392,12 @@ const ZoomPhoto = ({ src, name, style, onTapGesture }) => {
     {open && <PhotoLightbox src={src} name={name} onClose={() => setOpen(false)} />}
   </>);
 };
+// texto escuro sobre fundos claros (ex.: medalhas prata/ouro), branco nos restantes
+const readableOn = c => { const m = /^#([0-9a-f]{6})$/i.exec(String(c || "")); if (!m) return "#fff"; const v = [0,2,4].map(i => { const x = parseInt(m[1].slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); const L = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; return (1.05 / (L + 0.05)) >= 4.5 ? "#fff" : "#1a1a1f"; };
 const Avatar = ({ initials, color = T.navy, size = 38, photo, name, onTapGesture }) => (
   photo
     ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><ZoomPhoto src={photo} name={name} onTapGesture={onTapGesture} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
-    : <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
+    : <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:readableOn(color), fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
 );
 const Badge = ({ label, color }) => (
   <span style={{ display:"inline-block", padding:"3px 8px", borderRadius:6, background:`${color}22`, color, fontSize:11, fontWeight:700 }}>{label}</span>
@@ -467,7 +469,7 @@ const Sheet = ({ onClose, title, children }) => (
       <div style={{ width:36, height:4, borderRadius:2, background:T.border, margin:"12px auto 20px" }} />
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
         <h3 style={{ margin:0, fontSize:20, fontWeight:800 }}>{title}</h3>
-        <button onClick={onClose} style={{ background:T.bg, border:"none", borderRadius:10, width:32, height:32, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+        <button aria-label="Fechar" onClick={onClose} style={{ background:T.bg, border:"none", borderRadius:10, width:44, height:44, fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
       </div>
       {children}
     </div>
@@ -667,8 +669,9 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
               </div>
             </div>
           ) : (
-            <button key={ft.id} onClick={() => setSft(ft)} style={{
-              padding:"12px 10px", borderRadius:14, textAlign:"left", position:"relative",
+            <div key={ft.id} role="button" tabIndex={0} aria-pressed={sft?.id===ft.id} onClick={() => setSft(ft)}
+              onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setSft(ft); } }} style={{
+              padding:"12px 10px", borderRadius:14, textAlign:"left", position:"relative", boxSizing:"border-box",
               border:`2px solid ${sft?.id===ft.id?T.brand:T.border}`,
               background:sft?.id===ft.id?`${T.brand}12`:T.inputBg,
               cursor:"pointer", fontFamily:"inherit",
@@ -682,7 +685,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
                 <button aria-label={`Editar ${ft.name}`} onClick={(e)=>startEdit(ft,e)} style={{ background:"rgba(0,0,0,0.08)", border:`1.5px solid ${T.border}`, borderRadius:10, width:44, height:44, padding:0, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxSizing:"border-box" }}>✏️</button>
                 <button aria-label={`Apagar ${ft.name}`} onClick={(e)=>deleteFt(ft,e)} style={{ background:"#FDECEC", border:"1.5px solid #B42318", borderRadius:10, width:44, height:44, padding:0, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxSizing:"border-box" }}><span style={{ filter:"grayscale(1) brightness(0.35)" }}>🗑️</span></button>
               </div>
-            </button>
+            </div>
           ))}
 
           {/* Add new type button */}
@@ -721,7 +724,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
               <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{sft.name}</p>
               <p style={{ margin:0, fontSize:12, color:T.sub }}>Valor: <strong style={{ color:T.brand }}>{sft.amount}€</strong></p>
             </div>
-            <button onClick={()=>setSft(null)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub }}>✕</button>
+            <button aria-label="Limpar tipo escolhido" onClick={()=>setSft(null)} style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub }}>✕</button>
           </div>
         )}
 
@@ -1346,10 +1349,11 @@ const MyClaimsCard = ({ claims, onEditNote, onCancel, onAnswer }) => {
   const [editing, setEditing] = useState(null); const [note, setNote] = useState("");
   const [ans, setAns] = useState({}); const [ansEditing, setAnsEditing] = useState(null);
   const [busy, setBusy] = useState(null); const [err, setErr] = useState("");
+  const flight = React.useRef(false); // duplo toque: um só pedido de cada vez
   const list = (claims || []).filter(c => c.status === "pendente" || (c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14*86400000)).slice(0, 3);
   useEffect(() => { claimNamesRemember(claims, "member_name", "avatar_url"); }, [claims]);
   if (!list.length) return null;
-  const run = async (id, fn) => { setBusy(id); setErr(""); try { await fn(); setEditing(null); } catch(e) { setErr(errPt(e)); } setBusy(null); };
+  const run = async (id, fn) => { if (flight.current) return; flight.current = true; setBusy(id); setErr(""); try { await fn(); setEditing(null); } catch(e) { setErr(errPt(e)); } setBusy(null); flight.current = false; };
   return (
     <div data-claims="mine" style={{ marginBottom:14 }}>
       <Sec label="O meu pedido" />
@@ -1414,14 +1418,19 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
   const [panel, setPanel] = useState(null); // { id, kind:"aprovar"|"rejeitar"|"perguntar" }
   const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
   const [rowErr, setRowErr] = useState(null); // erro de uma ação fora do painel (ex.: retirar pergunta)
+  const loadSeq = React.useRef(0);
   const load = async () => {
+    const my = ++loadSeq.current; // trocar de equipa a meio: a resposta antiga é ignorada
     setSt(s0 => ({ ...s0, status:"loading", error:"" }));
-    try { const r = await rpcCall("list_team_claims", { p_team_id:team.id }, token); claimNamesRemember(r, "member_name", "member_avatar"); setSt({ status:"ok", list:Array.isArray(r) ? r : [], error:"" }); }
-    catch(e) { setSt({ status:"error", list:[], error:errPt(e) }); }
+    try { const r = await rpcCall("list_team_claims", { p_team_id:team.id }, token); if (my !== loadSeq.current) return; claimNamesRemember(r, "member_name", "member_avatar"); setSt({ status:"ok", list:Array.isArray(r) ? r : [], error:"" }); }
+    catch(e) { if (my !== loadSeq.current) return; setSt({ status:"error", list:[], error:errPt(e) }); }
   };
   useEffect(() => { load(); }, [team.id]);
   const roleOf = c => ((members || []).find(m => m.id === c.member_id) || {}).role;
+  const flight = React.useRef(false); // duplo toque: um só pedido de cada vez
   const decide = async c => {
+    if (flight.current) return;
+    flight.current = true;
     setBusy(true); setErr("");
     try {
       if (panel.kind === "aprovar") await rpcCall("approve_claim", { p_claim_id:c.id }, token);
@@ -1431,14 +1440,16 @@ const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
       await load();
       if (onChanged) await onChanged();
     } catch(e) { setErr(errPt(e)); }
-    setBusy(false);
+    setBusy(false); flight.current = false;
   };
   const withdraw = async c => {
+    if (flight.current) return;
     if (!window.confirm("Retirar a pergunta (e a resposta, se houver)?")) return;
+    flight.current = true;
     setBusy(true); setRowErr(null);
     try { await rpcCall("withdraw_claim_question", { p_claim_id:c.id }, token); await load(); if (onChanged) await onChanged(); }
     catch(e) { setRowErr({ id:c.id, msg:errPt(e) }); }
-    setBusy(false);
+    setBusy(false); flight.current = false;
   };
   const pend = st.list.filter(c => c.status === "pendente");
   const done = st.list.filter(c => c.status !== "pendente").slice(0, 5);
@@ -1539,7 +1550,8 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
   // assumir perfil: perfis sem conta da equipa encontrada (se falhar ou vier vazio, a entrada segue como sempre)
   const [claimable, setClaimable] = useState([]); const [claimNote, setClaimNote] = useState(""); const [claimBusy, setClaimBusy] = useState(null);
   const [claimErr, setClaimErr] = useState(""); const [requested, setRequested] = useState(false); const [searchedCode, setSearchedCode] = useState("");
-  
+  const [searchErr, setSearchErr] = useState(""); const [listErr, setListErr] = useState(false); // erro de rede ao procurar / ao listar perfis por assumir
+
   useEffect(() => {
     if (initialCode) { setTimeout(() => search(initialCode), 500); }
   }, []);
@@ -1547,11 +1559,14 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
   const search = async (c) => {
     const q = (c || code).trim().toUpperCase();
     if (!q) return;
-    setSearching(true); setClaimable([]); setClaimErr(""); setSearchedCode(q);
-    const t = onFindByCode ? await onFindByCode(q) : teams.find(t => t.inviteCode?.toUpperCase() === q);
+    setSearching(true); setClaimable([]); setClaimErr(""); setSearchedCode(q); setSearchErr(""); setListErr(false);
+    let t = null;
+    // um erro de rede não é "código não encontrado": mostra o erro e deixa tentar outra vez
+    try { t = onFindByCode ? await onFindByCode(q) : teams.find(t => t.inviteCode?.toUpperCase() === q); }
+    catch(e) { setFound(null); setSearchErr(errPt(e)); setSearching(false); return; }
     setFound(t || "notfound");
     if (t && onListClaimable && !teams.some(x => x.id === t.id)) {
-      try { const l = await onListClaimable(q); setClaimable(Array.isArray(l) ? l : []); } catch(e) { setClaimable([]); }
+      try { const l = await onListClaimable(q); setClaimable(Array.isArray(l) ? l : []); } catch(e) { setClaimable([]); setListErr(true); }
     }
     setSearching(false);
   };
@@ -1585,6 +1600,8 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
             <button onClick={()=>search()} disabled={searching} style={{ padding:"12px 18px", borderRadius:12, background:T.navy, border:"none", color:"#fff", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>{searching?"...":"Buscar"}</button>
           </div>
 
+          {searchErr && <LoadWarn id="codigo" onRetry={()=>search()}>Não foi possível procurar a equipa: {searchErr}</LoadWarn>}
+          {listErr && <LoadWarn id="perfis-por-assumir" onRetry={()=>search()}>Não foi possível verificar se já existe um perfil teu nesta equipa. Podes entrar na mesma.</LoadWarn>}
           {found === "notfound" && (
             <div style={{ background:`${T.brand}12`, borderRadius:12, padding:"12px 16px", marginBottom:16 }}>
               <p style={{ margin:0, color:T.brand, fontWeight:600, fontSize:14 }}>❌ Código não encontrado. Confirma com o admin.</p>
@@ -1714,7 +1731,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
       <div style={{ padding:isTop?"15px 16px":"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
         {member.avatarUrl
           ? <ZoomPhoto src={member.avatarUrl} name={member.name} style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, objectFit:"cover", flexShrink:0, border:isTop?"3px solid rgba(255,255,255,0.4)":"none" }} />
-          : <div style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, background:isTop?"rgba(255,255,255,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:isTop?16:14, fontWeight:800, flexShrink:0 }}>{member.initials}</div>
+          : <div style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, background:isTop?"rgba(0,0,0,0.25)":color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:isTop?16:14, fontWeight:800, flexShrink:0 }}>{member.initials}</div>
         }
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -1813,7 +1830,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
             <div key={m.id} style={{ background:i===0?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12, border:i===0?"none":`1px solid ${T.border}` }}>
               {m.avatarUrl
                 ? <ZoomPhoto src={m.avatarUrl} name={m.name} style={{ width:40, height:40, borderRadius:20, objectFit:"cover" }} />
-                : <div style={{ width:40, height:40, borderRadius:20, background:i===0?"rgba(255,255,255,0.25)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:14 }}>{m.initials}</div>
+                : <div style={{ width:40, height:40, borderRadius:20, background:i===0?"rgba(0,0,0,0.25)":team.color, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:14 }}>{m.initials}</div>
               }
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:14, color:i===0?"#fff":T.text }}>{m.name}</p>
@@ -1831,6 +1848,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
 const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
   const tf = fines.filter(f => f.teamId===team.id);
   const [showTabela, setShowTabela] = React.useState(false);
+  const [showAll, setShowAll] = React.useState(false); // lista de devedores: estado no topo (um hook dentro de um 'return null' condicional rebentava o ecrã quando surgia a primeira multa por pagar)
   const fc = useForecast(team, trainings.filter(t=>t.teamId===team.id));
   const collected = tf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
   const pending = tf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
@@ -1856,7 +1874,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         <p style={{ margin:0, fontSize:12, opacity:0.7, fontWeight:600, textTransform:"uppercase" }}>Caixa · {team.season}</p>
         <p style={{ margin:"2px 0 16px", fontSize:44, fontWeight:900, letterSpacing:-2 }}>{balance.toFixed(2)}€</p>
         <div style={{ display:"flex" }}>
-          {[["Recebido",`+${collected}€`,"#fff"],["Por pagar",`${pending}€`,"#FFD6D6"],["Despesas",`-${spent}€`,"rgba(255,255,255,0.65)"]].map(([l,v,c],i,arr)=>(
+          {[["Recebido",`+${collected}€`,"#fff"],["Por pagar",`${pending}€`,"#FFF4F4"],["Despesas",`-${spent}€`,"rgba(255,255,255,0.65)"]].map(([l,v,c],i,arr)=>(
             <div key={i} style={{ flex:1, borderRight:i<arr.length-1?"1px solid rgba(255,255,255,0.25)":"none", paddingRight:i<arr.length-1?12:0, paddingLeft:i>0?12:0 }}>
               <p style={{ margin:0, fontSize:10, opacity:0.65, textTransform:"uppercase" }}>{l}</p>
               <p style={{ margin:0, fontSize:17, fontWeight:700, color:c }}>{v}</p>
@@ -1884,9 +1902,9 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         );
       })()}
       {isAdmin && (
-        <button onClick={onAddFine} style={{ width:"100%", background:T.brand, color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
+        <button onClick={onAddFine} style={{ width:"100%", background:"#C62828", color:"#fff", border:"none", borderRadius:14, padding:"15px", fontSize:16, fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>🟥 Atribuir multa</button>
       )}
-      <button onClick={() => setShowTabela(true)} style={{ width:"100%", background:T.card, border:`1.5px solid ${T.border}`, borderRadius:14, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:18, fontFamily:"inherit", color:T.text, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+      <button onClick={() => setShowTabela(true)} style={{ width:"100%", minHeight:44, background:T.card, border:`1.5px solid ${T.border}`, borderRadius:14, padding:"12px", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:18, fontFamily:"inherit", color:T.text, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
         📋 Tabela de multas & devedores
       </button>
       {showTabela && <TabelaMultasModal team={team} fineTypes={fineTypes||[]} fines={fines} members={members} onClose={()=>setShowTabela(false)} />}
@@ -1937,7 +1955,6 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
           fines: tf.filter(f=>f.memberId===m.id&&!f.paid)
         })).filter(m=>m.unpaid>0).sort((a,b)=>b.unpaid-a.unpaid);
         if (!devedores.length) return null;
-        const [showAll, setShowAll] = React.useState(false);
         const visible = showAll ? devedores : devedores.slice(0, 3);
         const hidden = devedores.length - 3;
         return (
@@ -2012,7 +2029,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                       <span style={{ fontSize:isFirst?36:24 }}>{medal}</span>
                       {m.avatarUrl
                         ? <ZoomPhoto src={m.avatarUrl} name={m.name} style={{ width:sz, height:sz, borderRadius:sz/2, objectFit:"cover", border:`3px solid ${pc}`, boxShadow:`0 4px 20px ${pc}66`, flexShrink:0 }} />
-                        : <div style={{ width:sz, height:sz, borderRadius:sz/2, background:ag, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:900, fontSize:sz*0.3, boxShadow:`0 4px 20px ${pc}66` }}>{m.initials}</div>
+                        : <div style={{ width:sz, height:sz, borderRadius:sz/2, background:ag, border:`3px solid ${pc}`, display:"flex", alignItems:"center", justifyContent:"center", color:place===3?"#fff":"#10151f", textShadow:place===3?"0 1px 2px rgba(0,0,0,0.65)":"none", fontWeight:900, fontSize:sz*0.3, boxShadow:`0 4px 20px ${pc}66` }}>{m.initials}</div>
                       }
                       <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#fff" }}>{m.name.split(" ")[0]}</p>
                       <div style={{ background: paidAmt>0?`${pc}30`:"rgba(255,255,255,0.08)", border:`1px solid ${paidAmt>0?pc:"rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"5px 12px" }}>
@@ -2336,7 +2353,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
     <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       {/* Header */}
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}cc)`, padding:"52px 16px 16px", color:"#fff" }}>
-        <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit", marginBottom:10 }}>← Voltar</button>
+        <button onClick={onBack} style={{ minHeight:44, background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit", marginBottom:10 }}>← Voltar</button>
         <h1 style={{ margin:0, fontSize:30, fontWeight:900, letterSpacing:-1 }}>Treinos</h1>
         <p style={{ margin:"2px 0 0", opacity:0.7, fontSize:14 }}>{team.name} · {team.season}</p>
       </div>
@@ -2906,7 +2923,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
     return (
       <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
         <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
-          <button onClick={()=>setSelectedTeam(null)} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12 }}>← Voltar</button>
+          <button onClick={()=>setSelectedTeam(null)} style={{ minHeight:44, background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12 }}>← Voltar</button>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <span style={{ fontSize:32 }}>{t.emoji}</span>
             <div>
@@ -2949,7 +2966,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
       <div style={{ background:`linear-gradient(135deg,${T.navy},#0d1f36)`, padding:"52px 16px 16px" }}>
-        <button onClick={onBack} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12, fontSize:13 }}>← Voltar</button>
+        <button onClick={onBack} style={{ minHeight:44, background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, padding:"6px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:700, marginBottom:12, fontSize:13 }}>← Voltar</button>
         <p style={{ margin:"0 0 2px", fontSize:12, color:"rgba(255,255,255,0.5)", fontWeight:700, textTransform:"uppercase", letterSpacing:1 }}>🛡️ Gestão</p>
         <h2 style={{ margin:0, color:"#fff", fontSize:22, fontWeight:900 }}>Visão Geral</h2>
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.7)" }}>Monitorização da plataforma</p>
@@ -3120,7 +3137,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
     const tm = sortMembers(teamMembers);
     return (
       <div style={{ padding:"16px 16px 100px" }}>
-        <button onClick={()=>setShowMembers(null)} style={{ background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
+        <button onClick={()=>setShowMembers(null)} style={{ minHeight:44, background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
         <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:900 }}>{t?.emoji} {t?.name}</h2>
         <p style={{ margin:"0 0 16px", fontSize:13, color:T.sub }}>{loadingMembers ? "A carregar..." : `${tm.length} membro${tm.length!==1?"s":""}`}</p>
         {membersWarn && !loadingMembers && <LoadWarn id="membros" onRetry={()=>openTeamMembers(showMembers)}>{membersWarn}</LoadWarn>}
@@ -3147,10 +3164,10 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   return (
     <div style={{ padding:"16px 16px 100px" }}>
       {!readOnly && pushIssue && <LoadWarn id="push" onRetry={onRetryPush}>🔔 {pushIssueText(pushIssue)}</LoadWarn>}
-      {!readOnly && claimsWarn && <LoadWarn id="pedidos-admin" onRetry={onRetryClaims}>Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer.</LoadWarn>}
+      {!readOnly && claimsWarn && <LoadWarn id="pedidos-admin" onRetry={onRetryClaims}>{typeof claimsWarn === "string" ? claimsWarn : "Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer."}</LoadWarn>}
       {/* Profile card */}
       {!readOnly && <div style={{ background:T.card, borderRadius:20, padding:"20px", marginBottom:16, position:"relative" }}>
-        <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
+        <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, minHeight:44, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
         <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18, paddingRight:80 }}>
           <div onClick={handleAvatarTap} style={{ cursor: isAppAdmin ? "pointer" : "default" }}>
             <Avatar initials={user.initials} color={T.navy} size={54} photo={user.avatarUrl} name={user.name} onTapGesture={isAppAdmin ? photoTap : undefined} />
@@ -3192,10 +3209,10 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
                 </div>
               </div>
               {admin && (
-                <button onClick={() => onManageTeam(t.id)} style={{ position:"relative", background:`${t.color}15`, border:"none", borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:t.color, fontFamily:"inherit" }}>Gerir →{(claimCounts && claimCounts[t.id] > 0) ? <span data-badge="claims-team"><CountBadge n={claimCounts[t.id]} /></span> : null}</button>
+                <button onClick={() => onManageTeam(t.id)} style={{ position:"relative", minHeight:44, background:`${t.color}15`, border:"none", borderRadius:10, padding:"8px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:t.color, fontFamily:"inherit" }}>Gerir →{(claimCounts && claimCounts[t.id] > 0) ? <span data-badge="claims-team"><CountBadge n={claimCounts[t.id]} /></span> : null}</button>
               )}
             </div>
-            <button onClick={() => openTeamMembers(t.id)} style={{ width:"100%", marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+            <button onClick={() => openTeamMembers(t.id)} style={{ width:"100%", minHeight:44, marginTop:10, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:"9px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.sub, fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               👥 Ver membros da equipa
             </button>
             {readOnly && <div style={{ marginTop:10 }}><ClaimsAdminSection team={t} members={members} token={token} readOnly /></div>}
@@ -3215,7 +3232,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         🔗 Entrar numa equipa com código
       </button>
       </>}
-      <button onClick={onLogout} style={{ width:"100%", background:"transparent", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:T.brand, marginTop:8, fontFamily:"inherit" }}>
+      <button onClick={onLogout} style={{ width:"100%", minHeight:44, background:"transparent", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:"#B42318", marginTop:8, fontFamily:"inherit" }}>
         Terminar sessão
       </button>
       <PrivacySection />
@@ -3386,7 +3403,7 @@ const TeamDataSection = ({ team, onSave }) => {
     <div style={{ background:T.card, borderRadius:16, padding:"16px", marginBottom:20 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:editing?12:6 }}>
         <p style={{ margin:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Dados da equipa</p>
-        {!editing && <button onClick={open} style={{ background:`${team.color}15`, border:"none", borderRadius:10, padding:"7px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:team.color, fontFamily:"inherit" }}>✏️ Editar</button>}
+        {!editing && <button onClick={open} style={{ minHeight:44, background:`${team.color}15`, border:"none", borderRadius:10, padding:"7px 12px", fontSize:13, fontWeight:700, cursor:"pointer", color:team.color, fontFamily:"inherit" }}>✏️ Editar</button>}
       </div>
       {!editing ? (
         <>
@@ -3797,7 +3814,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   return (
     <div style={{ background:T.bg, minHeight:"100vh" }}>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}cc)`, padding:"52px 16px 20px", color:"#fff" }}>
-        <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit", marginBottom:12 }}>← Voltar</button>
+        <button onClick={onBack} style={{ minHeight:44, background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit", marginBottom:12 }}>← Voltar</button>
         <h2 style={{ margin:0, fontSize:24, fontWeight:900 }}>Gerir {team.name}</h2>
         <p style={{ margin:"4px 0 0", opacity:0.7, fontSize:14 }}>{plural(tm.length,"membro","membros")} · {admins.length} admin{admins.length!==1?"s":""}</p>
       </div>
@@ -3915,7 +3932,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
     <div style={{ background:T.bg, minHeight:"100vh" }}>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}bb)`, padding:"16px 16px 24px", color:"#fff", textAlign:"center" }}>
         <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
-          <button onClick={onBack} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"6px 12px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>← Voltar</button>
+          <button onClick={onBack} style={{ minHeight:44, background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"6px 12px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit" }}>← Voltar</button>
         </div>
         <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} photo={member.avatarUrl} name={member.name} />
         <h2 style={{ margin:"12px 0 2px", fontSize:24, fontWeight:800 }}>{member.name}</h2>
@@ -4319,7 +4336,7 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
       {withCards.map(renderRow)}
       {noCards.length>0 && (
         <>
-          <button onClick={()=>setShowNone(v=>!v)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", background:"transparent", border:"none", cursor:"pointer", padding:"12px 0 8px", fontFamily:"inherit" }}>
+          <button onClick={()=>setShowNone(v=>!v)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", minHeight:44, background:"transparent", border:"none", cursor:"pointer", padding:"12px 0 8px", fontFamily:"inherit" }}>
             <span style={{ fontSize:13, fontWeight:800, color:T.sub }}>Sem cartões ({noCards.length})</span>
             <span style={{ fontSize:12, color:T.sub }}>{showNone?"▼":"▶"}</span>
           </button>
@@ -4364,6 +4381,7 @@ export default function App() {
   const [absences, setAbsences] = useState([]); // null = não foi possível carregar (só admins leem a tabela)
   const [presences, setPresences] = useState({});
   const [loadWarn, setLoadWarn] = useState([]); // nomes do que não carregou em loadTeam
+  const loadSeq = React.useRef(0); // numeração dos carregamentos da equipa (resposta antiga não sobrepõe a nova)
   const [pushIssue, setPushIssue] = useState(null); // { code, detail } quando as notificações não ficaram ativas neste dispositivo
   const [teamId, setTeamId]     = useState(null);
   const [tab, setTab]           = useState("home");
@@ -4425,7 +4443,6 @@ export default function App() {
       } catch(e) { /* reserva também falhou: o aviso abaixo já cobre */ }
     }
     if (profFailed && mRaw.some(m => m.user_id)) failedParts.push('perfis');
-    setLoadWarn(failedParts);
     // Merge profiles into members
     const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
     // Build presences map {trainingId: {memberId: status}}
@@ -4434,7 +4451,7 @@ export default function App() {
       if (!presMap[p.training_id]) presMap[p.training_id] = {};
       presMap[p.training_id][p.member_id] = p.status;
     });
-    return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:Array.isArray(aData)?aData.map(aAbsence):null, cards:(Array.isArray(cData)?cData:[]).map(aCard) };
+    return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:Array.isArray(aData)?aData.map(aAbsence):null, cards:(Array.isArray(cData)?cData:[]).map(aCard), warn:failedParts };
   };
 
   // Modo super admin: UM pedido (rpc get_team_as_admin) convertido com os mesmos adaptadores do loadTeam
@@ -4566,10 +4583,14 @@ export default function App() {
 
       const first = adapted[0].id;
       setTeamId(first);
+      const mySeq = ++loadSeq.current;
       const td = await loadTeam(tok, first);
-      setMembers(td.members); setFineTypes(td.fineTypes);
-      setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
-      setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
+      if (mySeq === loadSeq.current) {
+        setMembers(td.members); setFineTypes(td.fineTypes);
+        setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
+        setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
+        setLoadWarn(td.warn || []);
+      }
       setAppReady(true);
       return true;
     } catch(e) { setAuthError(`Erro: ${errPt(e)}`); return false; }
@@ -4581,13 +4602,17 @@ export default function App() {
     setTeamId(id); setTab("home");
     if (roMode) { await loadAdmin(id); return; }
     setLoading(true);
+    const my = ++loadSeq.current; // trocar de equipa durante um carregamento: só a resposta mais recente conta
     try {
       const td = await loadTeam(token, id);
-      setMembers(td.members); setFineTypes(td.fineTypes);
-      setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
-      setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
-    } catch(e) { console.error(e); showToast(`⚠️ Não foi possível carregar a equipa: ${errPt(e, "erro")}`, T.brand); }
-    setLoading(false);
+      if (my === loadSeq.current) {
+        setMembers(td.members); setFineTypes(td.fineTypes);
+        setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
+        setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
+        setLoadWarn(td.warn || []);
+      }
+    } catch(e) { console.error(e); if (my === loadSeq.current) showToast(`⚠️ Não foi possível carregar a equipa: ${errPt(e, "erro")}`, T.brand); }
+    if (my === loadSeq.current) setLoading(false);
   };
 
   // Pull-to-refresh
@@ -4600,12 +4625,16 @@ export default function App() {
       setRefreshing(false);
       return;
     }
+    const my = ++loadSeq.current;
     try {
       const td = await loadTeam(token, teamId);
-      setMembers(td.members); setFineTypes(td.fineTypes);
-      setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
-      setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
-    } catch(e) { console.error(e); showToast(`Não foi possível atualizar: ${errPt(e, "erro")}`, T.brand); }
+      if (my === loadSeq.current) {
+        setMembers(td.members); setFineTypes(td.fineTypes);
+        setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
+        setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
+        setLoadWarn(td.warn || []);
+      }
+    } catch(e) { console.error(e); if (my === loadSeq.current) showToast(`Não foi possível atualizar: ${errPt(e, "erro")}`, T.brand); }
     setRefreshing(false);
   }, [token, teamId, refreshing, roMode]);
   useEffect(() => { window.__multeamRefresh = refresh; }, [refresh]);
@@ -5072,8 +5101,14 @@ export default function App() {
   const teamsRef = React.useRef(teams); teamsRef.current = teams;
   const handledApprovedRef = React.useRef(new Set());
   const claimsTotal = Object.values(claimCounts).reduce((a, n) => a + (Number(n) || 0), 0);
+  const claimsFlight = React.useRef(false); const claimsAgain = React.useRef(false);
   const refreshClaims = async () => {
     if (!token || !myUserId || RO.on) return;
+    // um só pedido de cada vez; se chegar outro pedido de atualização a meio, repete-se uma vez no fim
+    if (claimsFlight.current) { claimsAgain.current = true; return; }
+    claimsFlight.current = true;
+    const warns = [];
+    try {
     try {
       const mine = await rpcCall('my_claims', {}, token);
       const list = Array.isArray(mine) ? mine : [];
@@ -5081,16 +5116,22 @@ export default function App() {
       // aprovado e a equipa ainda não está na conta: recarregar as equipas do jogador
       const fresh = list.find(c => c.status === "aprovado" && !teamsRef.current.some(t => t.id === c.team_id) && !handledApprovedRef.current.has(c.id));
       if (fresh) { handledApprovedRef.current.add(fresh.id); await initApp(token, myUserId); showToast(`O admin aprovou: és o perfil ${fresh.member_name || ""}`.trim(), T.navy); }
-    } catch(e) { console.warn("my_claims failed:", e && e.message); }
+    } catch(e) { console.warn("my_claims failed:", e && e.message); warns.push("Não foi possível carregar os teus pedidos de perfil."); }
     try {
       const ids = new Set(teamsRef.current.filter(t => t.createdBy === myUserId).map(t => t.id));
-      try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); setClaimsWarn(false); } catch(e) { console.warn("admin teams read failed:", e && e.message); setClaimsWarn(true); }
-      const counts = {};
+      try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) { console.warn("admin teams read failed:", e && e.message); warns.push("Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer."); }
+      const counts = {}; let countFailed = false;
       await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
-        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente" && (!c.question || !!c.answer)).length; } catch(e) { counts[id] = 0; }
+        try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente" && (!c.question || !!c.answer)).length; } catch(e) { console.warn("list_team_claims failed:", e && e.message); countFailed = true; }
       }));
+      if (countFailed) warns.push("Não foi possível contar os pedidos de perfil pendentes.");
       setClaimCounts(counts);
-    } catch(e) { console.warn("claim counts failed:", e && e.message); }
+    } catch(e) { console.warn("claim counts failed:", e && e.message); warns.push("Não foi possível contar os pedidos de perfil pendentes."); }
+    setClaimsWarn(warns.length ? [...new Set(warns)].join(" ") : false);
+    } finally {
+      claimsFlight.current = false;
+      if (claimsAgain.current) { claimsAgain.current = false; refreshClaims(); }
+    }
   };
   useEffect(() => {
     if (!appReady || !token || !myUserId || RO.on) return;
@@ -5101,8 +5142,9 @@ export default function App() {
   }, [appReady, token, myUserId, teams.length]);
   useEffect(() => { if (tab === "geral" && appReady && token && myUserId && !RO.on) refreshClaims(); }, [tab]);
   const listClaimable = async code => {
+    // falha sobe ao modal, que avisa e deixa entrar na equipa na mesma
     try { const r = await rpcCall('list_claimable_members', { p_code:String(code || "").trim().toUpperCase() }, token); return Array.isArray(r) ? r : []; }
-    catch(e) { console.warn("list_claimable_members failed:", e && e.message); return []; }
+    catch(e) { console.warn("list_claimable_members failed:", e && e.message); throw e; }
   };
   const requestClaim = async (code, memberId, note) => {
     await rpcCall('request_claim', { p_code:String(code || "").trim().toUpperCase(), p_member_id:memberId, p_note:note ? note : null }, token);
@@ -5130,16 +5172,17 @@ export default function App() {
     await switchTeam(t.id);
   };
   const findTeamByCode = async code => {
-    try {
-      const r = await fetch(`${SB_URL}/rest/v1/rpc/find_team_by_code`, {
-        method: 'POST',
-        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token||SB_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.trim().toUpperCase() })
-      });
-      const d = await r.json();
-      const t = Array.isArray(d) ? d[0] : d;
-      return t?.id ? aTeam({...t, invite_code: t.invite_code}) : null;
-    } catch(e) { return null; }
+    // devolve null só quando o código não existe; falhas de rede/servidor sobem ao modal ("Tentar novamente")
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/find_team_by_code`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token||SB_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.trim().toUpperCase() })
+    });
+    if (!r.ok) throw new Error(`Não foi possível procurar a equipa (erro ${r.status}).`);
+    let d = null;
+    try { d = await r.json(); } catch(e) { d = null; }
+    const t = Array.isArray(d) ? d[0] : d;
+    return t?.id ? aTeam({...t, invite_code: t.invite_code}) : null;
   };
 
   const [pendingInvite, setPendingInvite] = useState(() => {
@@ -5397,7 +5440,7 @@ export default function App() {
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <button onClick={()=>roMode ? refresh() : window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:44, minWidth:44, flexShrink:0, height:44, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
-          <button onClick={()=>setModal("picker")} style={{ background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
+          <button onClick={()=>setModal("picker")} style={{ minHeight:44, background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
         </div>
       </div>
 
