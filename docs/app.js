@@ -18850,7 +18850,7 @@ function App() {
             subJson = _sub.toJSON();
             _context108.p = 9;
             _context108.n = 10;
-            return fetch("".concat(SB_URL, "/rest/v1/push_subscriptions"), {
+            return fetch("".concat(SB_URL, "/rest/v1/push_subscriptions?on_conflict=user_id,endpoint"), {
               method: "POST",
               headers: {
                 "apikey": SB_KEY,
@@ -18876,7 +18876,7 @@ function App() {
               pushCode: "gravar"
             });
           case 12:
-            if (res.ok) {
+            if (!(!res.ok && res.status !== 409)) {
               _context108.n = 13;
               break;
             }
