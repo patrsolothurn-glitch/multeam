@@ -9,6 +9,7 @@ const T = {
 
 // ── SUPABASE ─────────────────────────────────────────────────
 const SB_URL = "https://syakniwyvcfdqsrwsalk.supabase.co";
+const APP_URL = "https://multeam.ch"; // endereço público da app (convites e partilhas)
 const SB_KEY = "sb_publishable_MRMHqVQ-key1c5kf7UOLUA_rwyu85BI";
 const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRFVOnO37rQ81o-cYoOuTCwmo--CQnEk";
 
@@ -3061,6 +3062,48 @@ const LoadWarn = ({ id, children, onRetry, retryLabel = "Tentar novamente" }) =>
   </div>
 );
 
+// ── Convite "Ajuda a Multeam a crescer": aparece em Geral uma vez por época (julho a junho); "Agora não" ou partilhar esconde-o até à época seguinte ──
+const INVITE_SEEN_KEY = "multeam_convite_epoca";
+const INVITE_MSG = "Olá! Uso a Multeam para as multas e as presenças da minha equipa: é grátis e foi feita por um jogador. Vê aqui:";
+const InviteCard = () => {
+  const season = absSeason(todayLocal());
+  const [seen, setSeen] = useState(() => { try { return window.localStorage.getItem(INVITE_SEEN_KEY) === season; } catch(e) { return false; } });
+  const [mode, setMode] = useState(null); // null | "copiado" | "manual"
+  if (seen) return null;
+  const mark = () => { try { window.localStorage.setItem(INVITE_SEEN_KEY, season); } catch(e) { /* sem armazenamento: só esconde nesta sessão */ } setSeen(true); };
+  const share = async () => {
+    try {
+      if (navigator.share) { await navigator.share({ title:"Multeam", text:INVITE_MSG, url:APP_URL }); mark(); return; }
+    } catch(e) { if (e && e.name === "AbortError") return; /* cancelou: fica para outra vez */ }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(`${INVITE_MSG} ${APP_URL}`); setMode("copiado"); return; }
+    } catch(e) { /* sem acesso à área de transferência: mostra o texto para copiar à mão */ }
+    setMode("manual");
+  };
+  const btn = (bg, fg, border) => ({ minHeight:44, padding:"0 16px", borderRadius:12, border:`2px solid ${border}`, background:bg, color:fg, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" });
+  return (
+    <div data-invite style={{ marginTop:8, background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"12px 16px" }}>
+      <p style={{ margin:"0 0 2px", fontSize:15, fontWeight:800, color:"#1a1a1f" }}>Ajuda a Multeam a crescer 💙</p>
+      {mode === null && (<>
+        <p style={{ margin:"0 0 10px", fontSize:13, color:"#5F5F66" }}>Conta a outra equipa: a Multeam é grátis.</p>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <button onClick={share} style={btn("#1a1a1f", "#fff", "#1a1a1f")}>Convidar outra equipa</button>
+          <button onClick={mark} style={btn("#fff", "#1a1a1f", "#1a1a1f")}>Agora não</button>
+        </div>
+      </>)}
+      {mode === "copiado" && (<>
+        <p role="status" style={{ margin:"0 0 10px", fontSize:13, color:"#1a1a1f", fontWeight:700 }}>Link copiado ✓ Cola-o numa mensagem. Obrigado!</p>
+        <button onClick={mark} style={btn("#fff", "#1a1a1f", "#1a1a1f")}>Fechar</button>
+      </>)}
+      {mode === "manual" && (<>
+        <p style={{ margin:"0 0 6px", fontSize:13, color:"#5F5F66" }}>Copia esta mensagem e envia-a a outra equipa:</p>
+        <textarea readOnly aria-label="Mensagem de convite" value={`${INVITE_MSG} ${APP_URL}`} rows={3} onFocus={e => e.target.select()} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:14, fontFamily:"inherit", marginBottom:10 }} />
+        <button onClick={mark} style={btn("#fff", "#1a1a1f", "#1a1a1f")}>Fechar</button>
+      </>)}
+    </div>
+  );
+};
+
 const PrivacySection = () => {
   const [open, setOpen] = useState(false);
   return (
@@ -3232,6 +3275,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         🔗 Entrar numa equipa com código
       </button>
       </>}
+      {!readOnly && <InviteCard />}
       <button onClick={onLogout} style={{ width:"100%", minHeight:44, background:"transparent", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:"#B42318", marginTop:8, fontFamily:"inherit" }}>
         Terminar sessão
       </button>
@@ -3833,11 +3877,11 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           </div>
           <p style={{ margin:"0 0 10px", fontSize:13, color:T.sub }}>Partilha o convite com os teus jogadores:</p>
           <div style={{ display:"flex", gap:8 }}>
-            <a href={`https://wa.me/?text=${encodeURIComponent(`🟥 *Multeam* — Junta-te à equipa *${team.name}*!\n\n1. Abre o link: https://patrsolothurn-glitch.github.io/multeam?invite=${team.inviteCode}\n2. Cria conta\n3. O código entra automaticamente!\n\nCódigo manual: *${team.inviteCode}*`)}`}
+            <a href={`https://wa.me/?text=${encodeURIComponent(`🟥 *Multeam* — Junta-te à equipa *${team.name}*!\n\n1. Abre o link: ${APP_URL}/?invite=${team.inviteCode}\n2. Cria conta\n3. O código entra automaticamente!\n\nCódigo manual: *${team.inviteCode}*`)}`}
                target="_blank" rel="noopener" style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", minHeight:44, borderRadius:12, background:"#0E7A3E", color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
               📱 WhatsApp
             </a>
-            <a href={`mailto:?subject=Convite para ${team.name}&body=${encodeURIComponent(`Olá!\n\nEstou a convidar-te para a equipa ${team.name} no Multeam.\n\nAbre este link para entrares diretamente:\nhttps://patrsolothurn-glitch.github.io/multeam?invite=${team.inviteCode}\n\nOu entra no app e usa o código: ${team.inviteCode}\n\nAté já!`)}`}
+            <a href={`mailto:?subject=Convite para ${team.name}&body=${encodeURIComponent(`Olá!\n\nEstou a convidar-te para a equipa ${team.name} no Multeam.\n\nAbre este link para entrares diretamente:\n${APP_URL}/?invite=${team.inviteCode}\n\nOu entra no app e usa o código: ${team.inviteCode}\n\nAté já!`)}`}
                style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", minHeight:44, borderRadius:12, background:T.navy, color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
               ✉️ Email
             </a>
