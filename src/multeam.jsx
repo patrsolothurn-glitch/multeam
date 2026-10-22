@@ -43,7 +43,7 @@ const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KE
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "list_team_claims"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -2875,6 +2875,9 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
     catch(e) { setGrowth({ status:"error", data:null, error:adminErrPt(e) }); }
   };
   useEffect(() => { if (section === "stats" && growth.status === "idle") loadGrowth(); }, [section]);
+  // opiniões de fim de época: pedidas uma vez ao abrir a aba Stats
+  const [fb, loadFb] = useAdminFeedback(token);
+  useEffect(() => { if (section === "stats" && fb.status === "idle") loadFb(); }, [section]);
   // aba Equipas: localização das equipas, pedida uma vez ao abrir a aba; se falhar, a lista de equipas fica igual, sem localização
   const [locs, setLocs] = useState({ status:"idle", data:null, error:"" });
   const [teamQ, setTeamQ] = useState("");
@@ -2998,6 +3001,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
           </>
         )}
         {section==="stats" && <GrowthSection g={growth} onRetry={loadGrowth} StatCard={StatCard} />}
+        {section==="stats" && <FeedbackList st={fb} onRetry={loadFb} />}
         {section==="teams" && (
           <>
             {teams.length===0 && <p style={{ color:T.sub, textAlign:"center", padding:"20px 0" }}>Nenhuma equipa ainda</p>}
@@ -3100,6 +3104,135 @@ const InviteCard = () => {
         <textarea readOnly aria-label="Mensagem de convite" value={`${INVITE_MSG} ${APP_URL}`} rows={3} onFocus={e => e.target.select()} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:14, fontFamily:"inherit", marginBottom:10 }} />
         <button onClick={mark} style={btn("#fff", "#1a1a1f", "#1a1a1f")}>Fechar</button>
       </>)}
+    </div>
+  );
+};
+
+// ── Opinião de fim de época: de 1 de junho a 15 de julho pede-se (uma vez, opcional) como foi a época com a Multeam ──
+// rpc: my_feedback(p_season), save_feedback(p_season, p_mood, p_text, p_team_id), delete_feedback(p_season); o admin lê com get_app_feedback().
+const FEEDBACK_SEEN_KEY = "multeam_opiniao_epoca";
+const FEEDBACK_MOODS = [{ id:"gostei", emoji:"😀", label:"Gostei" }, { id:"normal", emoji:"🙂", label:"Mais ou menos" }, { id:"nao", emoji:"🙁", label:"Não gostei" }];
+const FEEDBACK_MAX = 500;
+// época a que a opinião se refere ("2026/27") se a data está na janela de 1 de junho a 15 de julho; senão ""
+const feedbackSeason = iso => {
+  const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ""); if (!m) return "";
+  const y = +m[1], mo = +m[2], d = +m[3];
+  return (mo === 6 || (mo === 7 && d <= 15)) ? `${y - 1}/${String(y % 100).padStart(2, "0")}` : "";
+};
+// a função ainda não existe na base de dados: a funcionalidade fica escondida (sem avisos)
+const feedbackUnavailable = e => /Could not find the function|schema cache|PGRST202/i.test(String(e && e.message));
+const moodOf = id => FEEDBACK_MOODS.find(m => m.id === id) || null;
+const SeasonFeedbackCard = ({ token, teamId }) => {
+  const season = feedbackSeason(todayLocal());
+  const [hidden, setHidden] = useState(() => { try { return !!season && window.localStorage.getItem(FEEDBACK_SEEN_KEY) === season; } catch(e) { return false; } });
+  const [st, setSt] = useState({ status:"loading", mine:null, error:"" }); // loading | ok | error | off
+  const [mood, setMood] = useState(""); const [text, setText] = useState(""); const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const flight = React.useRef(false);
+  const load = async () => {
+    setSt(s0 => ({ ...s0, status:"loading", error:"" }));
+    try { const r = await rpcCall("my_feedback", { p_season:season }, token); const row = Array.isArray(r) ? r[0] : r; setSt({ status:"ok", mine:(row && row.mood) ? row : null, error:"" }); }
+    catch(e) { setSt(feedbackUnavailable(e) ? { status:"off", mine:null, error:"" } : { status:"error", mine:null, error:errPt(e) }); }
+  };
+  useEffect(() => { if (season && !hidden && token && !RO.on) load(); }, [season, hidden]);
+  if (!season || hidden || RO.on || st.status === "off") return null;
+  if (st.status === "loading") return null;
+  const dismiss = () => { try { window.localStorage.setItem(FEEDBACK_SEEN_KEY, season); } catch(e) { /* sem armazenamento: só esconde nesta sessão */ } setHidden(true); };
+  const save = async () => {
+    if (flight.current || !mood) return;
+    flight.current = true; setBusy(true); setErr("");
+    try {
+      const r = await rpcCall("save_feedback", { p_season:season, p_mood:mood, p_text:text.trim() || null, p_team_id:teamId || null }, token);
+      const row = Array.isArray(r) ? r[0] : r;
+      setSt({ status:"ok", mine:(row && row.mood) ? row : { mood, text:text.trim() }, error:"" }); setEditing(false);
+    } catch(e) { setErr(errPt(e)); }
+    setBusy(false); flight.current = false;
+  };
+  const remove = async () => {
+    if (flight.current) return;
+    if (!window.confirm("Apagar a tua opinião?")) return;
+    flight.current = true; setBusy(true); setErr("");
+    try { await rpcCall("delete_feedback", { p_season:season }, token); setSt({ status:"ok", mine:null, error:"" }); setMood(""); setText(""); setEditing(false); }
+    catch(e) { setErr(errPt(e)); }
+    setBusy(false); flight.current = false;
+  };
+  const btn = (bg, fg) => ({ minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:bg, color:fg, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" });
+  const wrap = ch => <div data-feedback style={{ marginTop:8, background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"12px 16px" }}>{ch}</div>;
+  if (st.status === "error") return wrap(<LoadWarn id="opiniao" onRetry={load}>Não foi possível carregar a tua opinião: {st.error}</LoadWarn>);
+  const mine = st.mine;
+  if (mine && !editing) {
+    const m = moodOf(mine.mood);
+    return wrap(<>
+      <p style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, color:"#1a1a1f" }}>Obrigado pela tua opinião! 💙</p>
+      <p data-feedback-mine style={{ margin:"0 0 10px", fontSize:14, color:"#1a1a1f", overflowWrap:"anywhere" }}>{m ? `${m.emoji} ${m.label}` : ""}{mine.text ? ` · ${mine.text}` : ""}</p>
+      {err && <p role="alert" style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#B42318" }}>{err}</p>}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <button disabled={busy} onClick={() => { setMood(mine.mood || ""); setText(mine.text || ""); setErr(""); setEditing(true); }} style={btn("#fff", "#1a1a1f")}>Editar</button>
+        <button disabled={busy} onClick={remove} style={btn("#fff", "#B42318")}>Apagar</button>
+      </div>
+    </>);
+  }
+  return wrap(<>
+    <p style={{ margin:"0 0 2px", fontSize:15, fontWeight:800, color:"#1a1a1f" }}>Como foi a época com a Multeam?</p>
+    <p style={{ margin:"0 0 10px", fontSize:13, color:"#5F5F66" }}>A tua opinião ajuda a melhorar a app (opcional).</p>
+    <div role="group" aria-label="Como foi a época" style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+      {FEEDBACK_MOODS.map(m => (
+        <button key={m.id} type="button" aria-pressed={mood === m.id} onClick={() => setMood(m.id)} style={{ ...btn(mood === m.id ? "#1a1a1f" : "#fff", mood === m.id ? "#fff" : "#1a1a1f"), flex:"1 1 90px", display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"0 8px" }}>
+          <span aria-hidden="true" style={{ fontSize:20 }}>{m.emoji}</span><span>{m.label}</span>
+        </button>
+      ))}
+    </div>
+    <textarea aria-label="Opinião sobre a app" value={text} maxLength={FEEDBACK_MAX} rows={3} placeholder="Queres acrescentar alguma coisa? (opcional)" onChange={e => setText(e.target.value)} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:12, border:"2px solid #1a1a1f", fontSize:16, fontFamily:"inherit" }} />
+    <p style={{ margin:"2px 0 8px", fontSize:11, color:"#5F5F66", textAlign:"right" }}>{text.length}/{FEEDBACK_MAX}</p>
+    {err && <p role="alert" style={{ margin:"0 0 8px", fontSize:13, fontWeight:700, color:"#B42318" }}>{err}</p>}
+    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+      <button disabled={busy || !mood} onClick={save} style={{ ...btn("#1a1a1f", "#fff"), opacity:(busy || !mood) ? 0.5 : 1 }}>{busy ? "A enviar..." : "Enviar"}</button>
+      {editing ? <button disabled={busy} onClick={() => { setEditing(false); setErr(""); }} style={btn("#fff", "#1a1a1f")}>Cancelar</button> : <button disabled={busy} onClick={dismiss} style={btn("#fff", "#1a1a1f")}>Agora não</button>}
+    </div>
+  </>);
+};
+
+// Painel do super admin (aba Stats): opiniões de fim de época (só época, equipa, data e texto; sem nomes nem emails)
+// estado e pedido das opiniões (a aba Stats guarda-os, como o crescimento: pedido uma vez ao abrir a aba)
+const useAdminFeedback = token => {
+  const [st, setSt] = useState({ status:"idle", rows:[], error:"" }); // idle | loading | ok | error | off
+  const load = async () => {
+    setSt(s0 => ({ ...s0, status:"loading", error:"" }));
+    try { const r = await rpcCall("get_app_feedback", {}, token); setSt({ status:"ok", rows:Array.isArray(r) ? r : [], error:"" }); }
+    catch(e) { setSt(feedbackUnavailable(e) ? { status:"off", rows:[], error:"" } : { status:"error", rows:[], error:adminErrPt(e) }); }
+  };
+  return [st, load];
+};
+const FeedbackSection = ({ token }) => {
+  const [st, load] = useAdminFeedback(token);
+  useEffect(() => { load(); }, []);
+  return <FeedbackList st={st} onRetry={load} />;
+};
+const FeedbackList = ({ st, onRetry }) => {
+  const head = <p style={{ margin:"20px 0 8px", fontSize:12, fontWeight:700, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>💬 Opiniões de fim de época</p>;
+  if (st.status === "idle" || st.status === "loading") return <div data-feedback-admin>{head}<p role="status" style={{ margin:"4px 0", fontSize:14, color:"#5F5F66" }}>A carregar opiniões...</p></div>;
+  if (st.status === "off") return <div data-feedback-admin>{head}<p style={{ margin:"4px 0", fontSize:14, color:"#5F5F66" }}>Ainda não está ativo na base de dados.</p></div>;
+  if (st.status === "error") return (
+    <div data-feedback-admin>{head}
+      <div role="alert" style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", fontSize:14, color:"#8A0000", marginBottom:10 }}>Não foi possível carregar as opiniões: {st.error}</div>
+      <button onClick={onRetry} style={{ width:"100%", minHeight:48, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
+    </div>
+  );
+  const rows = st.rows;
+  const count = id => rows.filter(r => r.mood === id).length;
+  const fmt = iso => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
+  return (
+    <div data-feedback-admin>{head}
+      {rows.length === 0 && <p style={{ margin:"4px 0", fontSize:14, color:"#5F5F66" }}>Ainda sem opiniões.</p>}
+      {rows.length > 0 && <>
+        <p data-feedback-counts style={{ margin:"0 0 8px", fontSize:14, fontWeight:800, color:"#1a1a1f" }}>{FEEDBACK_MOODS.map(m => `${m.emoji} ${count(m.id)}`).join("   ")}</p>
+        {rows.slice(0, 50).map((r, i) => { const m = moodOf(r.mood); return (
+          <div key={r.id || i} data-feedback-row style={{ background:T.card, borderRadius:12, padding:"10px 14px", marginBottom:6 }}>
+            <p style={{ margin:0, fontSize:14, fontWeight:800, color:"#1a1a1f" }}>{m ? `${m.emoji} ${m.label}` : "—"}</p>
+            <p style={{ margin:"2px 0 0", fontSize:12, color:"#5F5F66" }}>{[r.season, r.team_name, fmt(r.created_at)].filter(Boolean).join(" · ")}</p>
+            {r.text && <p style={{ margin:"4px 0 0", fontSize:14, color:"#1a1a1f", overflowWrap:"anywhere" }}>{r.text}</p>}
+          </div>); })}
+      </>}
     </div>
   );
 };
@@ -3275,6 +3408,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         🔗 Entrar numa equipa com código
       </button>
       </>}
+      {!readOnly && <SeasonFeedbackCard token={token} teamId={(myTeams[0] || {}).id} />}
       {!readOnly && <InviteCard />}
       <button onClick={onLogout} style={{ width:"100%", minHeight:44, background:"transparent", border:"none", borderRadius:14, padding:"14px", fontSize:15, fontWeight:700, cursor:"pointer", color:"#B42318", marginTop:8, fontFamily:"inherit" }}>
         Terminar sessão
