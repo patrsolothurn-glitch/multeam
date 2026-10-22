@@ -12,6 +12,32 @@ const SB_URL = "https://syakniwyvcfdqsrwsalk.supabase.co";
 const SB_KEY = "sb_publishable_MRMHqVQ-key1c5kf7UOLUA_rwyu85BI";
 const VAPID_PUBLIC = "BG6saRvz-Eh318LO9cY2w5zSN7sAdDYekBYxqPdrrQ671pN_vUzBsV9iRFVOnO37rQ81o-cYoOuTCwmo--CQnEk";
 
+// ── Diagnóstico de notificações push (só no cliente) ──
+// Motivo da falha ao ativar as notificações neste dispositivo -> texto em português para Geral.
+const PUSH_FAIL_KEY = "multeam_push_send_fail";
+const isIOSDevice = () => { try { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); } catch(e) { return false; } };
+const isStandaloneApp = () => { try { return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches; } catch(e) { return false; } };
+const pushIssueText = issue => {
+  if (!issue) return "";
+  const d = issue.detail ? ` (${issue.detail})` : "";
+  switch (issue.code) {
+    case "ios-instalar": return "No iPhone/iPad as notificações só funcionam com a app instalada: no Safari toca em Partilhar, escolhe «Adicionar ao ecrã principal» e abre a app a partir do ícone.";
+    case "sem-suporte": return "Este browser não suporta notificações push.";
+    case "bloqueado": return "As notificações estão bloqueadas neste dispositivo. Ativa-as nas definições do browser ou do telemóvel e toca em Tentar novamente.";
+    case "sw": return "O serviço da app ainda não está pronto. Recarrega a app e tenta outra vez.";
+    case "subscrever": return `Não foi possível ativar as notificações neste dispositivo${d}.`;
+    case "gravar": return `Não foi possível guardar a subscrição das notificações${d}.`;
+    default: return "Não foi possível ativar as notificações.";
+  }
+};
+// contador local (só deste dispositivo) de envios de push que falharam
+const readPushFails = () => { try { const o = JSON.parse(window.localStorage.getItem(PUSH_FAIL_KEY) || "null"); return o && typeof o.count === "number" ? o : { count:0 }; } catch(e) { return { count:0 }; } };
+const notePushFail = why => {
+  console.error("Push send failed:", why);
+  try { const c = readPushFails(); window.localStorage.setItem(PUSH_FAIL_KEY, JSON.stringify({ count:c.count + 1, last:String(why).slice(0, 120), at:new Date().toISOString() })); } catch(e) {}
+};
+const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KEY); } catch(e) {} };
+
 // ── MODO LEITURA (super admin) ───────────────────────────────
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
@@ -506,6 +532,8 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
   const [sft, setSft] = useState(null);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
+  const [profWarn, setProfWarn] = useState(false); // nomes/fotos dos membros não carregaram
+  const [tick, setTick] = useState(0);
   const [err, setErr] = useState("");
   const [addingType, setAddingType] = useState(false);
   const [newName, setNewName] = useState(""); const [newAmount, setNewAmount] = useState(""); const [newCustom, setNewCustom] = useState(null);
@@ -545,25 +573,29 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
 
   useEffect(() => {
     const H = { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}` };
+    if (tick > 0) setLoading(true);
     Promise.all([
       fetch(`${SB_URL}/rest/v1/team_members?team_id=eq.${team.id}&select=*`, { headers: H }).then(r => r.json()),
       fetch(`${SB_URL}/rest/v1/fine_types?team_id=eq.${team.id}&order=amount.asc`, { headers: H, cache: 'no-store' }).then(r => r.json()),
     ]).then(async ([mRaw, ftRaw]) => {
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
       let profMap = {};
+      let profFailed = false;
       if (uids.length) {
         try {
           const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/get_team_profiles`, {
             method:'POST', headers:{...H,'Content-Type':'application/json'},
             body: JSON.stringify({ p_team_id: team.id })
-          }).then(r=>r.ok?r.json():[]).catch(()=>[]);
+          }).then(r=>{ if (!r.ok) { profFailed = true; return []; } return r.json(); }).catch(()=>{ profFailed = true; return []; });
           (Array.isArray(rpcRes)?rpcRes:[]).forEach(p => { profMap[p.id] = p; });
-        } catch(e) {}
+        } catch(e) { profFailed = true; }
         if (!Object.keys(profMap).length) {
-          const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, { headers: H }).then(r => r.json()).catch(() => []);
+          const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, { headers: H }).then(r => r.json()).catch(() => null);
+          if (!Array.isArray(pr)) profFailed = true;
           (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
         }
       }
+      setProfWarn(profFailed && uids.length > 0 && !Object.keys(profMap).length);
       setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(m => ({
         id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
         name: profMap[m.user_id]?.name || 'Utilizador',
@@ -578,7 +610,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       })));
       setLoading(false);
     }).catch(e => { setErr(errPt(e)); setLoading(false); });
-  }, []);
+  }, [tick]);
 
   const saveNewType = async () => {
     if (!newName.trim() || !newAmount) return;
@@ -612,6 +644,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       {loading ? (
         <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar...</p>
       ) : (<>
+        {profWarn && <LoadWarn id="perfis-multa" onRetry={()=>setTick(t=>t+1)}>Não foi possível carregar os nomes e fotos dos membros.</LoadWarn>}
         {/* Player selector */}
         <FL>Jogador ({tm.length})</FL>
         <FSel value={mid} onChange={e => setMid(e.target.value)}>
@@ -2662,6 +2695,21 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
   );
 };
 
+// Falhas de envio de push registadas neste dispositivo (contador local); "Repor" apaga só o contador local.
+const PushFailsCard = () => {
+  const [f, setF] = useState(readPushFails);
+  return (
+    <div data-push-fails style={{ background:T.card, borderRadius:14, padding:"clamp(10px, 3vw, 14px) clamp(10px, 3vw, 16px)", marginBottom:8 }}>
+      <p style={{ margin:"0 0 4px", fontSize:"clamp(10px, 2.9vw, 12px)", fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.4 }}>Falhas de envio de push</p>
+      <p style={{ margin:0, fontSize:"clamp(18.7px, 5.8vw, 26px)", lineHeight:1.15, fontWeight:900, color:f.count > 0 ? "#C94F00" : T.navy }}>{f.count}</p>
+      <p style={{ margin:"2px 0 0", fontSize:"clamp(11px, 3.2vw, 13px)", color:"#5F5F66", overflowWrap:"anywhere" }}>
+        {f.count > 0 ? `Última: ${f.last || "—"}${f.at ? ` · ${new Date(f.at).toLocaleString("pt-PT")}` : ""}` : "Nenhuma neste dispositivo."} (contador local, só deste dispositivo)
+      </p>
+      {f.count > 0 && <button onClick={()=>{ clearPushFails(); setF(readPushFails()); }} style={{ marginTop:8, minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:"transparent", color:"#1a1a1f", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Repor contador</button>}
+    </div>
+  );
+};
+
 // ── ABA STATS: cartões de crescimento (só agregados; rpc get_app_growth_stats) ──
 const MESES_CURTOS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const eurPt = n => `${Number(n).toLocaleString("pt-PT", { minimumFractionDigits:2, maximumFractionDigits:2 })}€`;
@@ -2718,6 +2766,7 @@ const GrowthSection = ({ g, onRetry, StatCard }) => {
         <StatCard label="Novos utilizadores" value={d.newUsers} color="#6c47ff" sub="últimos 30 dias" />
         <StatCard label="Subscrições push" value={d.push} color={T.navy} />
       </div>
+      <PushFailsCard />
       {pctCard("% por pagar · nº de multas", d.pctCount, `${d.finesUnpaid} de ${d.finesTotal} multas por pagar`)}
       {pctCard("% por pagar · valor", d.pctAmount, `${eurPt(d.amountUnpaid)} de ${eurPt(d.amountTotal)}`)}
       <p style={{ margin:"16px 0 8px", fontSize:12, fontWeight:700, color:"#5F5F66", textTransform:"uppercase", letterSpacing:0.5 }}>Últimos 6 meses</p>
@@ -2817,8 +2866,11 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
   };
   useEffect(() => { if (section === "teams" && locs.status === "idle") loadLocs(); }, [section]);
 
+  const [loadErr, setLoadErr] = useState("");
+  const [loadTick, setLoadTick] = useState(0);
   useEffect(() => {
     const load = async () => {
+      if (loadTick > 0) { setLoading(true); setLoadErr(""); }
       try {
         const rpc = (fn, body="{}") => fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
           method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}, body
@@ -2827,12 +2879,13 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
         const [sr, tr] = await Promise.all([rpc("get_app_admin_stats"), rpc("get_all_teams_admin")]);
         if (sr.ok) setStats(await sr.json());
         if (tr.ok) setTeams(await tr.json() || []);
+        if (!sr.ok || !tr.ok) setLoadErr(adminErrPt(new Error(`erro ${!sr.ok ? sr.status : tr.status}`)));
         setUpdatedAt(new Date());
-      } catch(e) { console.error(e); }
+      } catch(e) { console.error(e); setLoadErr(adminErrPt(e)); }
       setLoading(false);
     };
     load();
-  }, [token]);
+  }, [token, loadTick]);
 
   if (loading) return <Spinner msg="A carregar painel admin..." />;
 
@@ -2907,6 +2960,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
         ))}
       </div>
       <div style={{ padding:"16px" }}>
+        {loadErr && <LoadWarn id="painel" onRetry={()=>setLoadTick(t=>t+1)}>Não foi possível carregar todos os dados do painel: {loadErr}</LoadWarn>}
         {section==="stats" && stats && (
           <>
             <div style={{ display:"flex", gap:"clamp(4px, 1.5vw, 8px)", marginBottom:8 }}>
@@ -2981,6 +3035,14 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
 
 
 // Privacidade (fim de Geral): texto fixo, sem promessas que a app não possa verificar
+// Aviso discreto (alto contraste) com "Tentar novamente"; usado quando um carregamento falha em vez de ficar vazio em silêncio.
+const LoadWarn = ({ id, children, onRetry, retryLabel = "Tentar novamente" }) => (
+  <div role="alert" data-warn={id} style={{ margin:"8px 0", background:"#FFF8E1", border:"2px solid #8A5A00", borderRadius:12, padding:"10px 12px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+    <p style={{ margin:0, flex:1, minWidth:180, fontSize:13, fontWeight:800, color:"#1a1a1f" }}>{children}</p>
+    {onRetry && <button onClick={onRetry} style={{ minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:"#1a1a1f", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{retryLabel}</button>}
+  </div>
+);
+
 const PrivacySection = () => {
   const [open, setOpen] = useState(false);
   return (
@@ -2993,7 +3055,7 @@ const PrivacySection = () => {
   );
 };
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts }) => {
+const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts, pushIssue, onRetryPush, claimsWarn, onRetryClaims }) => {
   // modo leitura (super admin): só a equipa aberta, sem ser membro
   const myTeams = readOnly ? teams : teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
@@ -3001,6 +3063,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   const myAge = age(user.birthday);
   const [tapCount, setTapCount] = useState(0);
   const [showMembers, setShowMembers] = useState(null);
+  const [membersWarn, setMembersWarn] = useState("");
   const [teamMembers, setTeamMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const tapTimer = React.useRef(null);
@@ -3027,20 +3090,21 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   const openTeamMembers = async (teamId) => {
     setShowMembers(teamId);
     if (readOnly) { setTeamMembers(members.filter(m => m.teamId === teamId)); setLoadingMembers(false); return; } // já vêm carregados (get_team_as_admin)
-    setLoadingMembers(true);
+    setLoadingMembers(true); setMembersWarn("");
     try {
       const mRaw = await api.get(`team_members?team_id=eq.${teamId}&select=*`, token);
       const uids = mRaw.map(m=>m.user_id).filter(Boolean);
       let profilesMap = {};
       if (uids.length > 0) {
-        const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, token).catch(()=>[]);
-        profs.forEach(p => { profilesMap[p.id] = p; });
+        const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, token).catch(()=>null);
+        if (Array.isArray(profs)) profs.forEach(p => { profilesMap[p.id] = p; });
+        else setMembersWarn("Não foi possível carregar os nomes e fotos dos membros.");
       }
       const merged = mRaw.map(m => ({
         ...aMember({ ...m, profiles: profilesMap[m.user_id] || null })
       }));
       setTeamMembers(merged);
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error(e); setMembersWarn("Não foi possível carregar os membros da equipa."); }
     setLoadingMembers(false);
   };
 
@@ -3052,6 +3116,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         <button onClick={()=>setShowMembers(null)} style={{ background:`${t?.color||T.navy}18`, border:"none", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, color:t?.color||T.navy, fontFamily:"inherit", marginBottom:16 }}>← Voltar</button>
         <h2 style={{ margin:"0 0 4px", fontSize:20, fontWeight:900 }}>{t?.emoji} {t?.name}</h2>
         <p style={{ margin:"0 0 16px", fontSize:13, color:T.sub }}>{loadingMembers ? "A carregar..." : `${tm.length} membro${tm.length!==1?"s":""}`}</p>
+        {membersWarn && !loadingMembers && <LoadWarn id="membros" onRetry={()=>openTeamMembers(showMembers)}>{membersWarn}</LoadWarn>}
         {tm.map(m => (
           <div key={m.id} style={{ background:T.card, borderRadius:16, padding:"14px", marginBottom:10, display:"flex", alignItems:"center", gap:14 }}>
             {m.avatarUrl
@@ -3074,6 +3139,8 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
   }
   return (
     <div style={{ padding:"16px 16px 100px" }}>
+      {!readOnly && pushIssue && <LoadWarn id="push" onRetry={onRetryPush}>🔔 {pushIssueText(pushIssue)}</LoadWarn>}
+      {!readOnly && claimsWarn && <LoadWarn id="pedidos-admin" onRetry={onRetryClaims}>Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer.</LoadWarn>}
       {/* Profile card */}
       {!readOnly && <div style={{ background:T.card, borderRadius:20, padding:"20px", marginBottom:16, position:"relative" }}>
         <button onClick={onEditProfile} style={{ position:"absolute", top:16, right:16, background:T.bg, border:"none", borderRadius:10, padding:"7px 13px", fontSize:13, fontWeight:700, cursor:"pointer", color:T.navy, fontFamily:"inherit" }}>✏️ Editar</button>
@@ -3517,18 +3584,21 @@ const AbsenceArchive = ({ team, absences = [], onUpdate, onClose, onDelete }) =>
 
 const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
   const [counts, setCounts] = useState(null); // null = a carregar; valor null = indisponível
+  const [tick, setTick] = useState(0);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => {
     let alive = true;
+    if (tick > 0) setCounts(null);
     const n = tbl => api.get(`${tbl}?team_id=eq.${team.id}&select=id`, token).then(r => r.length).catch(() => null);
     const abs = api.get(`member_absences?team_id=eq.${team.id}&select=kind`, token).then(r => [r.filter(x => x.kind === "lesao").length, r.filter(x => x.kind === "ausencia").length]).catch(() => [null, null]);
     Promise.all([n("team_members"), n("fines"), n("trainings"), n("cards"), n("expenses"), abs]).then(([a, b, c, d, e, [l, au]]) => { if (alive) setCounts([a, b, c, d, e, l, au]); });
     return () => { alive = false; };
-  }, [team.id]);
-  const v = i => counts === null ? "…" : (counts[i] === null ? "?" : counts[i]);
-  // "1 membro", "0 membros"; enquanto carrega ("…") ou se falhar ("?") fica no plural
+  }, [team.id, tick]);
+  const countsFailed = counts !== null && counts.some(x => x === null);
+  const v = i => counts === null ? "…" : (counts[i] === null ? "—" : counts[i]);
+  // "1 membro", "0 membros"; enquanto carrega ("…") ou se falhar ("—") fica no plural
   const q = (i, one, many) => `${v(i)} ${v(i) === 1 ? one : many}`;
   const match = text === team.name;
   const go = async () => {
@@ -3543,6 +3613,7 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
         <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>Perde-se tudo:</p>
         <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{q(0,"membro","membros")} · {q(1,"multa","multas")} · {q(2,"treino","treinos")} · {q(3,"cartão","cartões")} · {q(4,"despesa","despesas")} · {q(5,"lesão","lesões")} · {q(6,"ausência","ausências")}</p>
       </div>
+      {countsFailed && <LoadWarn id="contagens" onRetry={()=>setTick(t=>t+1)}>Não foi possível contar tudo o que se perde (—).</LoadWarn>}
       <p style={{ margin:"0 0 12px", fontSize:14 }}>Isto não tem volta. Escreve o nome da equipa para confirmar.</p>
       <FI value={text} onChange={e=>setText(e.target.value)} placeholder={team.name} autoCapitalize="off" autoCorrect="off" spellCheck={false} />
       {err && <p style={{ margin:"0 0 12px", fontSize:13, fontWeight:600, color:T.brand }}>{err}</p>}
@@ -3592,15 +3663,19 @@ const UnavailableControl = ({ m, record, color, onOpen, onClose, onUpdate, onLeg
 const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes, onClaimsChanged }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [showDelete, setShowDelete] = useState(false);
-  // ao abrir Gerir, volta a pedir os tipos de multa (o estado pode estar desatualizado); se falhar, fica a lista atual
+  const [ftWarn, setFtWarn] = useState(false);
+  const [ftTick, setFtTick] = useState(0);
+  // ao abrir Gerir, volta a pedir os tipos de multa (o estado pode estar desatualizado); se falhar, fica a lista atual e avisa
   useEffect(() => {
     if (!setFineTypes || !token || RO.on) return;
     let alive = true;
     api.get(`fine_types?team_id=eq.${team.id}&order=amount.asc`, token).then(rows => {
-      if (alive && Array.isArray(rows)) setFineTypes(p => [...p.filter(x => x.teamId !== team.id), ...rows.map(aFineType)]);
-    }).catch(() => {});
+      if (!alive) return;
+      if (Array.isArray(rows)) { setFineTypes(p => [...p.filter(x => x.teamId !== team.id), ...rows.map(aFineType)]); setFtWarn(false); }
+      else setFtWarn(true);
+    }).catch(() => { if (alive) setFtWarn(true); });
     return () => { alive = false; };
-  }, [team.id]);
+  }, [team.id, ftTick]);
   const isCreator = team.createdBy === myUserId;
   const myRoleHere = (tm.find(x=>x.userId===myUserId)||{}).role;
   // só admin: a política de escrita de team_members é is_admin_of(team_id)
@@ -3772,6 +3847,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 
         {/* Fine Types Management */}
         <Sec label="Tipos de multa" />
+        {ftWarn && !RO.on && <LoadWarn id="tipos-multa" onRetry={()=>{ setFtWarn(false); setFtTick(t=>t+1); }}>Não foi possível atualizar os tipos de multa. A lista pode estar desatualizada.</LoadWarn>}
         <FineTypesManager team={team} fineTypes={fineTypes} onAdded={ft => setFineTypes(p=>[...p, aFineType(ft)])} onDeleted={id => setFineTypes(p=>p.filter(x=>x.id!==id))} onUpdated={(id, data) => setFineTypes(p=>p.map(x=>x.id===id?{...x,...(typeof data==="object"?data:{emoji:data})}:x))} token={token} />
 
         {/* Arquivo de lesões e ausências — só admin (a política da tabela só deixa admins ler e escrever) */}
@@ -4280,7 +4356,8 @@ export default function App() {
   const [trainings, setTrainings] = useState([]);
   const [absences, setAbsences] = useState([]); // null = não foi possível carregar (só admins leem a tabela)
   const [presences, setPresences] = useState({});
-  const [loadWarn, setLoadWarn] = useState(false);
+  const [loadWarn, setLoadWarn] = useState([]); // nomes do que não carregou em loadTeam
+  const [pushIssue, setPushIssue] = useState(null); // { code, detail } quando as notificações não ficaram ativas neste dispositivo
   const [teamId, setTeamId]     = useState(null);
   const [tab, setTab]           = useState("home");
   const [sub, setSub]           = useState(null);
@@ -4320,26 +4397,28 @@ export default function App() {
       api.get(`cards?team_id=eq.${tid}&order=match_date.desc,created_at.desc`, tok).catch(soft('cartões', [])),
       api.get(`member_absences?team_id=eq.${tid}&order=start_date.desc,created_at.desc`, tok).catch(soft('ausências', null, true)),
     ]);
-    setLoadWarn(failedParts.length > 0);
     // Fetch profiles via SECURITY DEFINER RPC (bypasses RLS - todos os membros podem ver)
     let profilesMap = {};
+    let profFailed = false;
     try {
       const profs = await fetch(`${SB_URL}/rest/v1/rpc/get_team_profiles`, {
         method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`,'Content-Type':'application/json'},
         body: JSON.stringify({ p_team_id: tid })
-      }).then(r=>r.ok?r.json():[]).catch(()=>[]);
+      }).then(r=>{ if (!r.ok) { profFailed = true; return []; } return r.json(); }).catch(()=>{ profFailed = true; return []; });
       (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
-    } catch(e) { console.warn('get_team_profiles failed:', e); }
+    } catch(e) { profFailed = true; console.warn('get_team_profiles failed:', e); }
     // Fallback: tentar carregar profiles directamente (pode falhar por RLS)
     if (Object.keys(profilesMap).length === 0) {
       try {
         const uids = mRaw.map(m=>m.user_id).filter(Boolean);
         if (uids.length > 0) {
-          const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>[]);
+          const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>{ profFailed = true; return []; });
           (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
         }
-      } catch(e) {}
+      } catch(e) { profFailed = true; }
     }
+    if (profFailed && mRaw.some(m => m.user_id) && Object.keys(profilesMap).length === 0) failedParts.push('perfis');
+    setLoadWarn(failedParts);
     // Merge profiles into members
     const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
     // Build presences map {trainingId: {memberId: status}}
@@ -4444,6 +4523,7 @@ export default function App() {
           const created = await api.post('profiles', { id: uid, name: 'Utilizador' }, tok);
           p = Array.isArray(created) ? created[0] : created;
         } catch(e) { console.warn('Profile creation fallback failed:', e); }
+        if (!p) showToast("⚠️ Não foi possível carregar o teu perfil. Recarrega a app.", T.brand);
       }
 
       if (p) setProfile({ id:p.id, name:p.name||'', initials:mk(p.name||'U'), position:p.position||'', phone:p.phone||'', birthday:p.birthday||'', email:'', isAppAdmin: p.is_admin===true, avatarUrl: p.avatar_url||null });
@@ -4454,6 +4534,7 @@ export default function App() {
         headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`}
       });
       let adapted = [];
+      if (!membershipsR.ok) throw new Error("Não foi possível carregar as tuas equipas.");
       if (membershipsR.ok) {
         const memberships = await membershipsR.json();
         const teamIds = (Array.isArray(memberships) ? memberships : []).map(m => m.team_id).filter(Boolean);
@@ -4461,6 +4542,7 @@ export default function App() {
           const teamsR = await fetch(`${SB_URL}/rest/v1/teams?id=in.(${teamIds.join(',')})&order=created_at.asc`, {
             headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`}
           });
+          if (!teamsR.ok) throw new Error("Não foi possível carregar as tuas equipas.");
           if (teamsR.ok) {
             const teamsJson = await teamsR.json();
             adapted = (Array.isArray(teamsJson) ? teamsJson : []).map(aTeam);
@@ -4494,7 +4576,7 @@ export default function App() {
       setMembers(td.members); setFineTypes(td.fineTypes);
       setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
       setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error(e); showToast(`⚠️ Não foi possível carregar a equipa: ${errPt(e, "erro")}`, T.brand); }
     setLoading(false);
   };
 
@@ -4513,7 +4595,7 @@ export default function App() {
       setMembers(td.members); setFineTypes(td.fineTypes);
       setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
       setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error(e); showToast(`Não foi possível atualizar: ${errPt(e, "erro")}`, T.brand); }
     setRefreshing(false);
   }, [token, teamId, refreshing, roMode]);
   useEffect(() => { window.__multeamRefresh = refresh; }, [refresh]);
@@ -4556,8 +4638,10 @@ export default function App() {
       const uid = d.user?.id;
       if (tok && uid) {
         // Update profile with the provided name
-        try { await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok); } catch(e) { console.warn('profile name update failed:', e); }
+        let nameFailed = false;
+        try { needRows(await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok)); } catch(e) { nameFailed = true; console.warn('profile name update failed:', e); }
         setToken(tok); setMyUserId(uid); await initApp(tok, uid);
+        if (nameFailed) showToast("⚠️ Conta criada, mas o teu nome não ficou guardado. Edita-o em Geral.", T.brand);
       } else if (uid) {
         try {
           const d2 = await api.signIn(email, pass);
@@ -4684,7 +4768,11 @@ export default function App() {
         ));
         const okArr = presArr.filter((_, i) => saved[i]);
         setPresences(p => ({ ...p, [newT.id]: Object.fromEntries(okArr) }));
-        if (okArr.length < presArr.length) writeFailed("guardar todas as presenças da sessão", new Error(`${presArr.length - okArr.length} de ${presArr.length} não foram guardadas`));
+        if (okArr.length < presArr.length) {
+          const names = presArr.filter((_, i) => !saved[i]).map(([mid]) => (members.find(x => String(x.id) === String(mid)) || {}).name || "membro");
+          const shown = names.slice(0, 4).join(", ") + (names.length > 4 ? ` e mais ${names.length - 4}` : "");
+          writeFailed("guardar todas as presenças da sessão", new Error(`${presArr.length - okArr.length} de ${presArr.length} não foram guardadas (${shown})`));
+        }
       }
     } catch(e) { writeFailed("registar a sessão", e); }
   };
@@ -4790,7 +4878,7 @@ export default function App() {
     if (still.length) throw new Error("Não foi possível remover (sem permissão?)");
     setMembers(p => p.filter(x => x.id !== id));
     // o trigger da base de dados fechou os registos abertos do jogador e o member_id passou a nulo: reler (não bloqueia)
-    if (m) api.get(`member_absences?team_id=eq.${m.teamId}&order=start_date.desc,created_at.desc`, token).then(r => setAbsences(r.map(aAbsence))).catch(e => console.warn('absences reload failed:', e));
+    if (m) api.get(`member_absences?team_id=eq.${m.teamId}&order=start_date.desc,created_at.desc`, token).then(r => setAbsences(r.map(aAbsence))).catch(e => { console.warn('absences reload failed:', e); showToast("Membro removido, mas não foi possível atualizar o histórico de ausências. Puxa para atualizar.", T.brand); });
     showToast(`${m ? m.name : "Membro"} removido da equipa`, T.navy);
   };
   // ── Lesões e ausências ──
@@ -4970,6 +5058,7 @@ export default function App() {
   // ── Assumir perfil (rpc do Supabase; a funcionalidade nunca bloqueia a entrada nem a app) ──
   const [myClaims, setMyClaims] = useState(null);
   const [claimCounts, setClaimCounts] = useState({});
+  const [claimsWarn, setClaimsWarn] = useState(false); // não foi possível ver em que equipas és admin (emblema dos pedidos)
   const teamsRef = React.useRef(teams); teamsRef.current = teams;
   const handledApprovedRef = React.useRef(new Set());
   const claimsTotal = Object.values(claimCounts).reduce((a, n) => a + (Number(n) || 0), 0);
@@ -4985,7 +5074,7 @@ export default function App() {
     } catch(e) { console.warn("my_claims failed:", e && e.message); }
     try {
       const ids = new Set(teamsRef.current.filter(t => t.createdBy === myUserId).map(t => t.id));
-      try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) {}
+      try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); setClaimsWarn(false); } catch(e) { console.warn("admin teams read failed:", e && e.message); setClaimsWarn(true); }
       const counts = {};
       await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
         try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente" && (!c.question || !!c.answer)).length; } catch(e) { counts[id] = 0; }
@@ -5063,38 +5152,62 @@ export default function App() {
     }
   }, [appReady, pendingInvite, teams]);
 
-  // Subscribe to push notifications and store subscription in Supabase
+  // Subscribe to push notifications and store subscription in Supabase.
+  // Em vez de falhar em silêncio, guarda o motivo (pushIssue) para o aviso em Geral.
   const subscribeToPush = async (tok, uid) => {
     if (RO.on) return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const existing = await reg.pushManager.getSubscription();
-      const sub = existing || await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: VAPID_PUBLIC,
-      });
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error("service worker sem ready"), { pushCode:"sw" })), 8000)),
+      ]);
+      let sub;
+      try {
+        const existing = await reg.pushManager.getSubscription();
+        sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: VAPID_PUBLIC });
+      } catch(e) { throw Object.assign(e, { pushCode: e && e.pushCode || "subscrever" }); }
       const subJson = sub.toJSON();
       // Store subscription in Supabase (upsert by endpoint)
-      await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
-        method: "POST",
-        headers: { "apikey": SB_KEY, "Authorization": `Bearer ${tok}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify({ user_id: uid, endpoint: subJson.endpoint, p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth }),
-      });
-    } catch(e) { console.warn("Push subscribe failed:", e.message); }
+      let res;
+      try {
+        res = await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
+          method: "POST",
+          headers: { "apikey": SB_KEY, "Authorization": `Bearer ${tok}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify({ user_id: uid, endpoint: subJson.endpoint, p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth }),
+        });
+      } catch(e) { throw Object.assign(e, { pushCode:"gravar" }); }
+      if (!res.ok) throw Object.assign(new Error(`erro ${res.status}`), { pushCode:"gravar" });
+      setPushIssue(null);
+    } catch(e) {
+      console.warn("Push subscribe failed:", e && e.message);
+      setPushIssue({ code: (e && e.pushCode) || "subscrever", detail: e && e.pushCode === "gravar" && /^erro \d+$/.test(String(e.message)) ? e.message : "" });
+    }
+  };
+  // Verifica o que é preciso para as notificações; `ask` pede a permissão (só depois de um toque do utilizador ou na 1.ª vez)
+  const checkPush = async (tok, uid, ask) => {
+    if (RO.on) return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      setPushIssue({ code: isIOSDevice() && !isStandaloneApp() ? "ios-instalar" : "sem-suporte" });
+      return;
+    }
+    if (Notification.permission === "denied") { setPushIssue({ code:"bloqueado" }); return; }
+    if (Notification.permission === "default") {
+      if (!ask) return;
+      const perm = await Notification.requestPermission();
+      if (perm === "denied") { setPushIssue({ code:"bloqueado" }); return; }
+      if (perm !== "granted") return;
+    }
+    await subscribeToPush(tok, uid);
   };
 
   // Request notification permission once after login
   useEffect(() => {
     if (!appReady || !token || !myUserId || RO.on) return;
-    if ("Notification" in window && Notification.permission === "default") {
-      setTimeout(async () => {
-        if (RO.on) return;
-        const perm = await Notification.requestPermission();
-        if (perm === "granted") subscribeToPush(token, myUserId);
-      }, 2500);
-    } else if ("Notification" in window && Notification.permission === "granted") {
-      subscribeToPush(token, myUserId);
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    if (supported && Notification.permission === "default") {
+      setTimeout(() => { if (!RO.on) checkPush(token, myUserId, true); }, 2500);
+    } else {
+      checkPush(token, myUserId, false);
     }
   }, [appReady, token, myUserId]);
 
@@ -5112,12 +5225,16 @@ export default function App() {
     const userIds = members.map(m => m.userId).filter(Boolean);
     if (!userIds.length) return;
     try {
-      await fetch(`${SB_URL}/functions/v1/send-team-push`, {
+      const res = await fetch(`${SB_URL}/functions/v1/send-team-push`, {
         method: "POST",
         headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ team_id: teamId, user_ids: userIds, title, body }),
       });
-    } catch(e) { console.warn("Push send failed:", e.message); }
+      if (!res.ok) {
+        let det = ""; try { det = (await res.text()).slice(0, 80); } catch(e) {}
+        throw new Error(`HTTP ${res.status}${det ? " " + det : ""}`);
+      }
+    } catch(e) { notePushFail(e && e.message); }
   };
 
   const addFineWithToast = async d => {
@@ -5153,7 +5270,8 @@ export default function App() {
       headers: { "apikey": SB_KEY, "Authorization": `Bearer ${magicToken.access}` }
     }).then(r => r.json()).then(u => {
       if (u.id) { setToken(magicToken.access); setMyUserId(u.id); window.history.replaceState(null, "", "/"); }
-    }).catch(() => {});
+      else { console.warn("magic link inválido:", u && (u.msg || u.error_description || u.error)); setAuthError("O link de acesso expirou ou não é válido. Entra com o teu email e password."); try { window.history.replaceState(null, "", "/"); } catch(e) {} }
+    }).catch(e => { console.warn("magic link falhou:", e && e.message); setAuthError(errPt(e)); });
   }, [magicToken]);
 
   if (recoveryToken) return <ResetPasswordScreen accessToken={recoveryToken} onDone={()=>{ window.history.replaceState(null,"","/"); window.location.reload(); }} />;
@@ -5183,9 +5301,9 @@ export default function App() {
   const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
-  const loadWarnBox = (loadWarn && !roMode) ? (
+  const loadWarnBox = (loadWarn.length > 0 && !roMode) ? (
     <div role="alert" data-load-warn style={{ margin:"8px 12px 0", background:"#FFF8E1", border:"2px solid #8A5A00", borderRadius:12, padding:"10px 12px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-      <p style={{ margin:0, flex:1, minWidth:180, fontSize:13, fontWeight:800, color:"#1a1a1f" }}>Não foi possível carregar presenças, cartões ou ausências.</p>
+      <p style={{ margin:0, flex:1, minWidth:180, fontSize:13, fontWeight:800, color:"#1a1a1f" }}>{loadWarn.some(x => x !== "perfis") && "Não foi possível carregar presenças, cartões ou ausências."}{loadWarn.some(x => x !== "perfis") && loadWarn.includes("perfis") && " "}{loadWarn.includes("perfis") && "Não foi possível carregar os nomes e fotos dos membros."}</p>
       <button onClick={()=>refresh()} style={{ minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:"#1a1a1f", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
     </div>
   ) : null;
@@ -5199,7 +5317,7 @@ export default function App() {
         <p style={{ margin:0, fontSize:11, opacity:0.6, fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Multeam</p>
         <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Super admin</h2>
       </div>
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} pushIssue={pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
       {tab!=="geral" && tab!=="appadmin" && (
         <div style={{ textAlign:"center", padding:"60px 24px 120px", color:T.sub }}>
@@ -5277,7 +5395,7 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
