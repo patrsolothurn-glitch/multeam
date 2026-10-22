@@ -156,6 +156,8 @@ const rpcCall = async (fn, body, tok) => {
 // Mensagens de erro para o utilizador: sempre em português claro e curto. O texto original (da base de dados, do Supabase ou do
 // navegador) fica só no console.error. Mensagens que já estão em português passam iguais.
 const ERR_GENERIC = "Ocorreu um erro. Tenta outra vez.";
+// aviso quando a rpc get_team_profiles falha (a leitura direta de profiles só serve de reserva)
+const PROFILES_WARN = "Não foi possível carregar os perfis.";
 const errPt = (e, fallback) => {
   const raw = e == null ? "" : (typeof e === "string" ? e : (e.message !== undefined && e.message !== null ? String(e.message) : ""));
   const out = (txt) => { if (txt !== raw && raw) { try { console.error("[erro original]", raw); } catch (x) { /* sem console */ } } return txt; };
@@ -580,7 +582,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
     ]).then(async ([mRaw, ftRaw]) => {
       const uids = (Array.isArray(mRaw) ? mRaw : []).map(m => m.user_id).filter(Boolean);
       let profMap = {};
-      let profFailed = false;
+      let profFailed = false; // a rpc falhou (a leitura direta abaixo é só reserva)
       if (uids.length) {
         try {
           const rpcRes = await fetch(`${SB_URL}/rest/v1/rpc/get_team_profiles`, {
@@ -589,13 +591,12 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
           }).then(r=>{ if (!r.ok) { profFailed = true; return []; } return r.json(); }).catch(()=>{ profFailed = true; return []; });
           (Array.isArray(rpcRes)?rpcRes:[]).forEach(p => { profMap[p.id] = p; });
         } catch(e) { profFailed = true; }
-        if (!Object.keys(profMap).length) {
+        if (profFailed && !Object.keys(profMap).length) {
           const pr = await fetch(`${SB_URL}/rest/v1/profiles?id=in.(${uids.join(',')})`, { headers: H }).then(r => r.json()).catch(() => null);
-          if (!Array.isArray(pr)) profFailed = true;
           (Array.isArray(pr) ? pr : []).forEach(p => { profMap[p.id] = p; });
         }
       }
-      setProfWarn(profFailed && uids.length > 0 && !Object.keys(profMap).length);
+      setProfWarn(profFailed && uids.length > 0);
       setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(m => ({
         id: String(m.id), teamId: m.team_id, userId: m.user_id, role: m.role,
         name: profMap[m.user_id]?.name || 'Utilizador',
@@ -644,7 +645,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       {loading ? (
         <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar...</p>
       ) : (<>
-        {profWarn && <LoadWarn id="perfis-multa" onRetry={()=>setTick(t=>t+1)}>Não foi possível carregar os nomes e fotos dos membros.</LoadWarn>}
+        {profWarn && <LoadWarn id="perfis-multa" onRetry={()=>setTick(t=>t+1)}>{PROFILES_WARN}</LoadWarn>}
         {/* Player selector */}
         <FL>Jogador ({tm.length})</FL>
         <FSel value={mid} onChange={e => setMid(e.target.value)}>
@@ -3096,9 +3097,15 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
       const uids = mRaw.map(m=>m.user_id).filter(Boolean);
       let profilesMap = {};
       if (uids.length > 0) {
-        const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, token).catch(()=>null);
+        let profs = null;
+        try { profs = await rpcCall('get_team_profiles', { p_team_id: teamId }, token); } catch(e) { console.warn('get_team_profiles failed:', e && e.message); }
         if (Array.isArray(profs)) profs.forEach(p => { profilesMap[p.id] = p; });
-        else setMembersWarn("Não foi possível carregar os nomes e fotos dos membros.");
+        else {
+          // reserva: leitura direta, só quando a rpc falhou; avisa sempre
+          setMembersWarn(PROFILES_WARN);
+          const direct = await api.get(`profiles?id=in.(${uids.join(',')})`, token).catch(()=>null);
+          if (Array.isArray(direct)) direct.forEach(p => { profilesMap[p.id] = p; });
+        }
       }
       const merged = mRaw.map(m => ({
         ...aMember({ ...m, profiles: profilesMap[m.user_id] || null })
@@ -4407,17 +4414,17 @@ export default function App() {
       }).then(r=>{ if (!r.ok) { profFailed = true; return []; } return r.json(); }).catch(()=>{ profFailed = true; return []; });
       (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
     } catch(e) { profFailed = true; console.warn('get_team_profiles failed:', e); }
-    // Fallback: tentar carregar profiles directamente (pode falhar por RLS)
-    if (Object.keys(profilesMap).length === 0) {
+    // Reserva: leitura direta de profiles, só quando a rpc falhou (pode falhar por RLS)
+    if (profFailed && Object.keys(profilesMap).length === 0) {
       try {
         const uids = mRaw.map(m=>m.user_id).filter(Boolean);
         if (uids.length > 0) {
-          const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>{ profFailed = true; return []; });
+          const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>[]);
           (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
         }
-      } catch(e) { profFailed = true; }
+      } catch(e) { /* reserva também falhou: o aviso abaixo já cobre */ }
     }
-    if (profFailed && mRaw.some(m => m.user_id) && Object.keys(profilesMap).length === 0) failedParts.push('perfis');
+    if (profFailed && mRaw.some(m => m.user_id)) failedParts.push('perfis');
     setLoadWarn(failedParts);
     // Merge profiles into members
     const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
@@ -4514,8 +4521,11 @@ export default function App() {
     setLoading(true);
     try {
       // Load profile (trigger creates it on signup, but add fallback)
-      let profData = await api.get(`profiles?id=eq.${uid}`, tok);
-      let p = profData[0];
+      // O próprio perfil vem da rpc get_my_profile; se falhar ou vier vazia, lê-se profiles diretamente (reserva) para nunca bloquear a entrada
+      let p = null;
+      try { const mine = await rpcCall('get_my_profile', {}, tok); p = Array.isArray(mine) ? mine[0] : (mine && mine.id ? mine : null); }
+      catch(e) { console.warn('get_my_profile failed:', e && e.message); }
+      if (!p) { const profData = await api.get(`profiles?id=eq.${uid}`, tok); p = profData[0]; }
 
       // Fallback: create profile if doesn't exist yet
       if (!p) {
@@ -5303,7 +5313,7 @@ export default function App() {
   const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
   const loadWarnBox = (loadWarn.length > 0 && !roMode) ? (
     <div role="alert" data-load-warn style={{ margin:"8px 12px 0", background:"#FFF8E1", border:"2px solid #8A5A00", borderRadius:12, padding:"10px 12px", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-      <p style={{ margin:0, flex:1, minWidth:180, fontSize:13, fontWeight:800, color:"#1a1a1f" }}>{loadWarn.some(x => x !== "perfis") && "Não foi possível carregar presenças, cartões ou ausências."}{loadWarn.some(x => x !== "perfis") && loadWarn.includes("perfis") && " "}{loadWarn.includes("perfis") && "Não foi possível carregar os nomes e fotos dos membros."}</p>
+      <p style={{ margin:0, flex:1, minWidth:180, fontSize:13, fontWeight:800, color:"#1a1a1f" }}>{loadWarn.some(x => x !== "perfis") && "Não foi possível carregar presenças, cartões ou ausências."}{loadWarn.some(x => x !== "perfis") && loadWarn.includes("perfis") && " "}{loadWarn.includes("perfis") && PROFILES_WARN}</p>
       <button onClick={()=>refresh()} style={{ minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:"#1a1a1f", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
     </div>
   ) : null;

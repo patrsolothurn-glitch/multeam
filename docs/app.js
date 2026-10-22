@@ -733,6 +733,7 @@ var rpcCall = function () {
   };
 }();
 var ERR_GENERIC = "Ocorreu um erro. Tenta outra vez.";
+var PROFILES_WARN = "Não foi possível carregar os perfis.";
 var errPt = function errPt(e, fallback) {
   var raw = e == null ? "" : typeof e === "string" ? e : e.message !== undefined && e.message !== null ? String(e.message) : "";
   var out = function out(txt) {
@@ -1964,7 +1965,7 @@ var AddFineModal = function AddFineModal(_ref22) {
               _t21 = _context12.v;
               profFailed = true;
             case 4:
-              if (Object.keys(profMap).length) {
+              if (!(profFailed && !Object.keys(profMap).length)) {
                 _context12.n = 6;
                 break;
               }
@@ -1978,12 +1979,11 @@ var AddFineModal = function AddFineModal(_ref22) {
               });
             case 5:
               pr = _context12.v;
-              if (!Array.isArray(pr)) profFailed = true;
               (Array.isArray(pr) ? pr : []).forEach(function (p) {
                 profMap[p.id] = p;
               });
             case 6:
-              setProfWarn(profFailed && uids.length > 0 && !Object.keys(profMap).length);
+              setProfWarn(profFailed && uids.length > 0);
               setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(function (m) {
                 var _profMap$m$user_id, _profMap$m$user_id2, _profMap$m$user_id3, _profMap$m$user_id4, _profMap$m$user_id5, _profMap$m$user_id6;
                 return {
@@ -2138,7 +2138,7 @@ var AddFineModal = function AddFineModal(_ref22) {
         return t + 1;
       });
     }
-  }, "N\xE3o foi poss\xEDvel carregar os nomes e fotos dos membros."), React.createElement(FL, null, "Jogador (", tm.length, ")"), React.createElement(FSel, {
+  }, PROFILES_WARN), React.createElement(FL, null, "Jogador (", tm.length, ")"), React.createElement(FSel, {
     value: mid,
     onChange: function onChange(e) {
       return setMid(e.target.value);
@@ -11176,7 +11176,7 @@ var GeneralTab = function GeneralTab(_ref121) {
   };
   var openTeamMembers = function () {
     var _ref122 = _asyncToGenerator(_regenerator().m(function _callee39(teamId) {
-      var mRaw, uids, profilesMap, profs, merged, _t51;
+      var mRaw, uids, profilesMap, profs, direct, merged, _t51, _t52;
       return _regenerator().w(function (_context39) {
         while (1) switch (_context39.p = _context39.n) {
           case 0:
@@ -11203,38 +11203,64 @@ var GeneralTab = function GeneralTab(_ref121) {
             }).filter(Boolean);
             profilesMap = {};
             if (!(uids.length > 0)) {
-              _context39.n = 5;
+              _context39.n = 10;
               break;
             }
-            _context39.n = 4;
+            profs = null;
+            _context39.p = 4;
+            _context39.n = 5;
+            return rpcCall('get_team_profiles', {
+              p_team_id: teamId
+            }, token);
+          case 5:
+            profs = _context39.v;
+            _context39.n = 7;
+            break;
+          case 6:
+            _context39.p = 6;
+            _t51 = _context39.v;
+            console.warn('get_team_profiles failed:', _t51 && _t51.message);
+          case 7:
+            if (!Array.isArray(profs)) {
+              _context39.n = 8;
+              break;
+            }
+            profs.forEach(function (p) {
+              profilesMap[p.id] = p;
+            });
+            _context39.n = 10;
+            break;
+          case 8:
+            setMembersWarn(PROFILES_WARN);
+            _context39.n = 9;
             return api.get("profiles?id=in.(".concat(uids.join(','), ")"), token).catch(function () {
               return null;
             });
-          case 4:
-            profs = _context39.v;
-            if (Array.isArray(profs)) profs.forEach(function (p) {
+          case 9:
+            direct = _context39.v;
+            if (Array.isArray(direct)) direct.forEach(function (p) {
               profilesMap[p.id] = p;
-            });else setMembersWarn("Não foi possível carregar os nomes e fotos dos membros.");
-          case 5:
+            });
+          case 10:
             merged = mRaw.map(function (m) {
               return _objectSpread({}, aMember(_objectSpread(_objectSpread({}, m), {}, {
                 profiles: profilesMap[m.user_id] || null
               })));
             });
             setTeamMembers(merged);
-            _context39.n = 7;
+            _context39.n = 12;
             break;
-          case 6:
-            _context39.p = 6;
-            _t51 = _context39.v;
-            console.error(_t51);
+          case 11:
+            _context39.p = 11;
+            _t52 = _context39.v;
+            console.error(_t52);
             setMembersWarn("Não foi possível carregar os membros da equipa.");
-          case 7:
+          case 12:
             setLoadingMembers(false);
-          case 8:
+          case 13:
             return _context39.a(2);
         }
-      }, _callee39, null, [[2, 6]]);
+      }, _callee39, null, [[4, 6], [2, 11]]);
     }));
     return function openTeamMembers(_x14) {
       return _ref122.apply(this, arguments);
@@ -11766,7 +11792,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
   });
   var save = function () {
     var _ref127 = _asyncToGenerator(_regenerator().m(function _callee40() {
-      var ft, _t52, _t53;
+      var ft, _t53, _t54;
       return _regenerator().w(function (_context40) {
         while (1) switch (_context40.p = _context40.n) {
           case 0:
@@ -11779,7 +11805,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
             setSaving(true);
             setErr("");
             _context40.p = 2;
-            _t52 = needRows;
+            _t53 = needRows;
             _context40.n = 3;
             return api.post("fine_types", {
               team_id: team.id,
@@ -11788,7 +11814,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
               emoji: storableIcon(resolveTypeIcon(name.trim(), custom))
             }, token);
           case 3:
-            ft = _t52(_context40.v)[0];
+            ft = _t53(_context40.v)[0];
             onAdded(ft);
             setName("");
             setAmount("");
@@ -11798,8 +11824,8 @@ var FineTypesManager = function FineTypesManager(_ref126) {
             break;
           case 4:
             _context40.p = 4;
-            _t53 = _context40.v;
-            setErr(errPt(_t53));
+            _t54 = _context40.v;
+            setErr(errPt(_t54));
           case 5:
             setSaving(false);
           case 6:
@@ -11819,7 +11845,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
   };
   var saveEdit = function () {
     var _ref128 = _asyncToGenerator(_regenerator().m(function _callee41(id) {
-      var em, _t54, _t55;
+      var em, _t55, _t56;
       return _regenerator().w(function (_context41) {
         while (1) switch (_context41.p = _context41.n) {
           case 0:
@@ -11832,7 +11858,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
             setSaving(true);
             _context41.p = 2;
             em = resolveTypeIcon(editName.trim(), editCustom);
-            _t54 = needRows;
+            _t55 = needRows;
             _context41.n = 3;
             return api.patch("fine_types?id=eq.".concat(id), {
               emoji: storableIcon(em),
@@ -11840,7 +11866,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
               amount: Number(editAmount)
             }, token);
           case 3:
-            _t54(_context41.v);
+            _t55(_context41.v);
             onUpdated(id, {
               emoji: em,
               name: editName.trim(),
@@ -11851,8 +11877,8 @@ var FineTypesManager = function FineTypesManager(_ref126) {
             break;
           case 4:
             _context41.p = 4;
-            _t55 = _context41.v;
-            setErr(errPt(_t55));
+            _t56 = _context41.v;
+            setErr(errPt(_t56));
           case 5:
             setSaving(false);
           case 6:
@@ -11866,7 +11892,7 @@ var FineTypesManager = function FineTypesManager(_ref126) {
   }();
   var del = function () {
     var _ref129 = _asyncToGenerator(_regenerator().m(function _callee42(id) {
-      var still, _t56;
+      var still, _t57;
       return _regenerator().w(function (_context42) {
         while (1) switch (_context42.p = _context42.n) {
           case 0:
@@ -11889,8 +11915,8 @@ var FineTypesManager = function FineTypesManager(_ref126) {
             break;
           case 4:
             _context42.p = 4;
-            _t56 = _context42.v;
-            setErr(errPt(_t56));
+            _t57 = _context42.v;
+            setErr(errPt(_t57));
           case 5:
             return _context42.a(2);
         }
@@ -12141,7 +12167,7 @@ var TeamDataSection = function TeamDataSection(_ref130) {
   };
   var save = function () {
     var _ref131 = _asyncToGenerator(_regenerator().m(function _callee43() {
-      var cur, next, patch, _t57;
+      var cur, next, patch, _t58;
       return _regenerator().w(function (_context43) {
         while (1) switch (_context43.p = _context43.n) {
           case 0:
@@ -12179,8 +12205,8 @@ var TeamDataSection = function TeamDataSection(_ref130) {
             break;
           case 5:
             _context43.p = 5;
-            _t57 = _context43.v;
-            setErr(errPt(_t57, "Erro ao guardar"));
+            _t58 = _context43.v;
+            setErr(errPt(_t58, "Erro ao guardar"));
           case 6:
             setBusy(false);
           case 7:
@@ -13046,7 +13072,7 @@ var DeleteTeamModal = function DeleteTeamModal(_ref143) {
   var match = text === team.name;
   var go = function () {
     var _ref146 = _asyncToGenerator(_regenerator().m(function _callee46() {
-      var _t58;
+      var _t59;
       return _regenerator().w(function (_context46) {
         while (1) switch (_context46.p = _context46.n) {
           case 0:
@@ -13066,8 +13092,8 @@ var DeleteTeamModal = function DeleteTeamModal(_ref143) {
             break;
           case 4:
             _context46.p = 4;
-            _t58 = _context46.v;
-            setErr(errPt(_t58, "Erro ao apagar a equipa"));
+            _t59 = _context46.v;
+            setErr(errPt(_t59, "Erro ao apagar a equipa"));
             setBusy(false);
           case 5:
             return _context46.a(2);
@@ -13393,7 +13419,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref148) {
     setRoleErr = _useState362[1];
   var changeRole = function () {
     var _ref149 = _asyncToGenerator(_regenerator().m(function _callee47(m, r) {
-      var _t59;
+      var _t60;
       return _regenerator().w(function (_context47) {
         while (1) switch (_context47.p = _context47.n) {
           case 0:
@@ -13406,10 +13432,10 @@ var ManageTeamScreen = function ManageTeamScreen(_ref148) {
             break;
           case 3:
             _context47.p = 3;
-            _t59 = _context47.v;
+            _t60 = _context47.v;
             setRoleErr({
               id: m.id,
-              msg: errPt(_t59, "Erro ao alterar o papel")
+              msg: errPt(_t60, "Erro ao alterar o papel")
             });
           case 4:
             return _context47.a(2);
@@ -13438,7 +13464,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref148) {
   };
   var doRemove = function () {
     var _ref150 = _asyncToGenerator(_regenerator().m(function _callee48() {
-      var _t60;
+      var _t61;
       return _regenerator().w(function (_context48) {
         while (1) switch (_context48.p = _context48.n) {
           case 0:
@@ -13459,8 +13485,8 @@ var ManageTeamScreen = function ManageTeamScreen(_ref148) {
             break;
           case 4:
             _context48.p = 4;
-            _t60 = _context48.v;
-            setRemoveErr(errPt(_t60, "Erro ao remover"));
+            _t61 = _context48.v;
+            setRemoveErr(errPt(_t61, "Erro ao remover"));
           case 5:
             setRemoveBusy(false);
           case 6:
@@ -14593,7 +14619,7 @@ var ResetPasswordScreen = function ResetPasswordScreen(_ref158) {
   };
   var save = function () {
     var _ref159 = _asyncToGenerator(_regenerator().m(function _callee49() {
-      var _t61;
+      var _t62;
       return _regenerator().w(function (_context49) {
         while (1) switch (_context49.p = _context49.n) {
           case 0:
@@ -14621,8 +14647,8 @@ var ResetPasswordScreen = function ResetPasswordScreen(_ref158) {
             break;
           case 5:
             _context49.p = 5;
-            _t61 = _context49.v;
-            setErr(errPt(_t61));
+            _t62 = _context49.v;
+            setErr(errPt(_t62));
           case 6:
             setLoading(false);
           case 7:
@@ -15165,7 +15191,7 @@ var AddCardModal = function AddCardModal(_ref169) {
   };
   var save = function () {
     var _ref170 = _asyncToGenerator(_regenerator().m(function _callee52() {
-      var _t62;
+      var _t63;
       return _regenerator().w(function (_context52) {
         while (1) switch (_context52.p = _context52.n) {
           case 0:
@@ -15193,8 +15219,8 @@ var AddCardModal = function AddCardModal(_ref169) {
             break;
           case 4:
             _context52.p = 4;
-            _t62 = _context52.v;
-            setErr(errPt(_t62));
+            _t63 = _context52.v;
+            setErr(errPt(_t63));
             setSaving(false);
           case 5:
             return _context52.a(2);
@@ -15991,7 +16017,7 @@ function App() {
   var canManageTrainings = !roMode && (isAdmin || myRole === "treinador" || myRole === "diretor");
   var loadTeam = function () {
     var _ref175 = _asyncToGenerator(_regenerator().m(function _callee54(tok, tid) {
-      var failedParts, soft, _yield$Promise$all5, _yield$Promise$all6, mRaw, ftData, fData, eData, tData, pData, cData, aData, profilesMap, profFailed, profs, uids, _profs, mData, presMap, _t63, _t64;
+      var failedParts, soft, _yield$Promise$all5, _yield$Promise$all6, mRaw, ftData, fData, eData, tData, pData, cData, aData, profilesMap, profFailed, profs, uids, _profs, mData, presMap, _t64, _t65;
       return _regenerator().w(function (_context54) {
         while (1) switch (_context54.p = _context54.n) {
           case 0:
@@ -16048,11 +16074,11 @@ function App() {
             break;
           case 4:
             _context54.p = 4;
-            _t63 = _context54.v;
+            _t64 = _context54.v;
             profFailed = true;
-            console.warn('get_team_profiles failed:', _t63);
+            console.warn('get_team_profiles failed:', _t64);
           case 5:
-            if (!(Object.keys(profilesMap).length === 0)) {
+            if (!(profFailed && Object.keys(profilesMap).length === 0)) {
               _context54.n = 10;
               break;
             }
@@ -16066,7 +16092,6 @@ function App() {
             }
             _context54.n = 7;
             return api.get("profiles?id=in.(".concat(uids.join(','), ")"), tok).catch(function () {
-              profFailed = true;
               return [];
             });
           case 7:
@@ -16079,12 +16104,11 @@ function App() {
             break;
           case 9:
             _context54.p = 9;
-            _t64 = _context54.v;
-            profFailed = true;
+            _t65 = _context54.v;
           case 10:
             if (profFailed && mRaw.some(function (m) {
               return m.user_id;
-            }) && Object.keys(profilesMap).length === 0) failedParts.push('perfis');
+            })) failedParts.push('perfis');
             setLoadWarn(failedParts);
             mData = mRaw.map(function (m) {
               return _objectSpread(_objectSpread({}, m), {}, {
@@ -16210,25 +16234,25 @@ function App() {
   };
   var loadAdmin = function () {
     var _ref177 = _asyncToGenerator(_regenerator().m(function _callee56(id) {
-      var _t65, _t66;
+      var _t66, _t67;
       return _regenerator().w(function (_context56) {
         while (1) switch (_context56.p = _context56.n) {
           case 0:
             setLoading(true);
             setAdminErr(null);
             _context56.p = 1;
-            _t65 = applyAdminData;
+            _t66 = applyAdminData;
             _context56.n = 2;
             return loadTeamAdmin(token, id);
           case 2:
-            _t65(_context56.v);
+            _t66(_context56.v);
             _context56.n = 4;
             break;
           case 3:
             _context56.p = 3;
-            _t66 = _context56.v;
+            _t67 = _context56.v;
             setAdminErr({
-              msg: roErrPt(_t66),
+              msg: roErrPt(_t67),
               id: id
             });
           case 4:
@@ -16356,39 +16380,58 @@ function App() {
   }, []);
   var initApp = function () {
     var _ref180 = _asyncToGenerator(_regenerator().m(function _callee59(tok, uid) {
-      var profData, p, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t67, _t68;
+      var p, mine, profData, created, membershipsR, adapted, memberships, teamIds, teamsR, teamsJson, first, td, _t68, _t69, _t70;
       return _regenerator().w(function (_context59) {
         while (1) switch (_context59.p = _context59.n) {
           case 0:
             setLoading(true);
             _context59.p = 1;
-            _context59.n = 2;
-            return api.get("profiles?id=eq.".concat(uid), tok);
-          case 2:
-            profData = _context59.v;
-            p = profData[0];
+            p = null;
+            _context59.p = 2;
+            _context59.n = 3;
+            return rpcCall('get_my_profile', {}, tok);
+          case 3:
+            mine = _context59.v;
+            p = Array.isArray(mine) ? mine[0] : mine && mine.id ? mine : null;
+            _context59.n = 5;
+            break;
+          case 4:
+            _context59.p = 4;
+            _t68 = _context59.v;
+            console.warn('get_my_profile failed:', _t68 && _t68.message);
+          case 5:
             if (p) {
               _context59.n = 7;
               break;
             }
-            _context59.p = 3;
-            _context59.n = 4;
+            _context59.n = 6;
+            return api.get("profiles?id=eq.".concat(uid), tok);
+          case 6:
+            profData = _context59.v;
+            p = profData[0];
+          case 7:
+            if (p) {
+              _context59.n = 12;
+              break;
+            }
+            _context59.p = 8;
+            _context59.n = 9;
             return api.post('profiles', {
               id: uid,
               name: 'Utilizador'
             }, tok);
-          case 4:
+          case 9:
             created = _context59.v;
             p = Array.isArray(created) ? created[0] : created;
-            _context59.n = 6;
+            _context59.n = 11;
             break;
-          case 5:
-            _context59.p = 5;
-            _t67 = _context59.v;
-            console.warn('Profile creation fallback failed:', _t67);
-          case 6:
+          case 10:
+            _context59.p = 10;
+            _t69 = _context59.v;
+            console.warn('Profile creation fallback failed:', _t69);
+          case 11:
             if (!p) showToast("⚠️ Não foi possível carregar o teu perfil. Recarrega a app.", T.brand);
-          case 7:
+          case 12:
             if (p) setProfile({
               id: p.id,
               name: p.name || '',
@@ -16400,77 +16443,77 @@ function App() {
               isAppAdmin: p.is_admin === true,
               avatarUrl: p.avatar_url || null
             });
-            _context59.n = 8;
+            _context59.n = 13;
             return fetch("".concat(SB_URL, "/rest/v1/team_members?user_id=eq.").concat(uid, "&select=team_id"), {
               headers: {
                 'apikey': SB_KEY,
                 'Authorization': "Bearer ".concat(tok)
               }
             });
-          case 8:
+          case 13:
             membershipsR = _context59.v;
             adapted = [];
             if (membershipsR.ok) {
-              _context59.n = 9;
-              break;
-            }
-            throw new Error("Não foi possível carregar as tuas equipas.");
-          case 9:
-            if (!membershipsR.ok) {
               _context59.n = 14;
               break;
             }
-            _context59.n = 10;
+            throw new Error("Não foi possível carregar as tuas equipas.");
+          case 14:
+            if (!membershipsR.ok) {
+              _context59.n = 19;
+              break;
+            }
+            _context59.n = 15;
             return membershipsR.json();
-          case 10:
+          case 15:
             memberships = _context59.v;
             teamIds = (Array.isArray(memberships) ? memberships : []).map(function (m) {
               return m.team_id;
             }).filter(Boolean);
             if (!(teamIds.length > 0)) {
-              _context59.n = 14;
+              _context59.n = 19;
               break;
             }
-            _context59.n = 11;
+            _context59.n = 16;
             return fetch("".concat(SB_URL, "/rest/v1/teams?id=in.(").concat(teamIds.join(','), ")&order=created_at.asc"), {
               headers: {
                 'apikey': SB_KEY,
                 'Authorization': "Bearer ".concat(tok)
               }
             });
-          case 11:
+          case 16:
             teamsR = _context59.v;
             if (teamsR.ok) {
-              _context59.n = 12;
+              _context59.n = 17;
               break;
             }
             throw new Error("Não foi possível carregar as tuas equipas.");
-          case 12:
+          case 17:
             if (!teamsR.ok) {
-              _context59.n = 14;
+              _context59.n = 19;
               break;
             }
-            _context59.n = 13;
+            _context59.n = 18;
             return teamsR.json();
-          case 13:
+          case 18:
             teamsJson = _context59.v;
             adapted = (Array.isArray(teamsJson) ? teamsJson : []).map(aTeam);
-          case 14:
+          case 19:
             setTeams(adapted);
             if (adapted.length) {
-              _context59.n = 15;
+              _context59.n = 20;
               break;
             }
             if (p && p.is_admin === true) setTab("geral");
             setAppReady(true);
             setLoading(false);
             return _context59.a(2, true);
-          case 15:
+          case 20:
             first = adapted[0].id;
             setTeamId(first);
-            _context59.n = 16;
+            _context59.n = 21;
             return loadTeam(tok, first);
-          case 16:
+          case 21:
             td = _context59.v;
             setMembers(td.members);
             setFineTypes(td.fineTypes);
@@ -16482,19 +16525,19 @@ function App() {
             setAbsences(td.absences);
             setAppReady(true);
             return _context59.a(2, true);
-          case 17:
-            _context59.p = 17;
-            _t68 = _context59.v;
-            setAuthError("Erro: ".concat(errPt(_t68)));
+          case 22:
+            _context59.p = 22;
+            _t70 = _context59.v;
+            setAuthError("Erro: ".concat(errPt(_t70)));
             return _context59.a(2, false);
-          case 18:
-            _context59.p = 18;
+          case 23:
+            _context59.p = 23;
             setLoading(false);
-            return _context59.f(18);
-          case 19:
+            return _context59.f(23);
+          case 24:
             return _context59.a(2);
         }
-      }, _callee59, null, [[3, 5], [1, 17, 18, 19]]);
+      }, _callee59, null, [[8, 10], [2, 4], [1, 22, 23, 24]]);
     }));
     return function initApp(_x27, _x28) {
       return _ref180.apply(this, arguments);
@@ -16502,7 +16545,7 @@ function App() {
   }();
   var switchTeam = function () {
     var _ref181 = _asyncToGenerator(_regenerator().m(function _callee60(id) {
-      var td, _t69;
+      var td, _t71;
       return _regenerator().w(function (_context60) {
         while (1) switch (_context60.p = _context60.n) {
           case 0:
@@ -16535,9 +16578,9 @@ function App() {
             break;
           case 5:
             _context60.p = 5;
-            _t69 = _context60.v;
-            console.error(_t69);
-            showToast("\u26A0\uFE0F N\xE3o foi poss\xEDvel carregar a equipa: ".concat(errPt(_t69, "erro")), T.brand);
+            _t71 = _context60.v;
+            console.error(_t71);
+            showToast("\u26A0\uFE0F N\xE3o foi poss\xEDvel carregar a equipa: ".concat(errPt(_t71, "erro")), T.brand);
           case 6:
             setLoading(false);
           case 7:
@@ -16550,7 +16593,7 @@ function App() {
     };
   }();
   var refresh = useCallback(_asyncToGenerator(_regenerator().m(function _callee61() {
-    var td, _t70, _t71, _t72;
+    var td, _t72, _t73, _t74;
     return _regenerator().w(function (_context61) {
       while (1) switch (_context61.p = _context61.n) {
         case 0:
@@ -16566,17 +16609,17 @@ function App() {
             break;
           }
           _context61.p = 2;
-          _t70 = applyAdminData;
+          _t72 = applyAdminData;
           _context61.n = 3;
           return loadTeamAdmin(token, teamId);
         case 3:
-          _t70(_context61.v);
+          _t72(_context61.v);
           _context61.n = 5;
           break;
         case 4:
           _context61.p = 4;
-          _t71 = _context61.v;
-          showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(roErrPt(_t71)), T.brand);
+          _t73 = _context61.v;
+          showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(roErrPt(_t73)), T.brand);
         case 5:
           setRefreshing(false);
           return _context61.a(2);
@@ -16598,9 +16641,9 @@ function App() {
           break;
         case 8:
           _context61.p = 8;
-          _t72 = _context61.v;
-          console.error(_t72);
-          showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(errPt(_t72, "erro")), T.brand);
+          _t74 = _context61.v;
+          console.error(_t74);
+          showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(errPt(_t74, "erro")), T.brand);
         case 9:
           setRefreshing(false);
         case 10:
@@ -16627,7 +16670,7 @@ function App() {
   }, []);
   var handleLogin = function () {
     var _ref183 = _asyncToGenerator(_regenerator().m(function _callee62(email, pass) {
-      var _d$session, _d$user, d, tok, uid, _t73;
+      var _d$session, _d$user, d, tok, uid, _t75;
       return _regenerator().w(function (_context62) {
         while (1) switch (_context62.p = _context62.n) {
           case 0:
@@ -16655,8 +16698,8 @@ function App() {
             break;
           case 5:
             _context62.p = 5;
-            _t73 = _context62.v;
-            setAuthError(errPt(_t73));
+            _t75 = _context62.v;
+            setAuthError(errPt(_t75));
             setLoading(false);
           case 6:
             return _context62.a(2);
@@ -16669,7 +16712,7 @@ function App() {
   }();
   var handleRegister = function () {
     var _ref184 = _asyncToGenerator(_regenerator().m(function _callee63(email, pass, name) {
-      var _d$session2, _d$user2, d, tok, uid, nameFailed, _d2$session, d2, tok2, _t74, _t75, _t76, _t77;
+      var _d$session2, _d$user2, d, tok, uid, nameFailed, _d2$session, d2, tok2, _t76, _t77, _t78, _t79;
       return _regenerator().w(function (_context63) {
         while (1) switch (_context63.p = _context63.n) {
           case 0:
@@ -16688,21 +16731,21 @@ function App() {
             }
             nameFailed = false;
             _context63.p = 3;
-            _t74 = needRows;
+            _t76 = needRows;
             _context63.n = 4;
             return api.patch("profiles?id=eq.".concat(uid), {
               name: name,
               initials: mk(name)
             }, tok);
           case 4:
-            _t74(_context63.v);
+            _t76(_context63.v);
             _context63.n = 6;
             break;
           case 5:
             _context63.p = 5;
-            _t75 = _context63.v;
+            _t77 = _context63.v;
             nameFailed = true;
-            console.warn('profile name update failed:', _t75);
+            console.warn('profile name update failed:', _t77);
           case 6:
             setToken(tok);
             setMyUserId(uid);
@@ -16741,7 +16784,7 @@ function App() {
             break;
           case 14:
             _context63.p = 14;
-            _t76 = _context63.v;
+            _t78 = _context63.v;
             setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
           case 15:
             _context63.n = 17;
@@ -16753,8 +16796,8 @@ function App() {
             break;
           case 18:
             _context63.p = 18;
-            _t77 = _context63.v;
-            setAuthError(errPt(_t77));
+            _t79 = _context63.v;
+            setAuthError(errPt(_t79));
           case 19:
             setLoading(false);
           case 20:
@@ -16789,11 +16832,11 @@ function App() {
   };
   var addFine = function () {
     var _ref185 = _asyncToGenerator(_regenerator().m(function _callee64(d) {
-      var _needRows, _needRows2, f, _t78;
+      var _needRows, _needRows2, f, _t80;
       return _regenerator().w(function (_context64) {
         while (1) switch (_context64.n) {
           case 0:
-            _t78 = needRows;
+            _t80 = needRows;
             _context64.n = 1;
             return api.post('fines', {
               team_id: d.teamId,
@@ -16805,7 +16848,7 @@ function App() {
               assigned_by: myUserId
             }, token);
           case 1:
-            _needRows = _t78(_context64.v);
+            _needRows = _t80(_context64.v);
             _needRows2 = _slicedToArray(_needRows, 1);
             f = _needRows2[0];
             setFines(function (p) {
@@ -16853,7 +16896,7 @@ function App() {
   }();
   var togglePaid = function () {
     var _ref187 = _asyncToGenerator(_regenerator().m(function _callee66(id) {
-      var f, paid, _t79, _t80;
+      var f, paid, _t81, _t82;
       return _regenerator().w(function (_context66) {
         while (1) switch (_context66.p = _context66.n) {
           case 0:
@@ -16868,14 +16911,14 @@ function App() {
           case 1:
             paid = !f.paid;
             _context66.p = 2;
-            _t79 = updated;
+            _t81 = updated;
             _context66.n = 3;
             return api.patch("fines?id=eq.".concat(id), {
               paid: paid,
               paid_at: paid ? new Date().toISOString() : null
             }, token);
           case 3:
-            _t79(_context66.v);
+            _t81(_context66.v);
             setFines(function (p) {
               return p.map(function (x) {
                 return x.id === id ? _objectSpread(_objectSpread({}, x), {}, {
@@ -16887,8 +16930,8 @@ function App() {
             break;
           case 4:
             _context66.p = 4;
-            _t80 = _context66.v;
-            writeFailed(paid ? "marcar a multa como paga" : "marcar a multa como por pagar", _t80);
+            _t82 = _context66.v;
+            writeFailed(paid ? "marcar a multa como paga" : "marcar a multa como por pagar", _t82);
           case 5:
             return _context66.a(2);
         }
@@ -16900,7 +16943,7 @@ function App() {
   }();
   var delFine = function () {
     var _ref188 = _asyncToGenerator(_regenerator().m(function _callee67(id) {
-      var _t81;
+      var _t83;
       return _regenerator().w(function (_context67) {
         while (1) switch (_context67.p = _context67.n) {
           case 0:
@@ -16920,8 +16963,8 @@ function App() {
             break;
           case 3:
             _context67.p = 3;
-            _t81 = _context67.v;
-            writeFailed("apagar a multa", _t81);
+            _t83 = _context67.v;
+            writeFailed("apagar a multa", _t83);
           case 4:
             return _context67.a(2);
         }
@@ -16933,12 +16976,12 @@ function App() {
   }();
   var editFine = function () {
     var _ref189 = _asyncToGenerator(_regenerator().m(function _callee68(id, data) {
-      var _t82, _t83;
+      var _t84, _t85;
       return _regenerator().w(function (_context68) {
         while (1) switch (_context68.p = _context68.n) {
           case 0:
             _context68.p = 0;
-            _t82 = updated;
+            _t84 = updated;
             _context68.n = 1;
             return api.patch("fines?id=eq.".concat(id), {
               emoji: data.emoji,
@@ -16946,7 +16989,7 @@ function App() {
               amount: data.amount
             }, token);
           case 1:
-            _t82(_context68.v);
+            _t84(_context68.v);
             setFines(function (p) {
               return p.map(function (f) {
                 return f.id === id ? _objectSpread(_objectSpread({}, f), data) : f;
@@ -16956,8 +16999,8 @@ function App() {
             break;
           case 2:
             _context68.p = 2;
-            _t83 = _context68.v;
-            writeFailed("guardar a multa", _t83);
+            _t85 = _context68.v;
+            writeFailed("guardar a multa", _t85);
           case 3:
             return _context68.a(2);
         }
@@ -16969,11 +17012,11 @@ function App() {
   }();
   var addCard = function () {
     var _ref190 = _asyncToGenerator(_regenerator().m(function _callee69(d) {
-      var _needRows3, _needRows4, c, _t84;
+      var _needRows3, _needRows4, c, _t86;
       return _regenerator().w(function (_context69) {
         while (1) switch (_context69.n) {
           case 0:
-            _t84 = needRows;
+            _t86 = needRows;
             _context69.n = 1;
             return api.post('cards', {
               team_id: d.teamId,
@@ -16986,7 +17029,7 @@ function App() {
               created_by: myUserId
             }, token);
           case 1:
-            _needRows3 = _t84(_context69.v);
+            _needRows3 = _t86(_context69.v);
             _needRows4 = _slicedToArray(_needRows3, 1);
             c = _needRows4[0];
             setCards(function (p) {
@@ -17002,12 +17045,12 @@ function App() {
   }();
   var editCard = function editCard(id, d) {
     return guarded("card:".concat(id), _asyncToGenerator(_regenerator().m(function _callee70() {
-      var _t85, _t86;
+      var _t87, _t88;
       return _regenerator().w(function (_context70) {
         while (1) switch (_context70.p = _context70.n) {
           case 0:
             _context70.p = 0;
-            _t85 = needRows;
+            _t87 = needRows;
             _context70.n = 1;
             return api.patch("cards?id=eq.".concat(id), {
               kind: d.kind,
@@ -17016,7 +17059,7 @@ function App() {
               note: d.note || null
             }, token);
           case 1:
-            _t85(_context70.v);
+            _t87(_context70.v);
             setCards(function (p) {
               return p.map(function (c) {
                 return c.id === id ? _objectSpread(_objectSpread({}, c), d) : c;
@@ -17025,8 +17068,8 @@ function App() {
             return _context70.a(2, true);
           case 2:
             _context70.p = 2;
-            _t86 = _context70.v;
-            writeFailed("guardar o cartão", _t86);
+            _t88 = _context70.v;
+            writeFailed("guardar o cartão", _t88);
             return _context70.a(2, false);
         }
       }, _callee70, null, [[0, 2]]);
@@ -17034,7 +17077,7 @@ function App() {
   };
   var delCard = function delCard(id) {
     return guarded("card:".concat(id), _asyncToGenerator(_regenerator().m(function _callee71() {
-      var _t87;
+      var _t89;
       return _regenerator().w(function (_context71) {
         while (1) switch (_context71.p = _context71.n) {
           case 0:
@@ -17053,8 +17096,8 @@ function App() {
             return _context71.a(2, true);
           case 3:
             _context71.p = 3;
-            _t87 = _context71.v;
-            writeFailed("apagar o cartão", _t87);
+            _t89 = _context71.v;
+            writeFailed("apagar o cartão", _t89);
             return _context71.a(2, false);
         }
       }, _callee71, null, [[0, 3]]);
@@ -17062,7 +17105,7 @@ function App() {
   };
   var serveSuspension = function serveSuspension(memberId) {
     return guarded("susp:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee72() {
-      var ids, _members$find2, done, _t88, _t89;
+      var ids, _members$find2, done, _t90, _t91;
       return _regenerator().w(function (_context72) {
         while (1) switch (_context72.p = _context72.n) {
           case 0:
@@ -17080,13 +17123,13 @@ function App() {
             return _context72.a(2, false);
           case 1:
             _context72.p = 1;
-            _t88 = needRows;
+            _t90 = needRows;
             _context72.n = 2;
             return api.patch("cards?id=in.(".concat(ids.join(','), ")"), {
               consumed: true
             }, token);
           case 2:
-            done = _t88(_context72.v).map(function (r) {
+            done = _t90(_context72.v).map(function (r) {
               return r.id;
             });
             setCards(function (p) {
@@ -17108,8 +17151,8 @@ function App() {
             return _context72.a(2, true);
           case 4:
             _context72.p = 4;
-            _t89 = _context72.v;
-            writeFailed("repor o contador", _t89);
+            _t91 = _context72.v;
+            writeFailed("repor o contador", _t91);
             return _context72.a(2, false);
         }
       }, _callee72, null, [[1, 4]]);
@@ -17117,7 +17160,7 @@ function App() {
   };
   var editExpense = function editExpense(id, d) {
     return guarded("exp:".concat(id), _asyncToGenerator(_regenerator().m(function _callee73() {
-      var desc, amt, _updated, _updated2, e, _t90, _t91;
+      var desc, amt, _updated, _updated2, e, _t92, _t93;
       return _regenerator().w(function (_context73) {
         while (1) switch (_context73.p = _context73.n) {
           case 0:
@@ -17135,14 +17178,14 @@ function App() {
             }
             throw new Error("o valor tem de ser maior que zero");
           case 2:
-            _t90 = updated;
+            _t92 = updated;
             _context73.n = 3;
             return api.patch("expenses?id=eq.".concat(id), {
               description: desc,
               amount: amt
             }, token);
           case 3:
-            _updated = _t90(_context73.v);
+            _updated = _t92(_context73.v);
             _updated2 = _slicedToArray(_updated, 1);
             e = _updated2[0];
             setExpenses(function (p) {
@@ -17153,8 +17196,8 @@ function App() {
             return _context73.a(2, true);
           case 4:
             _context73.p = 4;
-            _t91 = _context73.v;
-            writeFailed("guardar a despesa", _t91);
+            _t93 = _context73.v;
+            writeFailed("guardar a despesa", _t93);
             return _context73.a(2, false);
         }
       }, _callee73, null, [[0, 4]]);
@@ -17162,7 +17205,7 @@ function App() {
   };
   var deleteExpense = function deleteExpense(id) {
     return guarded("exp:".concat(id), _asyncToGenerator(_regenerator().m(function _callee74() {
-      var _t92;
+      var _t94;
       return _regenerator().w(function (_context74) {
         while (1) switch (_context74.p = _context74.n) {
           case 0:
@@ -17182,8 +17225,8 @@ function App() {
             return _context74.a(2, true);
           case 3:
             _context74.p = 3;
-            _t92 = _context74.v;
-            writeFailed("apagar a despesa", _t92);
+            _t94 = _context74.v;
+            writeFailed("apagar a despesa", _t94);
             return _context74.a(2, false);
         }
       }, _callee74, null, [[0, 3]]);
@@ -17191,12 +17234,12 @@ function App() {
   };
   var addExpense = function () {
     var _ref196 = _asyncToGenerator(_regenerator().m(function _callee75(d) {
-      var _updated3, _updated4, e, _t93, _t94;
+      var _updated3, _updated4, e, _t95, _t96;
       return _regenerator().w(function (_context75) {
         while (1) switch (_context75.p = _context75.n) {
           case 0:
             _context75.p = 0;
-            _t93 = updated;
+            _t95 = updated;
             _context75.n = 1;
             return api.post('expenses', {
               team_id: d.teamId,
@@ -17205,7 +17248,7 @@ function App() {
               created_by: myUserId
             }, token);
           case 1:
-            _updated3 = _t93(_context75.v);
+            _updated3 = _t95(_context75.v);
             _updated4 = _slicedToArray(_updated3, 1);
             e = _updated4[0];
             setExpenses(function (p) {
@@ -17215,8 +17258,8 @@ function App() {
             break;
           case 2:
             _context75.p = 2;
-            _t94 = _context75.v;
-            writeFailed("registar a despesa", _t94);
+            _t96 = _context75.v;
+            writeFailed("registar a despesa", _t96);
           case 3:
             return _context75.a(2);
         }
@@ -17228,7 +17271,7 @@ function App() {
   }();
   var logSession = function () {
     var _ref197 = _asyncToGenerator(_regenerator().m(function _callee76(recurring, date, currentPresences) {
-      var alreadyLogged, newT, presArr, saved, okArr, names, shown, _t95, _t96;
+      var alreadyLogged, newT, presArr, saved, okArr, names, shown, _t97, _t98;
       return _regenerator().w(function (_context76) {
         while (1) switch (_context76.p = _context76.n) {
           case 0:
@@ -17243,7 +17286,7 @@ function App() {
             return _context76.a(2);
           case 1:
             _context76.p = 1;
-            _t95 = needRows;
+            _t97 = needRows;
             _context76.n = 2;
             return api.post("trainings", {
               team_id: recurring.teamId,
@@ -17256,7 +17299,7 @@ function App() {
               created_by: myUserId
             }, token);
           case 2:
-            newT = _t95(_context76.v)[0];
+            newT = _t97(_context76.v)[0];
             setTrainings(function (p) {
               return [].concat(_toConsumableArray(p), [aTraining(newT)]);
             });
@@ -17310,8 +17353,8 @@ function App() {
             break;
           case 5:
             _context76.p = 5;
-            _t96 = _context76.v;
-            writeFailed("registar a sessão", _t96);
+            _t98 = _context76.v;
+            writeFailed("registar a sessão", _t98);
           case 6:
             return _context76.a(2);
         }
@@ -17323,11 +17366,11 @@ function App() {
   }();
   var addTraining = function () {
     var _ref204 = _asyncToGenerator(_regenerator().m(function _callee77(d) {
-      var res, t, tm, isJogo, title, body, _t97;
+      var res, t, tm, isJogo, title, body, _t99;
       return _regenerator().w(function (_context77) {
         while (1) switch (_context77.n) {
           case 0:
-            _t97 = needRows;
+            _t99 = needRows;
             _context77.n = 1;
             return api.post('trainings', {
               team_id: d.teamId,
@@ -17344,7 +17387,7 @@ function App() {
               created_by: myUserId
             }, token);
           case 1:
-            res = _t97(_context77.v);
+            res = _t99(_context77.v);
             t = Array.isArray(res) ? res[0] : res;
             if (t) {
               setTrainings(function (p) {
@@ -17373,7 +17416,7 @@ function App() {
   }();
   var delTraining = function delTraining(id) {
     return guarded("tr:".concat(id), _asyncToGenerator(_regenerator().m(function _callee78() {
-      var _t98;
+      var _t100;
       return _regenerator().w(function (_context78) {
         while (1) switch (_context78.p = _context78.n) {
           case 0:
@@ -17392,8 +17435,8 @@ function App() {
             return _context78.a(2, true);
           case 3:
             _context78.p = 3;
-            _t98 = _context78.v;
-            writeFailed("apagar o treino", _t98);
+            _t100 = _context78.v;
+            writeFailed("apagar o treino", _t100);
             return _context78.a(2, false);
         }
       }, _callee78, null, [[0, 3]]);
@@ -17401,7 +17444,7 @@ function App() {
   };
   var editTraining = function editTraining(id, d) {
     return guarded("tr:".concat(id), _asyncToGenerator(_regenerator().m(function _callee79() {
-      var patch, t, _t99, _t100;
+      var patch, t, _t101, _t102;
       return _regenerator().w(function (_context79) {
         while (1) switch (_context79.p = _context79.n) {
           case 0:
@@ -17415,11 +17458,11 @@ function App() {
             if (d.homeAway !== undefined) patch.home_away = d.homeAway;
             if (d.squad !== undefined) patch.squad = d.squad;
             _context79.p = 1;
-            _t99 = needRows;
+            _t101 = needRows;
             _context79.n = 2;
             return api.patch("trainings?id=eq.".concat(id), patch, token);
           case 2:
-            t = _t99(_context79.v)[0];
+            t = _t101(_context79.v)[0];
             setTrainings(function (p) {
               return p.map(function (x) {
                 return x.id === id ? aTraining(t) : x;
@@ -17428,9 +17471,9 @@ function App() {
             return _context79.a(2, true);
           case 3:
             _context79.p = 3;
-            _t100 = _context79.v;
-            writeFailed("guardar o treino", _t100);
-            throw _t100;
+            _t102 = _context79.v;
+            writeFailed("guardar o treino", _t102);
+            throw _t102;
           case 4:
             return _context79.a(2);
         }
@@ -17439,7 +17482,7 @@ function App() {
   };
   var setPresence = function setPresence(tid, mid, status) {
     return guarded("pres:".concat(tid, ":").concat(mid), _asyncToGenerator(_regenerator().m(function _callee80() {
-      var _t101, _t102;
+      var _t103, _t104;
       return _regenerator().w(function (_context80) {
         while (1) switch (_context80.p = _context80.n) {
           case 0:
@@ -17462,7 +17505,7 @@ function App() {
             _context80.n = 5;
             break;
           case 3:
-            _t101 = needRows;
+            _t103 = needRows;
             _context80.n = 4;
             return api.upsert('presences', {
               training_id: tid,
@@ -17470,7 +17513,7 @@ function App() {
               status: status
             }, token);
           case 4:
-            _t101(_context80.v);
+            _t103(_context80.v);
             setPresences(function (p) {
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, _objectSpread(_objectSpread({}, p[tid] || {}), {}, _defineProperty({}, mid, status))));
             });
@@ -17478,8 +17521,8 @@ function App() {
             return _context80.a(2, true);
           case 6:
             _context80.p = 6;
-            _t102 = _context80.v;
-            writeFailed("guardar a presença", _t102);
+            _t104 = _context80.v;
+            writeFailed("guardar a presença", _t104);
             return _context80.a(2, false);
         }
       }, _callee80, null, [[0, 6]]);
@@ -17487,7 +17530,7 @@ function App() {
   };
   var addMember = function () {
     var _ref208 = _asyncToGenerator(_regenerator().m(function _callee81(d) {
-      var _r, j, m, _t103, _t104;
+      var _r, j, m, _t105, _t106;
       return _regenerator().w(function (_context81) {
         while (1) switch (_context81.p = _context81.n) {
           case 0:
@@ -17528,7 +17571,7 @@ function App() {
             break;
           case 5:
             _context81.p = 5;
-            _t103 = _context81.v;
+            _t105 = _context81.v;
             j = null;
           case 6:
             if (_r.ok) {
@@ -17560,8 +17603,8 @@ function App() {
             return _context81.a(2, true);
           case 9:
             _context81.p = 9;
-            _t104 = _context81.v;
-            writeFailed("adicionar o membro", _t104);
+            _t106 = _context81.v;
+            writeFailed("adicionar o membro", _t106);
             return _context81.a(2, false);
         }
       }, _callee81, null, [[3, 5], [1, 9]]);
@@ -17572,7 +17615,7 @@ function App() {
   }();
   var leaveTeam = function () {
     var _ref209 = _asyncToGenerator(_regenerator().m(function _callee82(tid) {
-      var m, remaining, _t105;
+      var m, remaining, _t107;
       return _regenerator().w(function (_context82) {
         while (1) switch (_context82.p = _context82.n) {
           case 0:
@@ -17616,8 +17659,8 @@ function App() {
             break;
           case 5:
             _context82.p = 5;
-            _t105 = _context82.v;
-            writeFailed("sair da equipa", _t105);
+            _t107 = _context82.v;
+            writeFailed("sair da equipa", _t107);
           case 6:
             return _context82.a(2);
         }
@@ -17804,11 +17847,11 @@ function App() {
   };
   var callOpen = function () {
     var _ref213 = _asyncToGenerator(_regenerator().m(function _callee86(memberId, v) {
-      var _t106;
+      var _t108;
       return _regenerator().w(function (_context86) {
         while (1) switch (_context86.n) {
           case 0:
-            _t106 = absRow;
+            _t108 = absRow;
             _context86.n = 1;
             return rpcCall('absence_open', {
               p_member_id: memberId,
@@ -17818,7 +17861,7 @@ function App() {
               p_start: v.start
             }, token);
           case 1:
-            return _context86.a(2, _t106(_context86.v));
+            return _context86.a(2, _t108(_context86.v));
         }
       }, _callee86);
     }));
@@ -17828,18 +17871,18 @@ function App() {
   }();
   var callClose = function () {
     var _ref214 = _asyncToGenerator(_regenerator().m(function _callee87(a, end) {
-      var _t107;
+      var _t109;
       return _regenerator().w(function (_context87) {
         while (1) switch (_context87.n) {
           case 0:
-            _t107 = absRow;
+            _t109 = absRow;
             _context87.n = 1;
             return rpcCall('absence_close', {
               p_absence_id: a.id,
               p_end: end && end >= a.start ? end : a.start
             }, token);
           case 1:
-            return _context87.a(2, _t107(_context87.v));
+            return _context87.a(2, _t109(_context87.v));
         }
       }, _callee87);
     }));
@@ -17849,7 +17892,7 @@ function App() {
   }();
   var absOpen = function absOpen(memberId, v) {
     return guarded("m:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee88() {
-      var m, a, _t108;
+      var m, a, _t110;
       return _regenerator().w(function (_context88) {
         while (1) switch (_context88.p = _context88.n) {
           case 0:
@@ -17868,8 +17911,8 @@ function App() {
             return _context88.a(2, true);
           case 3:
             _context88.p = 3;
-            _t108 = _context88.v;
-            writeFailed("guardar a lesão/ausência", _t108);
+            _t110 = _context88.v;
+            writeFailed("guardar a lesão/ausência", _t110);
             return _context88.a(2, false);
         }
       }, _callee88, null, [[1, 3]]);
@@ -17877,7 +17920,7 @@ function App() {
   };
   var absClose = function absClose(a) {
     return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee89() {
-      var _r2, _t109;
+      var _r2, _t111;
       return _regenerator().w(function (_context89) {
         while (1) switch (_context89.p = _context89.n) {
           case 0:
@@ -17892,8 +17935,8 @@ function App() {
             return _context89.a(2, true);
           case 2:
             _context89.p = 2;
-            _t109 = _context89.v;
-            writeFailed("fechar o registo", _t109);
+            _t111 = _context89.v;
+            writeFailed("fechar o registo", _t111);
             return _context89.a(2, false);
         }
       }, _callee89, null, [[0, 2]]);
@@ -17901,13 +17944,13 @@ function App() {
   };
   var absUpdate = function absUpdate(a, v) {
     return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee90() {
-      var _r3, _t110, _t111;
+      var _r3, _t112, _t113;
       return _regenerator().w(function (_context90) {
         while (1) switch (_context90.p = _context90.n) {
           case 0:
             _context90.p = 0;
             needNote(v);
-            _t110 = absRow;
+            _t112 = absRow;
             _context90.n = 1;
             return rpcCall('absence_update', {
               p_absence_id: a.id,
@@ -17918,14 +17961,14 @@ function App() {
               p_end: a.end ? v.end || a.end : null
             }, token);
           case 1:
-            _r3 = _t110(_context90.v);
+            _r3 = _t112(_context90.v);
             absPut(_r3);
             if (!_r3.end && _r3.memberId) setMemberUnavail(_r3.memberId, _r3);
             return _context90.a(2, true);
           case 2:
             _context90.p = 2;
-            _t111 = _context90.v;
-            writeFailed("guardar o registo", _t111);
+            _t113 = _context90.v;
+            writeFailed("guardar o registo", _t113);
             return _context90.a(2, false);
         }
       }, _callee90, null, [[0, 2]]);
@@ -17933,7 +17976,7 @@ function App() {
   };
   var absDelete = function absDelete(a) {
     return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee91() {
-      var res, _t112;
+      var res, _t114;
       return _regenerator().w(function (_context91) {
         while (1) switch (_context91.p = _context91.n) {
           case 0:
@@ -17960,8 +18003,8 @@ function App() {
             return _context91.a(2, true);
           case 3:
             _context91.p = 3;
-            _t112 = _context91.v;
-            writeFailed("apagar o registo", _t112);
+            _t114 = _context91.v;
+            writeFailed("apagar o registo", _t114);
             return _context91.a(2, false);
         }
       }, _callee91, null, [[0, 3]]);
@@ -17969,7 +18012,7 @@ function App() {
   };
   var absAddPast = function absAddPast(memberId, v) {
     return guarded("m:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee92() {
-      var opened, closed, res, _t113, _t114;
+      var opened, closed, res, _t115, _t116;
       return _regenerator().w(function (_context92) {
         while (1) switch (_context92.p = _context92.n) {
           case 0:
@@ -17996,7 +18039,7 @@ function App() {
             return _context92.a(2, true);
           case 5:
             _context92.p = 5;
-            _t113 = _context92.v;
+            _t115 = _context92.v;
             if (!opened) {
               _context92.n = 10;
               break;
@@ -18018,13 +18061,13 @@ function App() {
             break;
           case 9:
             _context92.p = 9;
-            _t114 = _context92.v;
+            _t116 = _context92.v;
             absPut(opened);
             setMemberUnavail(memberId, opened);
-            writeFailed("adicionar o registo (ficou em curso, fecha-o ou apaga-o à mão)", _t113);
+            writeFailed("adicionar o registo (ficou em curso, fecha-o ou apaga-o à mão)", _t115);
             return _context92.a(2, false);
           case 10:
-            writeFailed("adicionar o registo", _t113);
+            writeFailed("adicionar o registo", _t115);
             return _context92.a(2, false);
         }
       }, _callee92, null, [[6, 9], [1, 5]]);
@@ -18032,17 +18075,17 @@ function App() {
   };
   var absLegacy = function absLegacy(m, v, closeAfter) {
     return guarded("m:".concat(m.id), _asyncToGenerator(_regenerator().m(function _callee93() {
-      var opened, closed, _t115, _t116;
+      var opened, closed, _t117, _t118;
       return _regenerator().w(function (_context93) {
         while (1) switch (_context93.p = _context93.n) {
           case 0:
             opened = null;
             _context93.p = 1;
             needNote(v);
-            _t115 = (absences || []).find(function (x) {
+            _t117 = (absences || []).find(function (x) {
               return x.memberId === m.id && !x.end;
             });
-            if (_t115) {
+            if (_t117) {
               _context93.n = 3;
               break;
             }
@@ -18051,9 +18094,9 @@ function App() {
               start: m.unavailableSince || v.start
             }));
           case 2:
-            _t115 = _context93.v;
+            _t117 = _context93.v;
           case 3:
-            opened = _t115;
+            opened = _t117;
             absPut(opened);
             setMemberUnavail(m.id, opened);
             if (!closeAfter) {
@@ -18071,8 +18114,8 @@ function App() {
             return _context93.a(2, true);
           case 6:
             _context93.p = 6;
-            _t116 = _context93.v;
-            writeFailed(closeAfter && opened ? "fechar o registo (a nota ficou guardada, tenta fechar outra vez)" : "guardar o registo", _t116);
+            _t118 = _context93.v;
+            writeFailed(closeAfter && opened ? "fechar o registo (a nota ficou guardada, tenta fechar outra vez)" : "guardar o registo", _t118);
             return _context93.a(2, false);
         }
       }, _callee93, null, [[1, 6]]);
@@ -18088,7 +18131,7 @@ function App() {
   };
   var editMember = function editMember(id, data) {
     return guarded("mem:".concat(id), _asyncToGenerator(_regenerator().m(function _callee94() {
-      var m, profs, prof, tmr, saved, same, diff, _t117;
+      var m, profs, prof, tmr, saved, same, diff, _t119;
       return _regenerator().w(function (_context94) {
         while (1) switch (_context94.p = _context94.n) {
           case 0:
@@ -18172,8 +18215,8 @@ function App() {
             return _context94.a(2, true);
           case 8:
             _context94.p = 8;
-            _t117 = _context94.v;
-            writeFailed("guardar o perfil do membro", _t117);
+            _t119 = _context94.v;
+            writeFailed("guardar o perfil do membro", _t119);
             return _context94.a(2, false);
         }
       }, _callee94, null, [[1, 8]]);
@@ -18185,7 +18228,7 @@ function App() {
     setTeamError = _useState498[1];
   var createTeam = function () {
     var _ref226 = _asyncToGenerator(_regenerator().m(function _callee95(d) {
-      var tid, invCode, sr, se, tr, newTeam, _t118;
+      var tid, invCode, sr, se, tr, newTeam, _t120;
       return _regenerator().w(function (_context95) {
         while (1) switch (_context95.p = _context95.n) {
           case 0:
@@ -18256,8 +18299,8 @@ function App() {
             break;
           case 8:
             _context95.p = 8;
-            _t118 = _context95.v;
-            setTeamError(errPt(_t118));
+            _t120 = _context95.v;
+            setTeamError(errPt(_t120));
           case 9:
             return _context95.a(2);
         }
@@ -18299,7 +18342,7 @@ function App() {
   }();
   var deleteTeam = function () {
     var _ref228 = _asyncToGenerator(_regenerator().m(function _callee97(teamId) {
-      var still, remaining, _t119;
+      var still, remaining, _t121;
       return _regenerator().w(function (_context97) {
         while (1) switch (_context97.p = _context97.n) {
           case 0:
@@ -18346,8 +18389,8 @@ function App() {
             break;
           case 7:
             _context97.p = 7;
-            _t119 = _context97.v;
-            console.error('deleteTeam error:', _t119);
+            _t121 = _context97.v;
+            console.error('deleteTeam error:', _t121);
           case 8:
             return _context97.a(2);
         }
@@ -18377,7 +18420,7 @@ function App() {
   }, 0);
   var refreshClaims = function () {
     var _ref229 = _asyncToGenerator(_regenerator().m(function _callee99() {
-      var mine, list, fresh, ids, rows, counts, _t121, _t122, _t123;
+      var mine, list, fresh, ids, rows, counts, _t123, _t124, _t125;
       return _regenerator().w(function (_context99) {
         while (1) switch (_context99.p = _context99.n) {
           case 0:
@@ -18413,8 +18456,8 @@ function App() {
             break;
           case 5:
             _context99.p = 5;
-            _t121 = _context99.v;
-            console.warn("my_claims failed:", _t121 && _t121.message);
+            _t123 = _context99.v;
+            console.warn("my_claims failed:", _t123 && _t123.message);
           case 6:
             _context99.p = 6;
             ids = new Set(teamsRef.current.filter(function (t) {
@@ -18435,8 +18478,8 @@ function App() {
             break;
           case 9:
             _context99.p = 9;
-            _t122 = _context99.v;
-            console.warn("admin teams read failed:", _t122 && _t122.message);
+            _t124 = _context99.v;
+            console.warn("admin teams read failed:", _t124 && _t124.message);
             setClaimsWarn(true);
           case 10:
             counts = {};
@@ -18447,7 +18490,7 @@ function App() {
               });
             }).map(function () {
               var _ref230 = _asyncToGenerator(_regenerator().m(function _callee98(id) {
-                var _r4, _t120;
+                var _r4, _t122;
                 return _regenerator().w(function (_context98) {
                   while (1) switch (_context98.p = _context98.n) {
                     case 0:
@@ -18466,7 +18509,7 @@ function App() {
                       break;
                     case 2:
                       _context98.p = 2;
-                      _t120 = _context98.v;
+                      _t122 = _context98.v;
                       counts[id] = 0;
                     case 3:
                       return _context98.a(2);
@@ -18483,8 +18526,8 @@ function App() {
             break;
           case 12:
             _context99.p = 12;
-            _t123 = _context99.v;
-            console.warn("claim counts failed:", _t123 && _t123.message);
+            _t125 = _context99.v;
+            console.warn("claim counts failed:", _t125 && _t125.message);
           case 13:
             return _context99.a(2);
         }
@@ -18510,7 +18553,7 @@ function App() {
   }, [tab]);
   var listClaimable = function () {
     var _ref231 = _asyncToGenerator(_regenerator().m(function _callee100(code) {
-      var _r5, _t124;
+      var _r5, _t126;
       return _regenerator().w(function (_context100) {
         while (1) switch (_context100.p = _context100.n) {
           case 0:
@@ -18524,8 +18567,8 @@ function App() {
             return _context100.a(2, Array.isArray(_r5) ? _r5 : []);
           case 2:
             _context100.p = 2;
-            _t124 = _context100.v;
-            console.warn("list_claimable_members failed:", _t124 && _t124.message);
+            _t126 = _context100.v;
+            console.warn("list_claimable_members failed:", _t126 && _t126.message);
             return _context100.a(2, []);
         }
       }, _callee100, null, [[0, 2]]);
@@ -18652,7 +18695,7 @@ function App() {
   }();
   var joinTeam = function () {
     var _ref237 = _asyncToGenerator(_regenerator().m(function _callee106(t) {
-      var _e$message, _t125;
+      var _e$message, _t127;
       return _regenerator().w(function (_context106) {
         while (1) switch (_context106.p = _context106.n) {
           case 0:
@@ -18668,12 +18711,12 @@ function App() {
             break;
           case 2:
             _context106.p = 2;
-            _t125 = _context106.v;
-            if ((_e$message = _t125.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
+            _t127 = _context106.v;
+            if ((_e$message = _t127.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
               _context106.n = 3;
               break;
             }
-            alert("Erro ao entrar na equipa: ".concat(errPt(_t125, "tenta novamente")));
+            alert("Erro ao entrar na equipa: ".concat(errPt(_t127, "tenta novamente")));
             return _context106.a(2);
           case 3:
             setTeams(function (prev) {
@@ -18694,7 +18737,7 @@ function App() {
   }();
   var findTeamByCode = function () {
     var _ref238 = _asyncToGenerator(_regenerator().m(function _callee107(code) {
-      var _r6, d, t, _t126;
+      var _r6, d, t, _t128;
       return _regenerator().w(function (_context107) {
         while (1) switch (_context107.p = _context107.n) {
           case 0:
@@ -18723,7 +18766,7 @@ function App() {
             })) : null);
           case 3:
             _context107.p = 3;
-            _t126 = _context107.v;
+            _t128 = _context107.v;
             return _context107.a(2, null);
         }
       }, _callee107, null, [[0, 3]]);
@@ -18755,7 +18798,7 @@ function App() {
   }, [appReady, pendingInvite, teams]);
   var subscribeToPush = function () {
     var _ref239 = _asyncToGenerator(_regenerator().m(function _callee108(tok, uid) {
-      var reg, _sub, existing, subJson, res, _subJson$keys, _subJson$keys2, _t127, _t128, _t129, _t130;
+      var reg, _sub, existing, subJson, res, _subJson$keys, _subJson$keys2, _t129, _t130, _t131, _t132;
       return _regenerator().w(function (_context108) {
         while (1) switch (_context108.p = _context108.n) {
           case 0:
@@ -18781,8 +18824,8 @@ function App() {
             return reg.pushManager.getSubscription();
           case 4:
             existing = _context108.v;
-            _t127 = existing;
-            if (_t127) {
+            _t129 = existing;
+            if (_t129) {
               _context108.n = 6;
               break;
             }
@@ -18792,16 +18835,16 @@ function App() {
               applicationServerKey: VAPID_PUBLIC
             });
           case 5:
-            _t127 = _context108.v;
+            _t129 = _context108.v;
           case 6:
-            _sub = _t127;
+            _sub = _t129;
             _context108.n = 8;
             break;
           case 7:
             _context108.p = 7;
-            _t128 = _context108.v;
-            throw Object.assign(_t128, {
-              pushCode: _t128 && _t128.pushCode || "subscrever"
+            _t130 = _context108.v;
+            throw Object.assign(_t130, {
+              pushCode: _t130 && _t130.pushCode || "subscrever"
             });
           case 8:
             subJson = _sub.toJSON();
@@ -18828,8 +18871,8 @@ function App() {
             break;
           case 11:
             _context108.p = 11;
-            _t129 = _context108.v;
-            throw Object.assign(_t129, {
+            _t131 = _context108.v;
+            throw Object.assign(_t131, {
               pushCode: "gravar"
             });
           case 12:
@@ -18846,11 +18889,11 @@ function App() {
             break;
           case 14:
             _context108.p = 14;
-            _t130 = _context108.v;
-            console.warn("Push subscribe failed:", _t130 && _t130.message);
+            _t132 = _context108.v;
+            console.warn("Push subscribe failed:", _t132 && _t132.message);
             setPushIssue({
-              code: _t130 && _t130.pushCode || "subscrever",
-              detail: _t130 && _t130.pushCode === "gravar" && /^erro \d+$/.test(String(_t130.message)) ? _t130.message : ""
+              code: _t132 && _t132.pushCode || "subscrever",
+              detail: _t132 && _t132.pushCode === "gravar" && /^erro \d+$/.test(String(_t132.message)) ? _t132.message : ""
             });
           case 15:
             return _context108.a(2);
@@ -18958,7 +19001,7 @@ function App() {
   };
   var sendPushToTeam = function () {
     var _ref241 = _asyncToGenerator(_regenerator().m(function _callee110(teamId, members, title, body) {
-      var userIds, res, det, _t131, _t132;
+      var userIds, res, det, _t133, _t134;
       return _regenerator().w(function (_context110) {
         while (1) switch (_context110.p = _context110.n) {
           case 0:
@@ -19009,7 +19052,7 @@ function App() {
             break;
           case 6:
             _context110.p = 6;
-            _t131 = _context110.v;
+            _t133 = _context110.v;
           case 7:
             throw new Error("HTTP ".concat(res.status).concat(det ? " " + det : ""));
           case 8:
@@ -19017,8 +19060,8 @@ function App() {
             break;
           case 9:
             _context110.p = 9;
-            _t132 = _context110.v;
-            notePushFail(_t132 && _t132.message);
+            _t134 = _context110.v;
+            notePushFail(_t134 && _t134.message);
           case 10:
             return _context110.a(2);
         }
@@ -19359,7 +19402,7 @@ function App() {
     return x !== "perfis";
   }) && "Não foi possível carregar presenças, cartões ou ausências.", loadWarn.some(function (x) {
     return x !== "perfis";
-  }) && loadWarn.includes("perfis") && " ", loadWarn.includes("perfis") && "Não foi possível carregar os nomes e fotos dos membros."), React.createElement("button", {
+  }) && loadWarn.includes("perfis") && " ", loadWarn.includes("perfis") && PROFILES_WARN), React.createElement("button", {
     onClick: function onClick() {
       return refresh();
     },
@@ -19571,12 +19614,12 @@ function App() {
     user: profile || {},
     onSave: (function () {
       var _ref245 = _asyncToGenerator(_regenerator().m(function _callee114(u) {
-        var _t133, _t134;
+        var _t135, _t136;
         return _regenerator().w(function (_context114) {
           while (1) switch (_context114.p = _context114.n) {
             case 0:
               _context114.p = 0;
-              _t133 = needRows;
+              _t135 = needRows;
               _context114.n = 1;
               return api.patch("profiles?id=eq.".concat(myUserId), {
                 name: u.name,
@@ -19586,13 +19629,13 @@ function App() {
                 position: u.position || null
               }, token);
             case 1:
-              _t133(_context114.v);
+              _t135(_context114.v);
               _context114.n = 3;
               break;
             case 2:
               _context114.p = 2;
-              _t134 = _context114.v;
-              writeFailed("guardar o perfil", _t134);
+              _t136 = _context114.v;
+              writeFailed("guardar o perfil", _t136);
               return _context114.a(2);
             case 3:
               setProfile(function (p) {
@@ -20140,12 +20183,12 @@ function App() {
     onSave: (function () {
       var _ref247 = _asyncToGenerator(_regenerator().m(function _callee116(u) {
         var _members$find4;
-        var _t135, _t136;
+        var _t137, _t138;
         return _regenerator().w(function (_context116) {
           while (1) switch (_context116.p = _context116.n) {
             case 0:
               _context116.p = 0;
-              _t135 = needRows;
+              _t137 = needRows;
               _context116.n = 1;
               return api.patch("profiles?id=eq.".concat(myUserId), {
                 name: u.name,
@@ -20155,13 +20198,13 @@ function App() {
                 position: u.position || null
               }, token);
             case 1:
-              _t135(_context116.v);
+              _t137(_context116.v);
               _context116.n = 3;
               break;
             case 2:
               _context116.p = 2;
-              _t136 = _context116.v;
-              writeFailed("guardar o perfil", _t136);
+              _t138 = _context116.v;
+              writeFailed("guardar o perfil", _t138);
               return _context116.a(2);
             case 3:
               setProfile(function (p) {
