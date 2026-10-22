@@ -5177,17 +5177,17 @@ export default function App() {
         sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: VAPID_PUBLIC });
       } catch(e) { throw Object.assign(e, { pushCode: e && e.pushCode || "subscrever" }); }
       const subJson = sub.toJSON();
-      // Store subscription in Supabase (upsert by endpoint)
+      // Guarda a subscrição (upsert por user_id + endpoint, a restrição UNIQUE da tabela); um 409 quer dizer que já existe
       let res;
       try {
-        res = await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
+        res = await fetch(`${SB_URL}/rest/v1/push_subscriptions?on_conflict=user_id,endpoint`, {
           method: "POST",
           headers: { "apikey": SB_KEY, "Authorization": `Bearer ${tok}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
           body: JSON.stringify({ user_id: uid, endpoint: subJson.endpoint, p256dh: subJson.keys?.p256dh, auth: subJson.keys?.auth }),
         });
       } catch(e) { throw Object.assign(e, { pushCode:"gravar" }); }
-      if (!res.ok) throw Object.assign(new Error(`erro ${res.status}`), { pushCode:"gravar" });
-      setPushIssue(null);
+      if (!res.ok && res.status !== 409) throw Object.assign(new Error(`erro ${res.status}`), { pushCode:"gravar" });
+      setPushIssue(null); // gravou, ou já existia (409): limpa qualquer aviso anterior
     } catch(e) {
       console.warn("Push subscribe failed:", e && e.message);
       setPushIssue({ code: (e && e.pushCode) || "subscrever", detail: e && e.pushCode === "gravar" && /^erro \d+$/.test(String(e.message)) ? e.message : "" });
