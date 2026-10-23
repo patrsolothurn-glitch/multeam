@@ -60,6 +60,11 @@
     .hero .cta small { color:#c3d0e6; font-size:15px; }
     .phone { width:min(250px,64vw); margin:0 auto; border-radius:34px; padding:9px; background:#0a1628; border:2px solid rgba(255,255,255,.18); box-shadow:0 24px 50px rgba(0,0,0,.45); }
     .phone img { border-radius:26px; width:100%; }
+    .demo { padding:44px 0 4px; }
+    .demo .wrap { display:flex; flex-direction:column; align-items:center; }
+    .demo video { display:block; width:100%; max-width:340px; height:auto; aspect-ratio:9/16; border:6px solid #14213d; border-radius:30px; background:#0a1628 url(poster.jpg) center/cover no-repeat; box-shadow:0 14px 30px rgba(20,33,61,.22); }
+    .demo video img { width:100%; height:auto; }
+    .demo p { margin-top:14px; font-size:15px; color:var(--mute); text-align:center; }
 
     section.block { padding:60px 0; }
     .lead2 { margin-top:12px; color:var(--mute); max-width:38em; font-size:18px; }
@@ -142,6 +147,16 @@
           </div>
         </div>
         <div class="phone"><img src="inicio.webp" width="390" height="780" alt="Ecrã inicial da Multeam com a caixa da equipa, o próximo treino e o botão Atribuir multa" fetchpriority="high" /></div>
+      </div>
+    </section>
+
+    <section class="demo">
+      <div class="wrap">
+        <video controls muted playsinline preload="none" poster="poster.jpg" width="720" height="1280" aria-label="Demonstração da Multeam em 37 segundos">
+          <source src="demo-leve.mp4" type="video/mp4" />
+          <img src="poster.jpg" alt="Demonstração da Multeam: ecrãs da app com multas, caixa e treinos" width="720" height="1280" />
+        </video>
+        <p>Demonstração da Multeam em 37 segundos</p>
       </div>
     </section>
 

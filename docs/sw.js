@@ -1,5 +1,5 @@
 // Multeam Service Worker - network first for app.js + index.html
-const CACHE = 'multeam-v305';
+const CACHE = 'multeam-v306';
 const STATIC = ['/manifest.json', '/icon-192.png'];
 
 self.addEventListener('install', e => {
@@ -16,6 +16,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
+  // Vídeos (.mp4): o browser trata dos pedidos por partes (Range); não passam pela cache
+  if (url.includes('.mp4')) return;
   // Always fetch app.js and index.html fresh (change every deploy)
   if (url.includes('app.js') || url.includes('index.html') || url.endsWith('multeam.ch') || url.endsWith('multeam.ch/')) {
     e.respondWith(
