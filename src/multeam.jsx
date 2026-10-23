@@ -176,6 +176,25 @@ const errPt = (e, fallback) => {
   if (/[À-ÿ]/.test(raw) || /\b(erro|sem|tenta|equipa|registo|multa|incorret|escreve|mete|coincidem|obrigat|permiss|membro|guardar|apagar|administradores|ficou|continua)/i.test(raw)) return raw;
   return out(ERR_GENERIC);
 };
+
+// Nome de equipa (criar e editar): normalização, limites, verificação na base (rpc team_name_available) e mensagens em português
+const TEAM_NAME_MIN = 2, TEAM_NAME_MAX = 40;
+const TEAM_NAME_TAKEN = "Já existe uma equipa com este nome. Escolhe outro, por exemplo acrescenta a localidade.";
+const TEAM_NAME_CHECK_FAIL = "Não foi possível verificar o nome. Tenta novamente.";
+const normTeamName = s => String(s == null ? "" : s).trim().replace(/\s+/g, " ");
+const teamNameIssue = s => { const n = normTeamName(s); if (n.length < TEAM_NAME_MIN) return `O nome tem de ter pelo menos ${TEAM_NAME_MIN} caracteres.`; if (n.length > TEAM_NAME_MAX) return `O nome pode ter no máximo ${TEAM_NAME_MAX} caracteres.`; return ""; };
+// 409 / 23505 por nome repetido (não confunde com o código de convite nem com a chave da equipa)
+const isTeamNameDup = e => { const m = String(e && e.message || ""); return /duplicate key|23505|unique constraint/i.test(m) && !/invite|pkey/i.test(m); };
+const teamErrPt = (e, fallback) => isTeamNameDup(e) ? TEAM_NAME_TAKEN : errPt(e, fallback);
+// true = livre. Qualquer falha (rede, rpc em falta, resposta inesperada) não deixa criar nem renomear.
+const checkTeamName = async (name, excludeId, tok) => {
+  let livre;
+  try { livre = await rpcCall("team_name_available", { p_name:name, p_exclude:excludeId || null }, tok); }
+  catch(e) { if (e && e.message === RO_MSG) throw e; try { console.error("[erro original]", e && e.message); } catch(x) { /* sem console */ } throw new Error(TEAM_NAME_CHECK_FAIL); }
+  if (livre === true) return;
+  if (livre === false) throw new Error(TEAM_NAME_TAKEN);
+  throw new Error(TEAM_NAME_CHECK_FAIL);
+};
 // uma escrita bloqueada por RLS responde com sucesso mas sem linhas: tratar como erro
 const needRows = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
 // "YYYY-MM-DD" -> dias do calendário (UTC só como contador, sem fuso)
@@ -1148,12 +1167,22 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
   const [currency, setCurrency] = useState("EUR (€)");
   const [city, setCity]       = useState("");
   const [postal, setPostal]   = useState("");
-  const ok = name.trim().length > 1;
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState("");
+  const issue = name.trim() ? teamNameIssue(name) : "";
+  const ok = !teamNameIssue(name);
+  const submit = async () => { // só fecha quando a criação der certo; o erro fica dentro do modal
+    if (!ok || busy) return;
+    setBusy(true); setErr("");
+    try { await onAdd({ name:normTeamName(name), emoji, color, season, country, sport, currency, city, postal }); onClose(); }
+    catch(e) { setErr((e && e.message) || ERR_GENERIC); setBusy(false); }
+  };
 
   return (
     <Sheet title="🏆 Criar equipa" onClose={onClose}>
       <FL>Nome da equipa</FL>
-      <FI value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: FC Selzach" />
+      <FI value={name} onChange={e=>{ setName(e.target.value); setErr(""); }} placeholder="Ex: FC Selzach" />
+      {(issue || err) && <p role="alert" data-team-name-error style={{ margin:"-6px 0 12px", fontSize:13, fontWeight:700, color:"#B42318" }}>{err || issue}</p>}
 
       <FL>País</FL>
       <FSel value={country} onChange={e=>setCountry(e.target.value)}>
@@ -1194,8 +1223,8 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
         {COLORS.map(c => <button key={c} onClick={() => setColor(c)} style={{ width:36, height:36, borderRadius:18, background:c, border:`3px solid ${color===c?"#000":"transparent"}`, cursor:"pointer" }} />)}
       </div>
 
-      <PrimaryBtn onClick={() => { if(!ok) return; onAdd({ name:name.trim(), emoji, color, season, country, sport, currency, city, postal }); onClose(); }} disabled={!ok} color={color}>
-        Criar equipa "{name||"..."}"
+      <PrimaryBtn onClick={submit} disabled={!ok || busy} color={color}>
+        {busy ? "A criar..." : <>Criar equipa "{name||"..."}"</>}
       </PrimaryBtn>
     </Sheet>
   );
@@ -3584,12 +3613,13 @@ const TeamDataSection = ({ team, onSave }) => {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const nameOk = f.name.trim().length > 0, seasonOk = f.season.trim().length > 0;
+  const nameIssue = teamNameIssue(f.name);
+  const nameOk = !nameIssue, seasonOk = f.season.trim().length > 0;
   const canSave = nameOk && seasonOk && !busy;
   const open = () => { setF(init()); setErr(""); setEditing(true); };
   const save = async () => {
     if (!canSave) return;
-    const cur = init(), next = { ...f, name:f.name.trim(), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim() };
+    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim() };
     const patch = {};
     Object.keys(next).forEach(k => { if (next[k] !== cur[k]) patch[k] = next[k]; });
     if (!Object.keys(patch).length) { setEditing(false); return; }
@@ -3627,7 +3657,8 @@ const TeamDataSection = ({ team, onSave }) => {
       ) : (
         <>
           <FL>Nome</FL>
-          <FI value={f.name} onChange={e=>set("name",e.target.value)} />
+          <FI value={f.name} onChange={e=>{ set("name",e.target.value); setErr(""); }} />
+          {nameIssue && f.name.trim() && <p role="alert" data-team-name-error style={{ margin:"-6px 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{nameIssue}</p>}
           <FL>Emoji</FL>
           <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:14 }}>
             {opt(EMOJIS, f.emoji).map(e=>(
@@ -5258,13 +5289,18 @@ export default function App() {
 
   const createTeam = async d => {
     setTeamError(null);
+    let criada = false; // depois de criada, os erros seguem o caminho de sempre (aviso); antes, sobem ao modal
     try {
+      const nome = normTeamName(d.name);
+      const issue = teamNameIssue(nome); if (issue) throw new Error(issue);
+      await checkTeamName(nome, null, token); // nome livre? (ignora maiúsculas e espaços a mais)
       const tid = crypto.randomUUID();
       const invCode = Math.random().toString(36).substring(2,5).toUpperCase()+'-'+Math.random().toString(36).substring(2,6).toUpperCase();
 
       // 1. Inserir equipa
-      await api.post('teams',{ id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:d.city||'', postal:d.postal||'', created_by:myUserId, invite_code:invCode },token);
+      await api.post('teams',{ id:tid, name:nome, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:d.city||'', postal:d.postal||'', created_by:myUserId, invite_code:invCode },token);
 
+      criada = true;
       // 2. Usar RPC security definer para bypass RLS (insere membro + multas padrão)
       const sr = await fetch(`${SB_URL}/rest/v1/rpc/setup_new_team`,{
         method:'POST',
@@ -5278,10 +5314,21 @@ export default function App() {
       const newTeam = aTeam(tr[0] || { id:tid, name:d.name, emoji:d.emoji, color:d.color, season:d.season, invite_code:invCode });
       setTeams(p=>[...p, newTeam]);
       await switchTeam(tid);
-    } catch(e){ setTeamError(errPt(e)); }
+    } catch(e){
+      if (!criada) throw new Error(teamErrPt(e)); // o modal mostra o erro e não fecha (em todos os ecrãs)
+      const msg = errPt(e); setTeamError(msg); showToast(`⚠️ ${msg}`, T.brand);
+    }
   };
   const editTeam = async (id, patch) => {
-    const res = await api.patch(`teams?id=eq.${id}`, patch, token);
+    if (patch && patch.name !== undefined) { // renomear: mesmas regras de criar (a própria equipa fica de fora da verificação)
+      const nome = normTeamName(patch.name);
+      const issue = teamNameIssue(nome); if (issue) throw new Error(issue);
+      patch = { ...patch, name:nome };
+      await checkTeamName(nome, id, token);
+    }
+    let res;
+    try { res = await api.patch(`teams?id=eq.${id}`, patch, token); }
+    catch(e) { if (patch && patch.name !== undefined && isTeamNameDup(e)) throw new Error(TEAM_NAME_TAKEN); throw e; }
     if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível guardar (sem permissão?)");
     setTeams(p=>p.map(t=>t.id===id?{ ...t, ...aTeam(res[0]) }:t));
   };
