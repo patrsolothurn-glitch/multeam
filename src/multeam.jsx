@@ -3271,6 +3271,7 @@ const PrivacySection = () => {
         <p data-privacy-contact style={{ margin:"0 0 8px", fontSize:14, lineHeight:1.5, color:"#1a1a1f" }}>O email de contacto é só da Multeam.</p>
       </>}
       <a data-contacto href="mailto:support@multeam.ch?subject=Multeam%20-%20Geral" style={{ display:"flex", alignItems:"center", minHeight:44, padding:"0 2px", fontSize:14, fontWeight:600, color:"#5F5F66", textDecoration:"underline", fontFamily:"inherit" }}>✉️ Contacto</a>
+      <p data-notif-help style={{ margin:"0 0 8px", fontSize:13, lineHeight:1.5, color:"#5F5F66" }}>Não recebes notificações? Confirma que as permitiste no telemóvel. Se continuar sem chegar, escreve-nos em <a data-contacto-notif href="mailto:support@multeam.ch?subject=Multeam%20-%20Notifica%C3%A7%C3%B5es" style={{ display:"inline-block", minHeight:44, lineHeight:"44px", padding:"0 2px", color:"#5F5F66", fontWeight:700, textDecoration:"underline" }}>Contacto</a>.</p>
     </div>
   );
 };
