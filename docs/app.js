@@ -15726,9 +15726,33 @@ var AuthScreen = function AuthScreen(_ref168) {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      padding: 28
+      padding: "68px 28px 28px",
+      position: "relative"
     }
-  }, React.createElement("div", {
+  }, React.createElement("a", {
+    href: "/sobre/",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      position: "absolute",
+      top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+      right: 14,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      minHeight: 44,
+      padding: "0 16px",
+      borderRadius: 22,
+      border: "1.5px solid rgba(255,255,255,0.6)",
+      background: "rgba(255,255,255,0.12)",
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: 700,
+      textDecoration: "none",
+      fontFamily: "inherit"
+    }
+  }, "\u24D8 Sobre a app"), React.createElement("div", {
     style: {
       marginBottom: 36,
       textAlign: "center"
@@ -15779,12 +15803,13 @@ var AuthScreen = function AuthScreen(_ref168) {
     }
   }, "Multeam"), React.createElement("p", {
     style: {
-      color: "rgba(255,255,255,0.45)",
-      margin: "5px 0 0",
-      fontSize: 14,
-      letterSpacing: 0.3
+      color: "rgba(255,255,255,0.75)",
+      margin: "8px auto 0",
+      fontSize: 15,
+      lineHeight: 1.35,
+      maxWidth: 280
     }
-  }, "Equipas \xB7 Multas \xB7 Treinos")), React.createElement("div", {
+  }, "Multas, presen\xE7as e caixa da equipa. Gr\xE1tis.")), React.createElement("div", {
     style: {
       width: "100%",
       maxWidth: 340
@@ -15965,23 +15990,7 @@ var AuthScreen = function AuthScreen(_ref168) {
       cursor: "pointer",
       textDecoration: "underline"
     }
-  }, "Esqueci a password"), React.createElement("a", {
-    href: "/sobre/",
-    target: "_blank",
-    rel: "noopener",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: 44,
-      marginTop: 14,
-      color: "rgba(255,255,255,0.85)",
-      fontSize: 14,
-      fontWeight: 700,
-      textDecoration: "underline",
-      fontFamily: "inherit"
-    }
-  }, "Conhecer a Multeam")));
+  }, "Esqueci a password")));
 };
 var Spinner = function Spinner(_ref173) {
   var _ref173$msg = _ref173.msg,

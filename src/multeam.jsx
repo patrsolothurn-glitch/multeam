@@ -4243,7 +4243,8 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
   const [showPass, setShowPass] = useState(false);
   const inp = { width:"100%", padding:"14px 16px", borderRadius:14, border:"none", background:"rgba(255,255,255,0.12)", color:"#fff", fontSize:16, marginBottom:12, boxSizing:"border-box", outline:"none", fontFamily:"inherit" };
   return (
-    <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:28 }}>
+    <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"68px 28px 28px", position:"relative" }}>
+      <a href="/sobre/" target="_blank" rel="noopener" style={{ position:"absolute", top:"calc(env(safe-area-inset-top, 0px) + 12px)", right:14, display:"flex", alignItems:"center", justifyContent:"center", gap:6, minHeight:44, padding:"0 16px", borderRadius:22, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.12)", color:"#fff", fontSize:14, fontWeight:700, textDecoration:"none", fontFamily:"inherit" }}>ⓘ Sobre a app</a>
       <div style={{ marginBottom:36, textAlign:"center" }}>
         <div style={{ width:80, height:80, borderRadius:22, margin:"0 auto 18px", background:"#12121f", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 32px rgba(230,57,70,0.5)", position:"relative", overflow:"visible" }}>
           <svg width="60" height="72" viewBox="0 0 60 72" style={{ position:"absolute" }}>
@@ -4252,7 +4253,7 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
           </svg>
         </div>
         <h1 style={{ color:"#fff", fontSize:34, fontWeight:900, margin:0, letterSpacing:-1.5 }}>Multeam</h1>
-        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:14, letterSpacing:0.3 }}>Equipas · Multas · Treinos</p>
+        <p style={{ color:"rgba(255,255,255,0.75)", margin:"8px auto 0", fontSize:15, lineHeight:1.35, maxWidth:280 }}>Multas, presenças e caixa da equipa. Grátis.</p>
       </div>
       <div style={{ width:"100%", maxWidth:340 }}>
         <div style={{ display:"flex", background:"rgba(255,255,255,0.1)", borderRadius:14, padding:4, marginBottom:20 }}>
@@ -4274,7 +4275,6 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         </button>
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Escreve o teu email primeiro");return;} await api.resetPassword(email); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueceste a password?</p>}
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
-        <a href="/sobre/" target="_blank" rel="noopener" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:44, marginTop:14, color:"rgba(255,255,255,0.85)", fontSize:14, fontWeight:700, textDecoration:"underline", fontFamily:"inherit" }}>Conhecer a Multeam</a>
       </div>
     </div>
   );
