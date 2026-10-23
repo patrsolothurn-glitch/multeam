@@ -3244,7 +3244,11 @@ const PrivacySection = () => {
       <button aria-expanded={open} onClick={()=>setOpen(o=>!o)} style={{ width:"100%", minHeight:44, background:"transparent", border:"none", textAlign:"left", fontSize:14, fontWeight:800, color:"#1a1a1f", cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:8 }}>
         <span>🔒 Privacidade</span><span style={{ marginLeft:"auto", color:"#5F5F66" }}>{open ? "▲" : "▼"}</span>
       </button>
-      {open && <p data-privacy-text style={{ margin:"4px 0 8px", fontSize:14, lineHeight:1.5, color:"#1a1a1f" }}>O administrador da plataforma tem acesso de leitura aos dados da app para manutenção, suporte e segurança.</p>}
+      {open && <>
+        <p data-privacy-text style={{ margin:"4px 0 8px", fontSize:14, lineHeight:1.5, color:"#1a1a1f" }}>O administrador da plataforma tem acesso de leitura aos dados da app para manutenção, suporte e segurança.</p>
+        <p data-privacy-contact style={{ margin:"0 0 8px", fontSize:14, lineHeight:1.5, color:"#1a1a1f" }}>O email de contacto é só da Multeam.</p>
+      </>}
+      <a data-contacto href="mailto:support@multeam.ch?subject=Multeam%20-%20Geral" style={{ display:"flex", alignItems:"center", minHeight:44, padding:"0 2px", fontSize:14, fontWeight:600, color:"#5F5F66", textDecoration:"underline", fontFamily:"inherit" }}>✉️ Contacto</a>
     </div>
   );
 };
@@ -4276,6 +4280,10 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Escreve o teu email primeiro");return;} await api.resetPassword(email); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueceste a password?</p>}
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
         <a href="/sobre/" target="_blank" rel="noopener" style={{ display:"flex", alignItems:"center", justifyContent:"center", width:"100%", boxSizing:"border-box", minHeight:44, marginTop:16, padding:"10px 16px", borderRadius:14, border:"1.5px solid rgba(255,255,255,0.85)", background:"transparent", color:"#fff", fontSize:15, fontWeight:700, textDecoration:"none", fontFamily:"inherit" }}>Como funciona a Multeam</a>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flexWrap:"wrap", marginTop:8, color:"rgba(255,255,255,0.7)", fontSize:13 }}>
+          <span>Precisas de ajuda?</span>
+          <a href="mailto:support@multeam.ch?subject=Multeam%20-%20Login" style={{ display:"inline-flex", alignItems:"center", minHeight:44, padding:"0 8px", color:"rgba(255,255,255,0.85)", fontWeight:700, textDecoration:"underline", fontFamily:"inherit" }}>Contacto</a>
+        </div>
       </div>
     </div>
   );
