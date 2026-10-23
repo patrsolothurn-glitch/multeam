@@ -92,7 +92,8 @@
     details[open] summary::after { content:"–"; }
     details p { padding:0 20px 18px; color:var(--mute); }
     .faq { max-width:760px; }
-    details p a { display:inline-block; padding:10px 2px; font-weight:700; text-decoration:underline; }
+    details p a { position:relative; padding:0 2px; font-weight:700; text-decoration:underline; }
+    details p a::after { content:""; position:absolute; left:-6px; right:-6px; top:-14px; bottom:-14px; } /* área de toque sem aumentar a altura da linha */
 
     .final { background:linear-gradient(160deg,var(--navy) 0%,var(--navy-d) 100%); color:#fff; text-align:center; padding:60px 0; }
     .final h2 { color:#fff; }
@@ -222,7 +223,7 @@
       <div class="wrap faq">
         <h2>Perguntas frequentes</h2>
         <details><summary>A Multeam é mesmo grátis?</summary><p>Sim. Podes criar a tua equipa e usar a app sem pagar.</p></details>
-        <details><summary>Todos os jogadores precisam de conta?</summary><p>Cada jogador entra com o link ou o código da equipa para ver as suas multas e responder aos treinos. O treinador também pode registar jogadores que ainda não entraram.</p></details>
+        <details><summary>Todos os jogadores precisam de conta?</summary><p>Cada jogador entra com o link ou o código da equipa para ver as suas multas e responder aos treinos. O admin da equipa também pode registar jogadores que ainda não entraram. Se o admin já criou o teu perfil, podes pedir para o assumir quando entrares, e ele aprova.</p></details>
         <details><summary>Quem atribui as multas e regista as despesas?</summary><p>Quem gere a equipa. Os restantes jogadores consultam as suas multas, a caixa e os treinos.</p></details>
         <details><summary>Posso ter mais do que uma equipa?</summary><p>Sim. Podes estar em várias equipas e trocar entre elas na app.</p></details>
         <details><summary>Funciona no iPhone e no Android?</summary><p>Sim, em qualquer telemóvel com um browser atual. Instala-se a partir do browser, sem loja de aplicações.</p></details>
