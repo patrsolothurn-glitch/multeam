@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8" />
+<title>Multeam - demonstração</title>
+<style>
+  :root { --navy:#1D3557; --navy-d:#0a1628; --red:#E63946; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { width:1080px; height:1920px; overflow:hidden; background:#0a1628; }
+  body { font-family:Inter, "Noto Color Emoji", -apple-system, "Segoe UI", sans-serif; color:#fff; position:relative; }
+  #bg { position:absolute; inset:0; background:linear-gradient(160deg, var(--navy) 0%, var(--navy-d) 100%); }
+
+  /* etiqueta fixa durante todo o vídeo */
+  #tag { position:absolute; left:36px; top:34px; z-index:1000; padding:10px 22px; border-radius:999px; background:rgba(0,0,0,.45); border:2px solid rgba(255,255,255,.35); font-size:32px; font-weight:700; letter-spacing:.2px; }
+
+  /* legenda grande, por cima do telemóvel */
+  #cap { position:absolute; left:50px; right:50px; top:118px; height:290px; display:flex; align-items:center; justify-content:center; text-align:center; font-size:92px; line-height:1.08; font-weight:900; letter-spacing:-2px; text-shadow:0 4px 24px rgba(0,0,0,.55); opacity:0; transition:opacity .35s; z-index:20; }
+  #cap.on { opacity:1; }
+  #cap em { font-style:normal; color:#ff8a93; }
+
+  /* moldura do telemóvel: o ecrã tem 624x1350 e mostra a app (390x844) com zoom 1.6 */
+  #phone { position:absolute; left:214px; top:440px; width:652px; height:1378px; padding:14px; border-radius:76px; background:#05090f; border:3px solid rgba(255,255,255,.22); box-shadow:0 40px 90px rgba(0,0,0,.55); z-index:10; }
+  #screen { position:relative; width:624px; height:1350px; border-radius:62px; overflow:hidden; background:#F0F1F6; }
+  #app { position:absolute; left:0; top:0; width:390px; height:844px; border:0; transform:scale(1.6); transform-origin:0 0; background:#F0F1F6; }
+
+  /* toque (círculo que aparece onde se toca) */
+  #tap { position:absolute; width:110px; height:110px; margin:-55px 0 0 -55px; border-radius:50%; background:rgba(255,255,255,.35); border:6px solid #fff; box-shadow:0 0 0 8px rgba(230,57,70,.55); opacity:0; pointer-events:none; z-index:60; }
+  #tap.go { animation:tap .6s ease-out; }
+  @keyframes tap { 0% { opacity:0; transform:scale(1.7); } 25% { opacity:1; transform:scale(1); } 70% { opacity:1; transform:scale(.9); } 100% { opacity:0; transform:scale(1.15); } }
+
+  /* ecrã de bloqueio simulado (hora fixa, sem operador, sem rede, sem nada real) */
+  #lock { position:absolute; inset:0; z-index:30; opacity:0; pointer-events:none; transition:opacity .35s; background:radial-gradient(120% 70% at 30% 0%, #2e4a7a 0%, #16233f 45%, #0a1020 100%); }
+  #lock.on { opacity:1; }
+  #lock .hora { position:absolute; left:0; right:0; top:150px; text-align:center; font-size:210px; font-weight:300; letter-spacing:-6px; line-height:1; }
+  #notif { position:absolute; left:20px; right:20px; top:500px; padding:30px 30px 32px; border-radius:40px; background:rgba(246,247,251,.97); color:#14213d; box-shadow:0 24px 60px rgba(0,0,0,.5); opacity:0; transform:translateY(-70px) scale(.96); }
+  #notif.in { animation:entra .55s cubic-bezier(.2,.9,.3,1.2) forwards; }
+  #notif.pulso { animation:pulsa 1.1s ease-in-out 3; }
+  @keyframes entra { to { opacity:1; transform:none; } }
+  @keyframes pulsa { 0%,100% { opacity:1; transform:none; box-shadow:0 24px 60px rgba(0,0,0,.5), 0 0 0 0 rgba(230,57,70,.0); } 50% { opacity:1; transform:scale(1.045); box-shadow:0 24px 60px rgba(0,0,0,.5), 0 0 0 22px rgba(230,57,70,.45); } }
+  #notif .topo { display:flex; align-items:center; gap:18px; margin-bottom:18px; }
+  #notif img { width:76px; height:76px; border-radius:20px; }
+  #notif .app { font-size:28px; font-weight:800; letter-spacing:1.5px; color:#475569; flex:1; }
+  #notif .quando { font-size:28px; color:#475569; }
+  #notif .titulo { font-size:40px; white-space:nowrap; font-weight:900; line-height:1.15; }
+  #notif .corpo { font-size:40px; font-weight:600; margin-top:8px; color:#1f2a44; }
+
+  /* cartões de abertura e fecho */
+  .card { position:absolute; inset:0; z-index:200; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; background:linear-gradient(160deg, var(--navy) 0%, var(--navy-d) 100%); opacity:0; pointer-events:none; transition:opacity .45s; padding:0 60px; }
+  .card.on { opacity:1; }
+  .card img { border-radius:15%; box-shadow:0 20px 60px rgba(230,57,70,.4); }
+  #intro img { width:230px; height:230px; margin-bottom:30px; }
+  #intro .nome { font-size:92px; font-weight:900; letter-spacing:-3px; margin-bottom:70px; }
+  #intro .pergunta { font-size:128px; line-height:1.05; font-weight:900; letter-spacing:-4px; }
+  #intro .pergunta em { font-style:normal; color:#ff8a93; }
+  #outro img { width:300px; height:300px; margin-bottom:56px; }
+  #outro .linha { font-size:92px; line-height:1.1; font-weight:900; letter-spacing:-3px; max-width:940px; }
+  #outro .linha em { font-style:normal; color:#ff8a93; }
+  #outro .site { margin-top:70px; padding:22px 58px; border-radius:999px; background:var(--red); font-size:84px; font-weight:900; letter-spacing:-1px; box-shadow:0 18px 50px rgba(230,57,70,.5); }
+</style>
+</head>
+<body>
+  <div id="bg"></div>
+  <div id="tag">Dados de exemplo</div>
+  <div id="cap"></div>
+
+  <div id="phone">
+    <div id="screen">
+      <iframe id="app" src="https://multeam.ch/" title="Multeam"></iframe>
+      <div id="lock">
+        <div class="hora">18:00</div>
+        <div id="notif">
+          <div class="topo"><img src="https://multeam.ch/icon-192.png" alt="" /><span class="app">MULTEAM</span><span class="quando">agora</span></div>
+          <div class="titulo">🟥 Recebeste uma multa!</div>
+          <div class="corpo">5€ — Atraso ao treino</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="tap"></div>
+
+  <div id="intro" class="card on">
+    <img src="https://multeam.ch/icon-512.png" alt="" />
+    <div class="nome">Multeam</div>
+    <div class="pergunta">Quem ainda te deve <em>a multa?</em></div>
+  </div>
+  <div id="outro" class="card">
+    <img src="https://multeam.ch/icon-512.png" alt="" />
+    <div class="linha">Multeam: <em>multas, presenças e caixa da equipa.</em> Grátis.</div>
+    <div class="site">multeam.ch</div>
+  </div>
+
+<script>
+  // API usada pelo gravar.js
+  const $ = (id) => document.getElementById(id);
+  window.palco = {
+    legenda(html) { const c = $("cap"); c.classList.remove("on"); setTimeout(() => { c.innerHTML = html ? "<span>" + html + "</span>" : ""; if (html) c.classList.add("on"); }, html ? 180 : 0); },
+    cartao(id, on) { $(id).classList.toggle("on", !!on); },
+    bloqueio(on) { $("lock").classList.toggle("on", !!on); if (!on) { const n = $("notif"); n.className = ""; n.style.opacity = 0; } },
+    notificar() { const n = $("notif"); n.className = ""; void n.offsetWidth; n.classList.add("in"); setTimeout(() => { n.className = ""; n.style.opacity = 1; n.style.transform = "none"; void n.offsetWidth; n.classList.add("pulso"); }, 650); },
+    toque(x, y) { const t = $("tap"); t.style.left = x + "px"; t.style.top = y + "px"; t.classList.remove("go"); void t.offsetWidth; t.classList.add("go"); },
+  };
+</script>
+</body>
+</html>
