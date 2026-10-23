@@ -112,10 +112,14 @@
       .step::before { left:22px; top:22px; }
       .install { grid-template-columns:1fr 1fr; }
     }
+    .pwa-back { display:none; background:#08142a; }
+    .pwa-back a { display:flex; align-items:center; min-height:44px; color:#fff; font-weight:800; font-size:16px; text-decoration:none; }
+    @media (display-mode:standalone), (display-mode:fullscreen), (display-mode:minimal-ui) { .pwa-back { display:block; } }
     @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } .btn { transition:none; } }
   </style>
 </head>
 <body>
+  <div class="pwa-back"><div class="wrap"><a href="https://multeam.ch/">← Voltar à app</a></div></div>
   <header class="top">
     <div class="wrap">
       <a class="brand" href="/sobre/" aria-label="Multeam, início"><img src="../icon-192.png" alt="" width="36" height="36" />Multeam</a>
