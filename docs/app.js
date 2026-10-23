@@ -12044,7 +12044,27 @@ var PrivacySection = function PrivacySection() {
       textDecoration: "underline",
       fontFamily: "inherit"
     }
-  }, "\u2709\uFE0F Contacto"));
+  }, "\u2709\uFE0F Contacto"), React.createElement("p", {
+    "data-notif-help": true,
+    style: {
+      margin: "0 0 8px",
+      fontSize: 13,
+      lineHeight: 1.5,
+      color: "#5F5F66"
+    }
+  }, "N\xE3o recebes notifica\xE7\xF5es? Confirma que as permitiste no telem\xF3vel. Se continuar sem chegar, escreve-nos em ", React.createElement("a", {
+    "data-contacto-notif": true,
+    href: "mailto:support@multeam.ch?subject=Multeam%20-%20Notifica%C3%A7%C3%B5es",
+    style: {
+      display: "inline-block",
+      minHeight: 44,
+      lineHeight: "44px",
+      padding: "0 2px",
+      color: "#5F5F66",
+      fontWeight: 700,
+      textDecoration: "underline"
+    }
+  }, "Contacto"), "."));
 };
 var GeneralTab = function GeneralTab(_ref129) {
   var user = _ref129.user,
