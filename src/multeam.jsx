@@ -325,6 +325,11 @@ const presenceTitle = ev => {
   const when = ev.diff === 0 ? "hoje" : ev.diff === 1 ? "amanhã" : ev.day.toLocaleDateString("pt-PT", { weekday:"long" });
   return `${ev.t.type === "jogo" ? "Jogo" : "Treino"} ${when}${ev.t.time ? ` · ${ev.t.time}` : ""}`;
 };
+// Data de um evento para mostrar ("sex 30/10"; o ano só aparece se for diferente do atual). Sempre o dia LOCAL: a data guardada é "AAAA-MM-DD"
+// e constrói-se com new Date(ano, mês, dia), nunca com new Date("AAAA-MM-DD") (que é UTC).
+const parseEventDay = s => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+const eventDayMonth = (day, now = new Date()) => day instanceof Date && !isNaN(day) ? `${String(day.getDate()).padStart(2, "0")}/${String(day.getMonth() + 1).padStart(2, "0")}${day.getFullYear() !== now.getFullYear() ? `/${day.getFullYear()}` : ""}` : "";
+const eventDateShort = (day, now = new Date()) => day instanceof Date && !isNaN(day) ? `${DAYS_PT[day.getDay()].toLowerCase()} ${eventDayMonth(day, now)}` : "";
 const fcText = f => f ? ` · ${f.emoji} ${f.temp}°` : "";
 const FC_TTL = 60 * 60 * 1000;
 const fcCache = {}; // chave da equipa → { at, hourly, promise } — partilhada entre separadores
@@ -1981,6 +1986,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
         return (
           <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"13px 14px", marginBottom:14 }}>
             <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{presenceTitle(ev)}</p>
+            <p data-event-date style={{ margin:"1px 0 0", fontSize:13, fontWeight:600, color:T.sub }}>📅 {eventDateShort(ev.day)}</p>
             {ev.t.location && <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {ev.t.location}</p>}
             <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:10 }}>
               <span style={{ fontSize:14, fontWeight:600, flex:1 }}>Vais?</span>
@@ -2153,6 +2159,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:22 }}>🔄</div>
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
+                {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time))) && <p data-event-date style={{ margin:0, fontSize:13, fontWeight:600, color:T.sub }}>Próximo: {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time)))}</p>}
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
               </div>
             </div>
@@ -2164,7 +2171,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                 <p style={{ margin:0, fontSize:10, color:team.color, fontWeight:700 }}>{new Date(t.date+"T00:00:00").toLocaleDateString("pt-PT",{month:"short"}).toUpperCase()}</p>
               </div>
               <div style={{ flex:1 }}>
-                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}</p>
+                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}<span data-event-date style={{ fontWeight:600, color:T.sub }}> · {eventDateShort(parseEventDay(t.date))}</span></p>
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
               </div>
             </div>
@@ -2379,7 +2386,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
               <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{isJogo ? `vs ${t.opponent}` : "Treino"}</p>
               {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
             </div>
-            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}</p>
+            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}<span data-event-date> · {eventDayMonth(dt)}</span></p>
             <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc)}</p>
             {t.notes && <p style={{ margin:"4px 0 0", fontSize:13 }}>{t.notes}</p>}
             {isJogo && squadMembers.length>0 && (
@@ -2480,6 +2487,7 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
                   <div style={{ width:40, height:40, borderRadius:20, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🔄</div>
                   <div style={{ flex:1 }}>
                     <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
+                {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time))) && <p data-event-date style={{ margin:0, fontSize:13, fontWeight:600, color:T.sub }}>Próximo: {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time)))}</p>}
                     <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
                     {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
                   </div>
