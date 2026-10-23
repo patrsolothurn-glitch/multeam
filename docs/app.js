@@ -15965,7 +15965,23 @@ var AuthScreen = function AuthScreen(_ref168) {
       cursor: "pointer",
       textDecoration: "underline"
     }
-  }, "Esqueci a password")));
+  }, "Esqueci a password"), React.createElement("a", {
+    href: "/sobre/",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: 44,
+      marginTop: 14,
+      color: "rgba(255,255,255,0.85)",
+      fontSize: 14,
+      fontWeight: 700,
+      textDecoration: "underline",
+      fontFamily: "inherit"
+    }
+  }, "Conhecer a Multeam")));
 };
 var Spinner = function Spinner(_ref173) {
   var _ref173$msg = _ref173.msg,

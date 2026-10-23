@@ -4274,6 +4274,7 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
         </button>
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Escreve o teu email primeiro");return;} await api.resetPassword(email); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueceste a password?</p>}
         {mode==="login" && <p onClick={async()=>{ if(!email){alert("Mete o teu email primeiro");return;} await fetch(`${SB_URL}/auth/v1/recover`,{method:"POST",headers:{"apikey":SB_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})}); alert("Email de recuperação enviado para "+email);}} style={{ textAlign:"center", color:"rgba(255,255,255,0.7)", fontSize:13, marginTop:0, padding:"14px 0", cursor:"pointer", textDecoration:"underline" }}>Esqueci a password</p>}
+        <a href="/sobre/" target="_blank" rel="noopener" style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:44, marginTop:14, color:"rgba(255,255,255,0.85)", fontSize:14, fontWeight:700, textDecoration:"underline", fontFamily:"inherit" }}>Conhecer a Multeam</a>
       </div>
     </div>
   );
