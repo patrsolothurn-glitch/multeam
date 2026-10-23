@@ -11971,7 +11971,7 @@ var PrivacySection = function PrivacySection() {
       marginLeft: "auto",
       color: "#5F5F66"
     }
-  }, open ? "▲" : "▼")), open && React.createElement("p", {
+  }, open ? "▲" : "▼")), open && React.createElement(React.Fragment, null, React.createElement("p", {
     "data-privacy-text": true,
     style: {
       margin: "4px 0 8px",
@@ -11979,7 +11979,29 @@ var PrivacySection = function PrivacySection() {
       lineHeight: 1.5,
       color: "#1a1a1f"
     }
-  }, "O administrador da plataforma tem acesso de leitura aos dados da app para manuten\xE7\xE3o, suporte e seguran\xE7a."));
+  }, "O administrador da plataforma tem acesso de leitura aos dados da app para manuten\xE7\xE3o, suporte e seguran\xE7a."), React.createElement("p", {
+    "data-privacy-contact": true,
+    style: {
+      margin: "0 0 8px",
+      fontSize: 14,
+      lineHeight: 1.5,
+      color: "#1a1a1f"
+    }
+  }, "O email de contacto \xE9 s\xF3 da Multeam.")), React.createElement("a", {
+    "data-contacto": true,
+    href: "mailto:support@multeam.ch?subject=Multeam%20-%20Geral",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      minHeight: 44,
+      padding: "0 2px",
+      fontSize: 14,
+      fontWeight: 600,
+      color: "#5F5F66",
+      textDecoration: "underline",
+      fontFamily: "inherit"
+    }
+  }, "\u2709\uFE0F Contacto"));
 };
 var GeneralTab = function GeneralTab(_ref129) {
   var user = _ref129.user,
@@ -16012,7 +16034,29 @@ var AuthScreen = function AuthScreen(_ref168) {
       textDecoration: "none",
       fontFamily: "inherit"
     }
-  }, "Como funciona a Multeam")));
+  }, "Como funciona a Multeam"), React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexWrap: "wrap",
+      marginTop: 8,
+      color: "rgba(255,255,255,0.7)",
+      fontSize: 13
+    }
+  }, React.createElement("span", null, "Precisas de ajuda?"), React.createElement("a", {
+    href: "mailto:support@multeam.ch?subject=Multeam%20-%20Login",
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      minHeight: 44,
+      padding: "0 8px",
+      color: "rgba(255,255,255,0.85)",
+      fontWeight: 700,
+      textDecoration: "underline",
+      fontFamily: "inherit"
+    }
+  }, "Contacto"))));
 };
 var Spinner = function Spinner(_ref173) {
   var _ref173$msg = _ref173.msg,
