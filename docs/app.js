@@ -1019,6 +1019,18 @@ var presenceTitle = function presenceTitle(ev) {
   });
   return "".concat(ev.t.type === "jogo" ? "Jogo" : "Treino", " ").concat(when).concat(ev.t.time ? " \xB7 ".concat(ev.t.time) : "");
 };
+var parseEventDay = function parseEventDay(s) {
+  var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(s || "");
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+};
+var eventDayMonth = function eventDayMonth(day) {
+  var now = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : new Date();
+  return day instanceof Date && !isNaN(day) ? "".concat(String(day.getDate()).padStart(2, "0"), "/").concat(String(day.getMonth() + 1).padStart(2, "0")).concat(day.getFullYear() !== now.getFullYear() ? "/".concat(day.getFullYear()) : "") : "";
+};
+var eventDateShort = function eventDateShort(day) {
+  var now = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : new Date();
+  return day instanceof Date && !isNaN(day) ? "".concat(DAYS_PT[day.getDay()].toLowerCase(), " ").concat(eventDayMonth(day, now)) : "";
+};
 var fcText = function fcText(f) {
   return f ? " \xB7 ".concat(f.emoji, " ").concat(f.temp, "\xB0") : "";
 };
@@ -7239,7 +7251,15 @@ var HomeTab = function HomeTab(_ref82) {
         fontWeight: 700,
         fontSize: 15
       }
-    }, presenceTitle(ev)), ev.t.location && React.createElement("p", {
+    }, presenceTitle(ev)), React.createElement("p", {
+      "data-event-date": true,
+      style: {
+        margin: "1px 0 0",
+        fontSize: 13,
+        fontWeight: 600,
+        color: T.sub
+      }
+    }, "\uD83D\uDCC5 ", eventDateShort(ev.day)), ev.t.location && React.createElement("p", {
       style: {
         margin: "1px 0 0",
         fontSize: 13,
@@ -7802,7 +7822,15 @@ var HomeTab = function HomeTab(_ref82) {
       }
     }, (t.days || []).map(function (d) {
       return DAYS_PT[d];
-    }).join(", "), " \xB7 ", t.time), React.createElement("p", {
+    }).join(", "), " \xB7 ", t.time), eventDateShort(parseEventDay(nextOccurrence(t.days, t.time))) && React.createElement("p", {
+      "data-event-date": true,
+      style: {
+        margin: 0,
+        fontSize: 13,
+        fontWeight: 600,
+        color: T.sub
+      }
+    }, "Pr\xF3ximo: ", eventDateShort(parseEventDay(nextOccurrence(t.days, t.time)))), React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 13,
@@ -7860,7 +7888,13 @@ var HomeTab = function HomeTab(_ref82) {
         fontWeight: 700,
         fontSize: 15
       }
-    }, t.type === "jogo" ? "\u26BD vs ".concat(t.opponent) : "🕐", " ", t.time), React.createElement("p", {
+    }, t.type === "jogo" ? "\u26BD vs ".concat(t.opponent) : "🕐", " ", t.time, React.createElement("span", {
+      "data-event-date": true,
+      style: {
+        fontWeight: 600,
+        color: T.sub
+      }
+    }, " \xB7 ", eventDateShort(parseEventDay(t.date)))), React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 13,
@@ -8607,7 +8641,9 @@ var EventCard = function EventCard(_ref92) {
       fontSize: 13,
       color: T.sub
     }
-  }, weekday, ", ", t.time), React.createElement("p", {
+  }, weekday, ", ", t.time, React.createElement("span", {
+    "data-event-date": true
+  }, " \xB7 ", eventDayMonth(dt))), React.createElement("p", {
     style: {
       margin: "1px 0 0",
       fontSize: 13,
@@ -8999,7 +9035,15 @@ var TreinosPage = function TreinosPage(_ref95) {
       }
     }, (t.days || []).map(function (d) {
       return DAYS_PT[d];
-    }).join(", "), " \xB7 ", t.time), React.createElement("p", {
+    }).join(", "), " \xB7 ", t.time), eventDateShort(parseEventDay(nextOccurrence(t.days, t.time))) && React.createElement("p", {
+      "data-event-date": true,
+      style: {
+        margin: 0,
+        fontSize: 13,
+        fontWeight: 600,
+        color: T.sub
+      }
+    }, "Pr\xF3ximo: ", eventDateShort(parseEventDay(nextOccurrence(t.days, t.time)))), React.createElement("p", {
       style: {
         margin: 0,
         fontSize: 13,
