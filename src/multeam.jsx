@@ -1345,13 +1345,35 @@ const ClaimWho = ({ name, avatar, size = 40, children }) => (
 );
 const claimBtn = (bg, fg, border) => ({ minHeight:44, padding:"0 16px", borderRadius:12, border:`2px solid ${border || bg}`, background:bg, color:fg, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" });
 
+// O que mostrar dos pedidos de perfil da própria pessoa (só apresentação: nada é gravado nem apagado na base; o admin vê tudo noutro ecrã).
+// Pendente: sempre. Aprovado: só nos 3 dias a seguir à decisão (data de decisão; sem ela, a data do pedido). Cancelado/rejeitado: só se a pessoa
+// ainda não tem perfil ligado nessa equipa e a decisão tem menos de 14 dias. No máximo um cartão por equipa (o do estado mais recente).
+const CLAIM_APPROVED_DAYS = 3, CLAIM_DECIDED_DAYS = 14;
+const claimMoment = c => { const t = new Date((c && (c.decided_at || c.created_at)) || ""); return isNaN(t) ? 0 : t.getTime(); };
+const visibleClaims = (claims, members, myUserId, now = Date.now()) => {
+  const all = Array.isArray(claims) ? claims.filter(Boolean) : [];
+  const byTeam = new Map();
+  all.forEach(c => { const k = String(c.team_id == null ? "" : c.team_id); if (!byTeam.has(k)) byTeam.set(k, []); byTeam.get(k).push(c); });
+  const keep = new Set();
+  byTeam.forEach((cs, teamId) => {
+    const pend = cs.filter(c => c.status === "pendente");
+    if (pend.length) { pend.forEach(c => keep.add(c)); return; }
+    const last = cs.slice().sort((a, b) => claimMoment(b) - claimMoment(a))[0];
+    const age = now - claimMoment(last);
+    if (last.status === "aprovado") { if (age < CLAIM_APPROVED_DAYS * 86400000) keep.add(last); return; }
+    const linked = !!myUserId && Array.isArray(members) && members.some(m => String(m.teamId) === teamId && m.userId === myUserId);
+    if (!linked && last.decided_at && age < CLAIM_DECIDED_DAYS * 86400000) keep.add(last);
+  });
+  return all.filter(c => keep.has(c)).slice(0, 3);
+};
+
 // jogador: "O meu pedido" (estado, editar a mensagem, cancelar)
-const MyClaimsCard = ({ claims, onEditNote, onCancel, onAnswer }) => {
+const MyClaimsCard = ({ claims, members, myUserId, onEditNote, onCancel, onAnswer }) => {
   const [editing, setEditing] = useState(null); const [note, setNote] = useState("");
   const [ans, setAns] = useState({}); const [ansEditing, setAnsEditing] = useState(null);
   const [busy, setBusy] = useState(null); const [err, setErr] = useState("");
   const flight = React.useRef(false); // duplo toque: um só pedido de cada vez
-  const list = (claims || []).filter(c => c.status === "pendente" || (c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14*86400000)).slice(0, 3);
+  const list = visibleClaims(claims, members, myUserId);
   useEffect(() => { claimNamesRemember(claims, "member_name", "avatar_url"); }, [claims]);
   if (!list.length) return null;
   const run = async (id, fn) => { if (flight.current) return; flight.current = true; setBusy(id); setErr(""); try { await fn(); setEditing(null); } catch(e) { setErr(errPt(e)); } setBusy(null); flight.current = false; };
@@ -3371,7 +3393,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         </div>
       </div>}
 
-      {!readOnly && <MyClaimsCard claims={myClaims} onEditNote={onEditClaimNote} onCancel={onCancelClaim} onAnswer={onAnswerClaim} />}
+      {!readOnly && <MyClaimsCard claims={myClaims} members={members} myUserId={myUserId} onEditNote={onEditClaimNote} onCancel={onCancelClaim} onAnswer={onAnswerClaim} />}
       {/* Teams */}
       <Sec label={`Equipas (${myTeams.length})`} />
       {myTeams.map(t => {
@@ -5590,7 +5612,7 @@ export default function App() {
       <p style={{ fontSize:40 }}>⚽</p>
       <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px" }}>Sem equipas ainda</p>
       <p style={{ color:T.sub, marginBottom:16 }}>Cria ou junta-te a uma equipa</p>
-      <div style={{ width:"100%", maxWidth:340 }}><MyClaimsCard claims={myClaims} onEditNote={editClaimNote} onCancel={cancelClaim} onAnswer={answerClaim} /></div>
+      <div style={{ width:"100%", maxWidth:340 }}><MyClaimsCard claims={myClaims} members={members} myUserId={myUserId} onEditNote={editClaimNote} onCancel={cancelClaim} onAnswer={answerClaim} /></div>
       {teamError && <div style={{ background:"#FFE5E5", borderRadius:12, padding:"12px 16px", marginBottom:16, width:"100%", maxWidth:340, fontSize:13, color:"#C00", wordBreak:"break-all" }}>{teamError}</div>}
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>

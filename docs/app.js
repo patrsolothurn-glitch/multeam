@@ -4642,8 +4642,53 @@ var claimBtn = function claimBtn(bg, fg, border) {
     fontFamily: "inherit"
   };
 };
+var CLAIM_APPROVED_DAYS = 3,
+  CLAIM_DECIDED_DAYS = 14;
+var claimMoment = function claimMoment(c) {
+  var t = new Date(c && (c.decided_at || c.created_at) || "");
+  return isNaN(t) ? 0 : t.getTime();
+};
+var visibleClaims = function visibleClaims(claims, members, myUserId) {
+  var now = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : Date.now();
+  var all = Array.isArray(claims) ? claims.filter(Boolean) : [];
+  var byTeam = new Map();
+  all.forEach(function (c) {
+    var k = String(c.team_id == null ? "" : c.team_id);
+    if (!byTeam.has(k)) byTeam.set(k, []);
+    byTeam.get(k).push(c);
+  });
+  var keep = new Set();
+  byTeam.forEach(function (cs, teamId) {
+    var pend = cs.filter(function (c) {
+      return c.status === "pendente";
+    });
+    if (pend.length) {
+      pend.forEach(function (c) {
+        return keep.add(c);
+      });
+      return;
+    }
+    var last = cs.slice().sort(function (a, b) {
+      return claimMoment(b) - claimMoment(a);
+    })[0];
+    var age = now - claimMoment(last);
+    if (last.status === "aprovado") {
+      if (age < CLAIM_APPROVED_DAYS * 86400000) keep.add(last);
+      return;
+    }
+    var linked = !!myUserId && Array.isArray(members) && members.some(function (m) {
+      return String(m.teamId) === teamId && m.userId === myUserId;
+    });
+    if (!linked && last.decided_at && age < CLAIM_DECIDED_DAYS * 86400000) keep.add(last);
+  });
+  return all.filter(function (c) {
+    return keep.has(c);
+  }).slice(0, 3);
+};
 var MyClaimsCard = function MyClaimsCard(_ref64) {
   var claims = _ref64.claims,
+    members = _ref64.members,
+    myUserId = _ref64.myUserId,
     onEditNote = _ref64.onEditNote,
     onCancel = _ref64.onCancel,
     onAnswer = _ref64.onAnswer;
@@ -4672,9 +4717,7 @@ var MyClaimsCard = function MyClaimsCard(_ref64) {
     err = _useState190[0],
     setErr = _useState190[1];
   var flight = React.useRef(false);
-  var list = (claims || []).filter(function (c) {
-    return c.status === "pendente" || c.decided_at && Date.now() - new Date(c.decided_at).getTime() < 14 * 86400000;
-  }).slice(0, 3);
+  var list = visibleClaims(claims, members, myUserId);
   useEffect(function () {
     claimNamesRemember(claims, "member_name", "avatar_url");
   }, [claims]);
@@ -12428,6 +12471,8 @@ var GeneralTab = function GeneralTab(_ref129) {
     }, v));
   }))), !readOnly && React.createElement(MyClaimsCard, {
     claims: myClaims,
+    members: members,
+    myUserId: myUserId,
     onEditNote: onEditClaimNote,
     onCancel: onCancelClaim,
     onAnswer: onAnswerClaim
@@ -20735,6 +20780,8 @@ function App() {
     }
   }, React.createElement(MyClaimsCard, {
     claims: myClaims,
+    members: members,
+    myUserId: myUserId,
     onEditNote: editClaimNote,
     onCancel: cancelClaim,
     onAnswer: answerClaim
