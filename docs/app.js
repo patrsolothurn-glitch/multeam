@@ -15990,7 +15990,29 @@ var AuthScreen = function AuthScreen(_ref168) {
       cursor: "pointer",
       textDecoration: "underline"
     }
-  }, "Esqueci a password")));
+  }, "Esqueci a password"), React.createElement("a", {
+    href: "/sobre/",
+    target: "_blank",
+    rel: "noopener",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "100%",
+      boxSizing: "border-box",
+      minHeight: 44,
+      marginTop: 16,
+      padding: "10px 16px",
+      borderRadius: 14,
+      border: "1.5px solid rgba(255,255,255,0.85)",
+      background: "transparent",
+      color: "#fff",
+      fontSize: 15,
+      fontWeight: 700,
+      textDecoration: "none",
+      fontFamily: "inherit"
+    }
+  }, "Como funciona a Multeam")));
 };
 var Spinner = function Spinner(_ref173) {
   var _ref173$msg = _ref173.msg,
