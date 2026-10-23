@@ -195,6 +195,36 @@ const checkTeamName = async (name, excludeId, tok) => {
   if (livre === false) throw new Error(TEAM_NAME_TAKEN);
   throw new Error(TEAM_NAME_CHECK_FAIL);
 };
+
+// Desporto "Outro" (criar e editar): o texto escrito é o que fica em teams.sport (2 a 30 caracteres, sem espaços a mais)
+const SPORT_OTHER = "Outro", SPORT_MIN = 2, SPORT_MAX = 30;
+const normSport = s => String(s == null ? "" : s).trim().replace(/\s+/g, " ");
+// valor da lista que coincide (sem distinguir maiúsculas), sem contar o próprio "Outro"
+const sportListed = v => SPORTS.find(x => x !== SPORT_OTHER && x.toLowerCase() === normSport(v).toLowerCase());
+// legacy = equipa antiga que já tem "Outro" gravado: pode ficar assim
+const sportOtherIssue = (text, legacy) => {
+  const n = normSport(text);
+  if (!n) return legacy ? "" : "Escreve qual é o desporto.";
+  if (n.toLowerCase() === SPORT_OTHER.toLowerCase()) return "Escreve o nome do desporto, não a palavra \"Outro\".";
+  if (n.length < SPORT_MIN) return `O desporto tem de ter pelo menos ${SPORT_MIN} caracteres.`;
+  if (n.length > SPORT_MAX) return `O desporto pode ter no máximo ${SPORT_MAX} caracteres.`;
+  return "";
+};
+// valor guardado → o que mostram o select e o campo de texto
+const sportSplit = v => {
+  const n = normSport(v);
+  if (!n) return { sel:"", text:"" };
+  if (SPORTS.includes(n)) return { sel:n, text:"" };
+  if (n.toLowerCase() === SPORT_OTHER.toLowerCase()) return { sel:SPORT_OTHER, text:"" };
+  return { sel:SPORT_OTHER, text:n };
+};
+// select + texto → valor a guardar (o valor da lista tem prioridade; texto vazio em equipa antiga mantém o que lá estava)
+const sportJoin = (sel, text, keep) => {
+  if (sel !== SPORT_OTHER) return sel;
+  const n = normSport(text);
+  if (!n) return keep == null ? SPORT_OTHER : keep;
+  return sportListed(n) || n;
+};
 // uma escrita bloqueada por RLS responde com sucesso mas sem linhas: tratar como erro
 const needRows = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
 // "YYYY-MM-DD" -> dias do calendário (UTC só como contador, sem fuso)
@@ -1167,14 +1197,16 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
   const [currency, setCurrency] = useState("EUR (€)");
   const [city, setCity]       = useState("");
   const [postal, setPostal]   = useState("");
+  const [sportOther, setSportOther] = useState("");
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState("");
   const issue = name.trim() ? teamNameIssue(name) : "";
-  const ok = !teamNameIssue(name);
+  const sportIssue = sport === SPORT_OTHER ? sportOtherIssue(sportOther, false) : "";
+  const ok = !teamNameIssue(name) && !sportIssue;
   const submit = async () => { // só fecha quando a criação der certo; o erro fica dentro do modal
     if (!ok || busy) return;
     setBusy(true); setErr("");
-    try { await onAdd({ name:normTeamName(name), emoji, color, season, country, sport, currency, city, postal }); onClose(); }
+    try { await onAdd({ name:normTeamName(name), emoji, color, season, country, sport:sportJoin(sport, sportOther), currency, city, postal }); onClose(); }
     catch(e) { setErr((e && e.message) || ERR_GENERIC); setBusy(false); }
   };
 
@@ -1193,6 +1225,11 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
       <FSel value={sport} onChange={e=>setSport(e.target.value)}>
         {SPORTS.map(s=><option key={s} value={s}>{s}</option>)}
       </FSel>
+      {sport === SPORT_OTHER && <>
+        <FL>Qual o desporto?</FL>
+        <FI value={sportOther} onChange={e=>setSportOther(e.target.value)} placeholder="Ex: Andebol" data-sport-other />
+        {sportIssue && <p role="alert" data-sport-error style={{ margin:"-6px 0 12px", fontSize:13, fontWeight:700, color:"#B42318" }}>{sportIssue}</p>}
+      </>}
 
       <FL>Moeda</FL>
       <FSel value={currency} onChange={e=>setCurrency(e.target.value)}>
@@ -3612,14 +3649,18 @@ const TeamDataSection = ({ team, onSave }) => {
   const [f, setF] = useState(init);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [sportSel, setSportSel] = useState(() => sportSplit(team.sport).sel);
+  const [sportOther, setSportOther] = useState(() => sportSplit(team.sport).text);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const nameIssue = teamNameIssue(f.name);
+  const legacyOutro = normSport(team.sport).toLowerCase() === SPORT_OTHER.toLowerCase(); // equipa antiga com "Outro": fica como está
+  const sportIssue = sportSel === SPORT_OTHER ? sportOtherIssue(sportOther, legacyOutro) : "";
   const nameOk = !nameIssue, seasonOk = f.season.trim().length > 0;
-  const canSave = nameOk && seasonOk && !busy;
-  const open = () => { setF(init()); setErr(""); setEditing(true); };
+  const canSave = nameOk && seasonOk && !sportIssue && !busy;
+  const open = () => { setF(init()); const sp = sportSplit(team.sport); setSportSel(sp.sel); setSportOther(sp.text); setErr(""); setEditing(true); };
   const save = async () => {
     if (!canSave) return;
-    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim() };
+    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim(), sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
     const patch = {};
     Object.keys(next).forEach(k => { if (next[k] !== cur[k]) patch[k] = next[k]; });
     if (!Object.keys(patch).length) { setEditing(false); return; }
@@ -3674,9 +3715,14 @@ const TeamDataSection = ({ team, onSave }) => {
           <FL>Época</FL>
           <FI value={f.season} onChange={e=>set("season",e.target.value)} placeholder="2025/26" />
           <FL>Desporto</FL>
-          <FSel value={f.sport} onChange={e=>set("sport",e.target.value)}>
-            {opt(SPORTS, f.sport).map(x=><option key={x} value={x}>{x}</option>)}
+          <FSel value={sportSel} onChange={e=>setSportSel(e.target.value)}>
+            {opt(SPORTS, sportSel).map(x=><option key={x} value={x}>{x}</option>)}
           </FSel>
+          {sportSel === SPORT_OTHER && <>
+            <FL>Qual o desporto?</FL>
+            <FI value={sportOther} onChange={e=>setSportOther(e.target.value)} placeholder="Ex: Andebol" data-sport-other />
+            {sportIssue && <p role="alert" data-sport-error style={{ margin:"-6px 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{sportIssue}</p>}
+          </>}
           <FL>Moeda</FL>
           <FSel value={f.currency} onChange={e=>set("currency",e.target.value)}>
             {opt(CURRENCIES, f.currency).map(x=><option key={x} value={x}>{x}</option>)}
