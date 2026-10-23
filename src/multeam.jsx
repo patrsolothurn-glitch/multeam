@@ -5222,7 +5222,7 @@ export default function App() {
     // UPDATE bloqueado por RLS devolve sucesso sem alterar nada: só é sucesso se voltou uma linha
     if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível alterar o papel (sem permissão?)");
     setMembers(p=>p.map(x=>x.id===id?{...x,role:nr}:x));
-    showToast(`${m.name} agora é ${nr === "player" ? roleWord(teams.find(t => t.id === m.teamId)?.sport, false, true) : (ROLE_LABEL[nr] || nr)}`, T.navy);
+    showToast(`${m.name} agora é ${nr === "player" ? roleWord((teams || []).find(t => t && t.id === m.teamId)?.sport, false, true) : (ROLE_LABEL[nr] || nr)}`, T.navy);
   };
   const removeMember = async id => {
     const m = members.find(x => x.id === id);
@@ -5351,7 +5351,7 @@ export default function App() {
       const tmr = await api.get(`team_members?id=eq.${id}&select=position`, token);
       if (!prof || !Array.isArray(tmr) || !tmr.length) throw new Error("não foi possível confirmar o que ficou gravado");
       const saved = { name: prof.name || '', phone: prof.phone || '', birthday: prof.birthday || '', position: tmr[0].position || '', avatarUrl: prof.avatar_url || null };
-      const free = isFreeSport(teams.find(t => t.id === m.teamId)?.sport);
+      const free = isFreeSport((teams || []).find(t => t && t.id === m.teamId)?.sport);
       setMembers(p => p.map(x => x.id === id ? { ...x, ...saved, position: free ? saved.position : (saved.position || x.position), initials: mk(saved.name || x.name) } : x));
       if (m.userId === myUserId) setProfile(p => free ? ({ ...p, ...saved, position: p.position }) : ({ ...p, ...saved }));
       const same = (a, b) => String(a == null ? "" : a).trim() === String(b == null ? "" : b).trim();

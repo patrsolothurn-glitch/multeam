@@ -19093,7 +19093,7 @@ function App() {
   };
   var toggleRole = function () {
     var _ref221 = _asyncToGenerator(_regenerator().m(function _callee90(id, newRole) {
-      var _teams$find2;
+      var _find;
       var m, nr, res;
       return _regenerator().w(function (_context90) {
         while (1) switch (_context90.n) {
@@ -19133,9 +19133,9 @@ function App() {
                 }) : x;
               });
             });
-            showToast("".concat(m.name, " agora \xE9 ").concat(nr === "player" ? roleWord((_teams$find2 = teams.find(function (t) {
-              return t.id === m.teamId;
-            })) === null || _teams$find2 === void 0 ? void 0 : _teams$find2.sport, false, true) : ROLE_LABEL[nr] || nr), T.navy);
+            showToast("".concat(m.name, " agora \xE9 ").concat(nr === "player" ? roleWord((_find = (teams || []).find(function (t) {
+              return t && t.id === m.teamId;
+            })) === null || _find === void 0 ? void 0 : _find.sport, false, true) : ROLE_LABEL[nr] || nr), T.navy);
           case 5:
             return _context90.a(2);
         }
@@ -19544,7 +19544,7 @@ function App() {
   };
   var editMember = function editMember(id, data) {
     return guarded("mem:".concat(id), _asyncToGenerator(_regenerator().m(function _callee101() {
-      var m, _teams$find3, profs, prof, tmr, saved, free, same, diff, _t128;
+      var m, _find2, profs, prof, tmr, saved, free, same, diff, _t128;
       return _regenerator().w(function (_context101) {
         while (1) switch (_context101.p = _context101.n) {
           case 0:
@@ -19595,9 +19595,9 @@ function App() {
               position: tmr[0].position || '',
               avatarUrl: prof.avatar_url || null
             };
-            free = isFreeSport((_teams$find3 = teams.find(function (t) {
-              return t.id === m.teamId;
-            })) === null || _teams$find3 === void 0 ? void 0 : _teams$find3.sport);
+            free = isFreeSport((_find2 = (teams || []).find(function (t) {
+              return t && t.id === m.teamId;
+            })) === null || _find2 === void 0 ? void 0 : _find2.sport);
             setMembers(function (p) {
               return p.map(function (x) {
                 return x.id === id ? _objectSpread(_objectSpread(_objectSpread({}, x), saved), {}, {
