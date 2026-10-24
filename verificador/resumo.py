@@ -9,7 +9,7 @@ args=re.search(r'bash run-all\.sh (.*)',sh).group(1).split()
 esperados=base+args
 vistos={};problemas=[]
 for l in txt:
-    m=re.match(r'^(dom-[a-z0-9-]+): ?(.*)$',l)
+    m=re.match(r'^((?:dom|unit)-[a-z0-9-]+): ?(.*)$',l)
     if not m: continue
     n,r=m.group(1),m.group(2)
     vistos[n]=r
@@ -36,8 +36,8 @@ for t in ['t8','t11','t13','t15','t17','t19']:
 if not any(x=='TUDO-FIM' for x in txt): problemas.append("TUDO-FIM em falta (a bateria não chegou ao fim)")
 for a_ in ['audit-consola','audit-ui','audit-ui junho']:
     if a_ not in vistos: problemas.append(f"{a_}: EM FALTA")
-n_dom=sum(1 for n in vistos if n.startswith('dom-'))
-print(f"{f}: {n_dom} testes dom-* lidos, {len(esperados)} esperados; extra={extra}")
+n_dom=sum(1 for n in vistos if n.startswith(('dom-','unit-')))
+print(f"{f}: {n_dom} testes (dom-* e unit-*) lidos, {len(esperados)} esperados; extra={extra}")
 if problemas:
     print("NÃO ESTÁ TODA VERDE:");[print("  -",p) for p in problemas];sys.exit(1)
 print("TODA VERDE: todos os testes esperados presentes, 0 falhas, auditorias e t* OK")
