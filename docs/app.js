@@ -10081,7 +10081,7 @@ var AdminUsersSection = function AdminUsersSection(_ref105) {
         fontSize: 12,
         color: "#5F5F66"
       }
-    }, tm.season ? "".concat(tm.season, " \xB7 ") : "", isFreeSport(tm.sport) ? plural(tm.playersCount, "membro", "membros") : plural(tm.playersCount, "jogador", "jogadores"), " \xB7 ", plural(tm.membersCount, "membro", "membros"))), React.createElement("span", {
+    }, tm.season ? "".concat(tm.season, " \xB7 ") : "", isFreeSport(tm.sport) ? plural(tm.membersCount, "membro", "membros") : React.createElement(React.Fragment, null, plural(tm.playersCount, "jogador", "jogadores"), " \xB7 ", plural(tm.membersCount, "membro", "membros")))), React.createElement("span", {
       style: {
         textAlign: "right",
         flexShrink: 0
