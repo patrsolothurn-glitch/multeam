@@ -17998,69 +17998,77 @@ function App() {
       return _ref192.apply(this, arguments);
     };
   }();
-  var refresh = useCallback(_asyncToGenerator(_regenerator().m(function _callee68() {
-    var my, td, _t81, _t82, _t83;
-    return _regenerator().w(function (_context68) {
-      while (1) switch (_context68.p = _context68.n) {
-        case 0:
-          if (!(refreshing || !token || !teamId)) {
-            _context68.n = 1;
+  var refresh = useCallback(function () {
+    var _ref193 = _asyncToGenerator(_regenerator().m(function _callee68(opts) {
+      var notify, my, td, _t81, _t82, _t83;
+      return _regenerator().w(function (_context68) {
+        while (1) switch (_context68.p = _context68.n) {
+          case 0:
+            notify = !!(opts && opts.notify);
+            if (!(refreshing || !token || !teamId)) {
+              _context68.n = 1;
+              break;
+            }
+            return _context68.a(2);
+          case 1:
+            setRefreshing(true);
+            if (!roMode) {
+              _context68.n = 6;
+              break;
+            }
+            _context68.p = 2;
+            _t81 = applyAdminData;
+            _context68.n = 3;
+            return loadTeamAdmin(token, teamId);
+          case 3:
+            _t81(_context68.v);
+            if (notify) showToast("Atualizado ✓", T.green);
+            _context68.n = 5;
             break;
-          }
-          return _context68.a(2);
-        case 1:
-          setRefreshing(true);
-          if (!roMode) {
-            _context68.n = 6;
+          case 4:
+            _context68.p = 4;
+            _t82 = _context68.v;
+            showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(roErrPt(_t82)), T.brand);
+          case 5:
+            setRefreshing(false);
+            return _context68.a(2);
+          case 6:
+            my = ++loadSeq.current;
+            _context68.p = 7;
+            _context68.n = 8;
+            return loadTeam(token, teamId);
+          case 8:
+            td = _context68.v;
+            if (my === loadSeq.current) {
+              setMembers(td.members);
+              setFineTypes(td.fineTypes);
+              setFines(td.fines);
+              setCards(td.cards);
+              setExpenses(td.expenses);
+              setTrainings(td.trainings);
+              setPresences(td.presences);
+              setAbsences(td.absences);
+              setLoadWarn(td.warn || []);
+              if (notify) showToast("Atualizado ✓", T.green);
+            }
+            _context68.n = 10;
             break;
-          }
-          _context68.p = 2;
-          _t81 = applyAdminData;
-          _context68.n = 3;
-          return loadTeamAdmin(token, teamId);
-        case 3:
-          _t81(_context68.v);
-          _context68.n = 5;
-          break;
-        case 4:
-          _context68.p = 4;
-          _t82 = _context68.v;
-          showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(roErrPt(_t82)), T.brand);
-        case 5:
-          setRefreshing(false);
-          return _context68.a(2);
-        case 6:
-          my = ++loadSeq.current;
-          _context68.p = 7;
-          _context68.n = 8;
-          return loadTeam(token, teamId);
-        case 8:
-          td = _context68.v;
-          if (my === loadSeq.current) {
-            setMembers(td.members);
-            setFineTypes(td.fineTypes);
-            setFines(td.fines);
-            setCards(td.cards);
-            setExpenses(td.expenses);
-            setTrainings(td.trainings);
-            setPresences(td.presences);
-            setAbsences(td.absences);
-            setLoadWarn(td.warn || []);
-          }
-          _context68.n = 10;
-          break;
-        case 9:
-          _context68.p = 9;
-          _t83 = _context68.v;
-          console.error(_t83);
-          if (my === loadSeq.current) showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(errPt(_t83, "erro")), T.brand);
-        case 10:
-          setRefreshing(false);
-        case 11:
-          return _context68.a(2);
-      }
-    }, _callee68, null, [[7, 9], [2, 4]]);
-  })), [token, teamId, refreshing, roMode]);
+          case 9:
+            _context68.p = 9;
+            _t83 = _context68.v;
+            console.error(_t83);
+            if (my === loadSeq.current) showToast("N\xE3o foi poss\xEDvel atualizar: ".concat(errPt(_t83, "erro")), T.brand);
+          case 10:
+            setRefreshing(false);
+          case 11:
+            return _context68.a(2);
+        }
+      }, _callee68, null, [[7, 9], [2, 4]]);
+    }));
+    return function (_x33) {
+      return _ref193.apply(this, arguments);
+    };
+  }(), [token, teamId, refreshing, roMode]);
   useEffect(function () {
     window.__multeamRefresh = refresh;
   }, [refresh]);
@@ -18116,7 +18124,7 @@ function App() {
         }
       }, _callee69, null, [[1, 5]]);
     }));
-    return function handleLogin(_x33, _x34) {
+    return function handleLogin(_x34, _x35) {
       return _ref194.apply(this, arguments);
     };
   }();
@@ -18215,7 +18223,7 @@ function App() {
         }
       }, _callee70, null, [[9, 14], [3, 5], [1, 18]]);
     }));
-    return function handleRegister(_x35, _x36, _x37) {
+    return function handleRegister(_x36, _x37, _x38) {
       return _ref195.apply(this, arguments);
     };
   }();
@@ -18269,7 +18277,7 @@ function App() {
         }
       }, _callee71);
     }));
-    return function addFine(_x38) {
+    return function addFine(_x39) {
       return _ref196.apply(this, arguments);
     };
   }();
@@ -18300,7 +18308,7 @@ function App() {
         }
       }, _callee72);
     }));
-    return function confirmGone(_x39) {
+    return function confirmGone(_x40) {
       return _ref197.apply(this, arguments);
     };
   }();
@@ -18347,7 +18355,7 @@ function App() {
         }
       }, _callee73, null, [[2, 4]]);
     }));
-    return function togglePaid(_x40) {
+    return function togglePaid(_x41) {
       return _ref198.apply(this, arguments);
     };
   }();
@@ -18380,7 +18388,7 @@ function App() {
         }
       }, _callee74, null, [[0, 3]]);
     }));
-    return function delFine(_x41) {
+    return function delFine(_x42) {
       return _ref199.apply(this, arguments);
     };
   }();
@@ -18416,7 +18424,7 @@ function App() {
         }
       }, _callee75, null, [[0, 2]]);
     }));
-    return function editFine(_x42, _x43) {
+    return function editFine(_x43, _x44) {
       return _ref200.apply(this, arguments);
     };
   }();
@@ -18449,7 +18457,7 @@ function App() {
         }
       }, _callee76);
     }));
-    return function addCard(_x44) {
+    return function addCard(_x45) {
       return _ref201.apply(this, arguments);
     };
   }();
@@ -18675,7 +18683,7 @@ function App() {
         }
       }, _callee82, null, [[0, 2]]);
     }));
-    return function addExpense(_x45) {
+    return function addExpense(_x46) {
       return _ref207.apply(this, arguments);
     };
   }();
@@ -18770,7 +18778,7 @@ function App() {
         }
       }, _callee83, null, [[1, 5]]);
     }));
-    return function logSession(_x46, _x47, _x48) {
+    return function logSession(_x47, _x48, _x49) {
       return _ref208.apply(this, arguments);
     };
   }();
@@ -18820,7 +18828,7 @@ function App() {
         }
       }, _callee84);
     }));
-    return function addTraining(_x49) {
+    return function addTraining(_x50) {
       return _ref215.apply(this, arguments);
     };
   }();
@@ -19019,7 +19027,7 @@ function App() {
         }
       }, _callee88, null, [[3, 5], [1, 9]]);
     }));
-    return function addMember(_x50) {
+    return function addMember(_x51) {
       return _ref219.apply(this, arguments);
     };
   }();
@@ -19076,7 +19084,7 @@ function App() {
         }
       }, _callee89, null, [[1, 5]]);
     }));
-    return function leaveTeam(_x51) {
+    return function leaveTeam(_x52) {
       return _ref220.apply(this, arguments);
     };
   }();
@@ -19141,7 +19149,7 @@ function App() {
         }
       }, _callee90);
     }));
-    return function toggleRole(_x52, _x53) {
+    return function toggleRole(_x53, _x54) {
       return _ref221.apply(this, arguments);
     };
   }();
@@ -19190,7 +19198,7 @@ function App() {
         }
       }, _callee91);
     }));
-    return function removeMember(_x54) {
+    return function removeMember(_x55) {
       return _ref222.apply(this, arguments);
     };
   }();
@@ -19221,7 +19229,7 @@ function App() {
         }
       }, _callee92, null, [[2,, 4, 5]]);
     }));
-    return function guarded(_x55, _x56) {
+    return function guarded(_x56, _x57) {
       return _ref223.apply(this, arguments);
     };
   }();
@@ -19278,7 +19286,7 @@ function App() {
         }
       }, _callee93);
     }));
-    return function callOpen(_x57, _x58) {
+    return function callOpen(_x58, _x59) {
       return _ref224.apply(this, arguments);
     };
   }();
@@ -19299,7 +19307,7 @@ function App() {
         }
       }, _callee94);
     }));
-    return function callClose(_x59, _x60) {
+    return function callClose(_x60, _x61) {
       return _ref225.apply(this, arguments);
     };
   }();
@@ -19745,7 +19753,7 @@ function App() {
         }
       }, _callee102, null, [[1, 10]]);
     }));
-    return function createTeam(_x61) {
+    return function createTeam(_x62) {
       return _ref237.apply(this, arguments);
     };
   }();
@@ -19807,7 +19815,7 @@ function App() {
         }
       }, _callee103, null, [[2, 4]]);
     }));
-    return function editTeam(_x62, _x63) {
+    return function editTeam(_x63, _x64) {
       return _ref238.apply(this, arguments);
     };
   }();
@@ -19867,7 +19875,7 @@ function App() {
         }
       }, _callee104, null, [[3, 7]]);
     }));
-    return function deleteTeam(_x64) {
+    return function deleteTeam(_x65) {
       return _ref239.apply(this, arguments);
     };
   }();
@@ -20001,7 +20009,7 @@ function App() {
                   }
                 }, _callee105, null, [[0, 2]]);
               }));
-              return function (_x65) {
+              return function (_x66) {
                 return _ref241.apply(this, arguments);
               };
             }()));
@@ -20072,7 +20080,7 @@ function App() {
         }
       }, _callee107, null, [[0, 2]]);
     }));
-    return function listClaimable(_x66) {
+    return function listClaimable(_x67) {
       return _ref242.apply(this, arguments);
     };
   }();
@@ -20095,7 +20103,7 @@ function App() {
         }
       }, _callee108);
     }));
-    return function requestClaim(_x67, _x68, _x69) {
+    return function requestClaim(_x68, _x69, _x70) {
       return _ref243.apply(this, arguments);
     };
   }();
@@ -20119,7 +20127,7 @@ function App() {
         }
       }, _callee109);
     }));
-    return function editClaimNote(_x70, _x71) {
+    return function editClaimNote(_x71, _x72) {
       return _ref244.apply(this, arguments);
     };
   }();
@@ -20143,7 +20151,7 @@ function App() {
         }
       }, _callee110);
     }));
-    return function answerClaim(_x72, _x73) {
+    return function answerClaim(_x73, _x74) {
       return _ref245.apply(this, arguments);
     };
   }();
@@ -20169,7 +20177,7 @@ function App() {
         }
       }, _callee111);
     }));
-    return function cancelClaim(_x74) {
+    return function cancelClaim(_x75) {
       return _ref246.apply(this, arguments);
     };
   }();
@@ -20230,7 +20238,7 @@ function App() {
         }
       }, _callee113, null, [[0, 2]]);
     }));
-    return function joinTeam(_x75) {
+    return function joinTeam(_x76) {
       return _ref248.apply(this, arguments);
     };
   }();
@@ -20280,7 +20288,7 @@ function App() {
         }
       }, _callee114, null, [[3, 5]]);
     }));
-    return function findTeamByCode(_x76) {
+    return function findTeamByCode(_x77) {
       return _ref249.apply(this, arguments);
     };
   }();
@@ -20409,7 +20417,7 @@ function App() {
         }
       }, _callee115, null, [[9, 11], [3, 7], [1, 14]]);
     }));
-    return function subscribeToPush(_x77, _x78) {
+    return function subscribeToPush(_x78, _x79) {
       return _ref250.apply(this, arguments);
     };
   }();
@@ -20479,7 +20487,7 @@ function App() {
         }
       }, _callee116);
     }));
-    return function checkPush(_x79, _x80, _x81) {
+    return function checkPush(_x80, _x81, _x82) {
       return _ref251.apply(this, arguments);
     };
   }();
@@ -20576,7 +20584,7 @@ function App() {
         }
       }, _callee117, null, [[4, 6], [2, 9]]);
     }));
-    return function sendPushToTeam(_x82, _x83, _x84, _x85) {
+    return function sendPushToTeam(_x83, _x84, _x85, _x86) {
       return _ref252.apply(this, arguments);
     };
   }();
@@ -20601,7 +20609,7 @@ function App() {
         }
       }, _callee118);
     }));
-    return function addFineWithToast(_x86) {
+    return function addFineWithToast(_x87) {
       return _ref253.apply(this, arguments);
     };
   }();
@@ -20650,7 +20658,7 @@ function App() {
         }
       }, _callee119);
     }));
-    return function addCardWithAlert(_x87) {
+    return function addCardWithAlert(_x88) {
       return _ref254.apply(this, arguments);
     };
   }();
@@ -21109,7 +21117,7 @@ function App() {
           }
         }, _callee120);
       }));
-      return function (_x88) {
+      return function (_x89) {
         return _ref255.apply(this, arguments);
       };
     }()),
@@ -21155,7 +21163,7 @@ function App() {
           }
         }, _callee121, null, [[0, 2]]);
       }));
-      return function (_x89) {
+      return function (_x90) {
         return _ref256.apply(this, arguments);
       };
     }()),
@@ -21272,7 +21280,7 @@ function App() {
           }
         }, _callee122);
       }));
-      return function (_x90) {
+      return function (_x91) {
         return _ref257.apply(this, arguments);
       };
     }()),
@@ -21433,8 +21441,13 @@ function App() {
     }
   }, React.createElement("button", {
     onClick: function onClick() {
-      return roMode ? refresh() : window.location.reload();
+      return refresh({
+        notify: true
+      });
     },
+    "aria-label": "Atualizar",
+    "aria-busy": refreshing,
+    disabled: refreshing,
     style: {
       background: "rgba(255,255,255,0.15)",
       border: "none",
@@ -21445,7 +21458,8 @@ function App() {
       flexShrink: 0,
       height: 44,
       fontSize: 18,
-      cursor: "pointer",
+      cursor: refreshing ? "default" : "pointer",
+      opacity: refreshing ? 0.5 : 1,
       display: "flex",
       alignItems: "center",
       justifyContent: "center"
@@ -21743,7 +21757,7 @@ function App() {
           }
         }, _callee123, null, [[0, 2]]);
       }));
-      return function (_x91) {
+      return function (_x92) {
         return _ref258.apply(this, arguments);
       };
     }()),
@@ -21771,7 +21785,7 @@ function App() {
           }
         }, _callee124);
       }));
-      return function (_x92) {
+      return function (_x93) {
         return _ref259.apply(this, arguments);
       };
     }()),

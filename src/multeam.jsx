@@ -4932,11 +4932,12 @@ export default function App() {
   };
 
   // Pull-to-refresh
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts) => {
+    const notify = !!(opts && opts.notify); // só o botão ↺ avisa "Atualizado ✓" (o puxar-para-atualizar tem a sua própria indicação)
     if (refreshing || !token || !teamId) return;
     setRefreshing(true);
     if (roMode) {
-      try { applyAdminData(await loadTeamAdmin(token, teamId)); }
+      try { applyAdminData(await loadTeamAdmin(token, teamId)); if (notify) showToast("Atualizado ✓", T.green); }
       catch(e) { showToast(`Não foi possível atualizar: ${roErrPt(e)}`, T.brand); }
       setRefreshing(false);
       return;
@@ -4949,6 +4950,7 @@ export default function App() {
         setFines(td.fines); setCards(td.cards); setExpenses(td.expenses);
         setTrainings(td.trainings); setPresences(td.presences); setAbsences(td.absences);
         setLoadWarn(td.warn || []);
+        if (notify) showToast("Atualizado ✓", T.green);
       }
     } catch(e) { console.error(e); if (my === loadSeq.current) showToast(`Não foi possível atualizar: ${errPt(e, "erro")}`, T.brand); }
     setRefreshing(false);
@@ -5772,7 +5774,7 @@ export default function App() {
           {isAdmin && <AdminHeaderBadge teamColor={team.color} />}
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={()=>roMode ? refresh() : window.location.reload()} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:44, minWidth:44, flexShrink:0, height:44, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
+          <button onClick={()=>refresh({ notify:true })} aria-label="Atualizar" aria-busy={refreshing} disabled={refreshing} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"#fff", borderRadius:20, width:44, minWidth:44, flexShrink:0, height:44, fontSize:18, cursor:refreshing?"default":"pointer", opacity:refreshing?0.5:1, display:"flex", alignItems:"center", justifyContent:"center" }}>↺</button>
           <button onClick={()=>setModal("picker")} style={{ minHeight:44, background:"rgba(255,255,255,0.22)", border:"none", color:"#fff", borderRadius:20, padding:"8px 16px", fontSize:14, cursor:"pointer", fontWeight:700, fontFamily:"inherit" }}>{team.emoji} Trocar ▾</button>
         </div>
       </div>
