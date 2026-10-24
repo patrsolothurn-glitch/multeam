@@ -177,7 +177,7 @@ const sessServerLogout = tok => { if (!tok) return; try { fetch(`${SB_URL}/auth/
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
-const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
+const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', emojiRaw:t.emoji||'', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
 const aMember = (m, sport) => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:isFreeSport(sport)?(m.position||''):(m.position||m.profiles?.position||'Jogador'), phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
@@ -331,6 +331,12 @@ const isFreeSport = sport => !!normSport(sport) && sportSplit(sport).sel === SPO
 // Palavra do papel 'player' no ecrã: "Membro/Membros" em desporto livre ("Outro"), "Jogador/Jogadores" nos outros ou quando o desporto não é conhecido.
 // Só muda o texto mostrado: o valor guardado continua 'player'.
 const roleWord = (sport, plural, lower) => { const w = isFreeSport(sport) ? (plural ? "Membros" : "Membro") : (plural ? "Jogadores" : "Jogador"); return lower ? w.toLowerCase() : w; };
+// Ícone antes da posição de um membro: em desporto livre ("Outro") é o emoji da equipa (👤 se não houver); nos outros desportos continua 🏃.
+const posIcon = team => {
+  if (!team || !isFreeSport(team.sport)) return "🏃";
+  const raw = team.emojiRaw !== undefined ? team.emojiRaw : team.emoji;
+  return String(raw == null ? "" : raw).trim() || "👤";
+};
 const positionIssue = text => normSport(text).length > POSITION_MAX ? `A posição pode ter no máximo ${POSITION_MAX} caracteres.` : "";
 // uma escrita bloqueada por RLS responde com sucesso mas sem linhas: tratar como erro
 const needRows = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
@@ -3487,7 +3493,7 @@ const PrivacySection = () => {
   );
 };
 
-const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts, pushIssue, onRetryPush, claimsWarn, onRetryClaims }) => {
+const GeneralTab = ({ activeTeam, user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts, pushIssue, onRetryPush, claimsWarn, onRetryClaims }) => {
   // modo leitura (super admin): só a equipa aberta, sem ser membro
   const myTeams = readOnly ? teams : teams.filter(t => 
     members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
@@ -3566,7 +3572,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
                 <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{m.name}</p>
                 <span style={{ fontSize:11, background:m.role==="admin"?`${t?.color||T.navy}20`:"transparent", color:m.role==="admin"?t?.color||T.navy:T.sub, borderRadius:6, padding:"2px 6px", fontWeight:700, border:`1px solid ${m.role==="admin"?t?.color||T.navy:T.border}` }}>{m.role==="admin"?"Admin":roleWord(t?.sport)}</span>
               </div>
-              {m.position && <p style={{ margin:"0 0 3px", fontSize:13, color:T.sub }}>🏃 {m.position}</p>}
+              {m.position && <p style={{ margin:"0 0 3px", fontSize:13, color:T.sub }}>{posIcon(t)} {m.position}</p>}
               {m.phone && <p style={{ margin:"0 0 3px", fontSize:13, color:T.text }}>📱 <a href={`tel:${m.phone}`} style={{ color:T.navy, textDecoration:"none", fontWeight:600 }}>{m.phone}</a></p>}
               {m.birthday && <p style={{ margin:0, fontSize:13, color:T.sub }}>🎂 {fmtDate(m.birthday)}{age(m.birthday)?` · ${age(m.birthday)} anos`:""}</p>}
             </div>
@@ -3593,7 +3599,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         </div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {[
-            ["🏃 Posição", user.position || "—", false],
+            [`${posIcon(activeTeam)} Posição`, user.position || "—", false],
             ["📱 Telefone", user.phone || "—", false],
             ["🎂 Aniversário", user.birthday ? `${fmtDate(user.birthday)}${myAge?` · ${myAge} anos`:""}` : "—", true],
           ].map(([l,v,full]) => (
@@ -5989,7 +5995,7 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
+      {tab==="geral" && <GeneralTab activeTeam={team} user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
