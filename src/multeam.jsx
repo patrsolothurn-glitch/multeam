@@ -47,6 +47,10 @@ const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stat
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
+  if (m === "POST") { // exceção única: renovar a sessão (POST /auth/v1/token?grant_type=refresh_token); login, registo, logout e qualquer outra escrita continuam bloqueados
+    const parts = String(url).split("?");
+    if (parts[0] === `${SB_URL}/auth/v1/token` && /(^|&)grant_type=refresh_token(&|$)/.test(parts[1] || "")) return true;
+  }
   return m === "POST" && RO_RPCS.some(f => String(url).split("?")[0] === `${SB_URL}/rest/v1/rpc/${f}`);
 };
 const roCheck = (url, method) => { if (RO.on && !roAllows(url, method)) throw new Error(RO_MSG); };
@@ -75,6 +79,101 @@ const api = {
   async resetPassword(email) { await fetch(`${SB_URL}/auth/v1/recover`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email})}); },
   async updatePassword(newPass, accessToken) { const r=await fetch(`${SB_URL}/auth/v1/user`,{method:'PUT',headers:{'apikey':SB_KEY,'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({password:newPass})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||'Erro'); return d; },
 };
+
+// ── SESSÃO PERSISTENTE ───────────────────────────────────────
+// A sessão (access + refresh token) fica em localStorage ("multeam.sessao") para o login sobreviver a fechar e reabrir a app.
+// Não depende das definições de Auth do Supabase: a validade vem da resposta (expires_at, expires_in ou o próprio JWT) e funciona com a rotação
+// do refresh token ligada ou desligada (se a resposta não trouxer refresh_token novo, mantém-se o antigo).
+const SESSION_KEY = "multeam.sessao";
+const sessRead = () => { try { const j = JSON.parse(window.localStorage.getItem(SESSION_KEY) || "null"); return j && typeof j === "object" && j.rt && j.uid && j.at ? j : null; } catch(e) { return null; } };
+// Entre janelas, uma escrita em localStorage pode demorar uns milissegundos a ficar visível na outra janela. Por isso cada escrita leva um número de sequência (seq)
+// e é também anunciada por BroadcastChannel; cada janela guarda a sessão mais recente de que tem notícia (sessLatest) e usa sempre a de maior seq.
+let sessLatest = null;
+const sessSeq = o => (o && o.seq) || 0;
+const sessNewest = () => { const a = sessRead(); return sessSeq(sessLatest) > sessSeq(a) ? sessLatest : a; };
+let sessBC = null;
+try {
+  if (typeof BroadcastChannel !== "undefined") {
+    sessBC = new BroadcastChannel("multeam-sessao");
+    sessBC.onmessage = e => { const o = e.data; if (o && o.fim) { sessLatest = null; return; } if (o && o.rt && sessSeq(o) > sessSeq(sessLatest)) sessLatest = o; };
+  }
+  if (typeof window !== "undefined") window.addEventListener("storage", e => {
+    if (e.key !== "multeam.sessao") return;
+    if (!e.newValue) { sessLatest = null; return; }
+    try { const o = JSON.parse(e.newValue); if (o && o.rt && sessSeq(o) >= sessSeq(sessLatest)) sessLatest = o; } catch(err) {}
+  });
+} catch(e) {}
+const sessWrite = o => {
+  const n = { ...o, seq: sessSeq(sessNewest()) + 1 };
+  sessLatest = n;
+  try { window.localStorage.setItem(SESSION_KEY, JSON.stringify(n)); } catch(e) {}
+  try { sessBC && sessBC.postMessage(n); } catch(e) {}
+  return n;
+};
+const sessClear = () => { sessLatest = null; try { window.localStorage.removeItem(SESSION_KEY); } catch(e) {} try { sessBC && sessBC.postMessage({ fim:true }); } catch(e) {} };
+const jwtExpMs = t => { try { const q = JSON.parse(atob(String(t).split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); return q && q.exp ? q.exp * 1000 : 0; } catch(e) { return 0; } };
+// resposta do Supabase (token, signup ou link) → sessão a guardar; m = margem de renovação (1/3 da validade, entre 2 s e 5 min)
+const sessFromAuth = (d, prev) => {
+  if (!d || typeof d !== "object") return null;
+  const at = d.access_token || (d.session && d.session.access_token);
+  const rt = d.refresh_token || (d.session && d.session.refresh_token) || (prev && prev.rt) || "";
+  const uid = (d.user && d.user.id) || (d.session && d.session.user && d.session.user.id) || (prev && prev.uid) || "";
+  if (!at || !rt || !uid) return null;
+  const now = Date.now();
+  const exp = d.expires_at ? d.expires_at * 1000 : (d.expires_in ? now + d.expires_in * 1000 : (jwtExpMs(at) || now + 50 * 60000));
+  return { at, rt, uid, exp, m: Math.min(300000, Math.max(2000, Math.round(Math.max(exp - now, 1000) / 3))) };
+};
+// uma chamada de renovação: "ok" | "invalid" (o refresh token já não vale) | "transient" (rede, 5xx, 429: a sessão guarda-se)
+const sessCall = async (rt, uid) => {
+  let ctl = null, timer = null;
+  try { ctl = typeof AbortController !== "undefined" ? new AbortController() : null; timer = setTimeout(() => { try { ctl && ctl.abort(); } catch(e) {} }, 15000); } catch(e) {}
+  try {
+    const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{ "apikey":SB_KEY, "Content-Type":"application/json" }, body:JSON.stringify({ refresh_token: rt }), signal: ctl ? ctl.signal : undefined });
+    let d = null; try { d = await r.json(); } catch(e) { d = null; }
+    if (r.ok && d && d.access_token) { const o = sessFromAuth(d, { rt, uid }); return o ? { status:"ok", s:o } : { status:"transient" }; }
+    if ([400, 401, 403, 404, 422].includes(r.status)) return { status:"invalid" };
+    return { status:"transient" };
+  } catch(e) { return { status:"transient" }; }
+  finally { if (timer) clearTimeout(timer); }
+};
+let sessInflight = null; // dentro desta janela, uma renovação de cada vez
+// dá uns instantes (voltas de mensagens, não depende de setTimeout) para a escrita desta janela chegar às outras antes de largar o bloqueio
+const sessSettle = async () => { try { const mc = new MessageChannel(), t0 = performance.now(); for (let i = 0; i < 2000 && performance.now() - t0 < 40; i++) await new Promise(res => { mc.port1.onmessage = () => res(); mc.port2.postMessage(0); }); } catch(e) {} };
+// Web Locks: uma janela de cada vez. Se tivemos de esperar pelo bloqueio, outra janela acabou de renovar: assenta antes de ler. Sem Web Locks (ou sem permissão), corre na mesma.
+const sessLock = async fn => {
+  try {
+    if (typeof navigator !== "undefined" && navigator.locks && navigator.locks.request) {
+      const free = await navigator.locks.request("multeam-auth", { ifAvailable:true }, async lock => lock ? { v: await fn(false) } : null);
+      if (free) return free.v;
+      return await navigator.locks.request("multeam-auth", () => fn(true));
+    }
+  } catch(e) { if (!(e && e.name === "SecurityError")) throw e; }
+  return fn(false);
+};
+// Renova se for preciso. Entre janelas: Web Locks (uma de cada vez) e, já dentro do bloqueio, volta a ler o armazenamento, porque outra janela pode
+// ter renovado entretanto (o refresh token pode ser de uso único): nesse caso usa o que lá está em vez de renovar outra vez.
+const sessRenew = force => {
+  if (sessInflight) return sessInflight;
+  sessInflight = sessLock(async (esperou) => {
+    if (esperou) await sessSettle();
+    const cur = sessNewest();
+    if (!cur) return { status:"none" };
+    if (!force && cur.exp - Date.now() > cur.m) return { status:"ok", s:cur, same:true };
+    let r = await sessCall(cur.rt, cur.uid);
+    if (r.status === "invalid") {
+      await sessSettle();
+      const again = sessNewest();
+      if (!again) return { status:"none" };
+      if (again.rt !== cur.rt) { if (again.exp - Date.now() > 1000) return { status:"ok", s:again, same:true }; r = await sessCall(again.rt, again.uid); }
+    }
+    if (r.status === "ok") { r.s = sessWrite(r.s); await sessSettle(); } // só larga o bloqueio depois de a escrita ter chegado às outras janelas
+    else if (r.status === "invalid") { sessClear(); await sessSettle(); }
+    return r;
+  }).finally(() => { sessInflight = null; });
+  return sessInflight;
+};
+// terminar sessão: revoga no servidor (sem bloquear nem falhar o logout local)
+const sessServerLogout = tok => { if (!tok) return; try { fetch(`${SB_URL}/auth/v1/logout`, { method:"POST", headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${tok}`, "Content-Type":"application/json" }, keepalive:true }).catch(() => {}); } catch(e) {} };
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
@@ -468,6 +567,14 @@ const Avatar = ({ initials, color = T.navy, size = 38, photo, name, onTapGesture
     ? <div style={{ width:size, height:size, borderRadius:size/2, overflow:"hidden", flexShrink:0 }}><ZoomPhoto src={photo} name={name} onTapGesture={onTapGesture} style={{ width:"100%", height:"100%", objectFit:"cover" }} /></div>
     : <div style={{ width:size, height:size, borderRadius:size/2, background:color, display:"flex", alignItems:"center", justifyContent:"center", color:readableOn(color), fontWeight:800, fontSize:size*0.33, flexShrink:0, letterSpacing:-0.5 }}>{initials}</div>
 );
+// ── MOEDA: os montantes aparecem na moeda da equipa ("3.00 €", "27.00 CHF"), sempre com 2 casas; o código sai do texto guardado ("EUR (€)", "CHF (Fr.)" ou "CHF")
+const curCode = v => { const m = /^\s*([A-Za-z]{3})(?![A-Za-z])/.exec(String(v == null ? "" : v)); return m ? m[1].toUpperCase() : ""; };
+const teamCur = t => curCode(t && t.currency) || "EUR"; // equipa antiga sem moeda guardada continua em €
+const curSym = code => code === "EUR" ? "€" : code;
+const fmtMoney = (n, code) => { const v = Number(n); const s = (isFinite(v) ? v : 0).toFixed(2); return code ? `${s} ${curSym(code)}` : s; };
+const MoneyCtx = React.createContext("EUR");
+const useMoney = () => { const c = React.useContext(MoneyCtx); const f = n => fmtMoney(n, c); f.sym = curSym(c); return f; };
+
 const Badge = ({ label, color }) => (
   <span style={{ display:"inline-block", padding:"3px 8px", borderRadius:6, background:`${color}22`, color, fontSize:11, fontWeight:700 }}>{label}</span>
 );
@@ -599,6 +706,7 @@ const FineIconField = ({ name, custom, onCustom }) => {
 };
 
 const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
+  const money = useMoney();
   const [tm, setTm]   = useState([]);
   const [tft, setTft] = useState([]);
   const [mid, setMid] = useState("");
@@ -731,7 +839,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
             <div key={ft.id} style={{ gridColumn:"1 / -1", background:T.inputBg, borderRadius:14, padding:"14px", border:`1.5px solid ${T.brand}` }}>
               <FineIconField name={editName} custom={editCustom} onCustom={setEditCustom} />
               <FI value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome" />
-              <FI type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)} placeholder="Valor €" />
+              <FI type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)} placeholder={`Valor ${money.sym}`} />
               <div style={{ display:"flex", gap:8 }}>
                 <PrimaryBtn onClick={saveEdit} disabled={!editName.trim()||!editAmount||savingEdit} color={T.brand}>{savingEdit?"A guardar...":"✓ Guardar"}</PrimaryBtn>
                 <button onClick={()=>setEditingFt(null)} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}>Cancelar</button>
@@ -748,7 +856,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
             }}>
               <div style={{ fontSize:26, marginBottom:4 }}><FineIcon icon={ft.emoji} size={26} /></div>
               <p style={{ margin:0, fontWeight:700, fontSize:12, color:sft?.id===ft.id?T.brand:T.text, overflowWrap:"anywhere" }}>{ft.name}</p>
-              <p style={{ margin:"2px 0 0", fontWeight:900, fontSize:16, color:sft?.id===ft.id?T.brand:T.navy }}>{ft.amount}€</p>
+              <p style={{ margin:"2px 0 0", fontWeight:900, fontSize:16, color:sft?.id===ft.id?T.brand:T.navy }}>{money(ft.amount)}</p>
               {/* Editar / Apagar: alvos de 44 px, separados para não tocar no apagar sem querer */}
               <div style={{ display:"flex", gap:16, marginTop:8 }}>
                 <button aria-label={`Editar ${ft.name}`} onClick={(e)=>startEdit(ft,e)} style={{ background:"rgba(0,0,0,0.08)", border:`1.5px solid ${T.border}`, borderRadius:10, width:44, height:44, padding:0, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxSizing:"border-box" }}>✏️</button>
@@ -775,7 +883,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
             <p style={{ margin:"0 0 10px", fontWeight:700, fontSize:13 }}>➕ Novo tipo de multa</p>
             <FineIconField name={newName} custom={newCustom} onCustom={setNewCustom} />
             <FI value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Nome (ex: Cartão azul)" />
-            <FI type="number" value={newAmount} onChange={e=>setNewAmount(e.target.value)} placeholder="Valor em € (ex: 10)" />
+            <FI type="number" value={newAmount} onChange={e=>setNewAmount(e.target.value)} placeholder={`Valor em ${money.sym} (ex: 10)`} />
             <div style={{ display:"flex", gap:8 }}>
               <PrimaryBtn onClick={saveNewType} disabled={!newName.trim()||!newAmount||savingType} color={team.color}>
                 {savingType ? "A guardar..." : "✓ Criar"}
@@ -791,7 +899,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
             <FineIcon icon={sft.emoji} size={24} />
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{sft.name}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub }}>Valor: <strong style={{ color:T.brand }}>{sft.amount}€</strong></p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>Valor: <strong style={{ color:T.brand }}>{money(sft.amount)}</strong></p>
             </div>
             <button aria-label="Limpar tipo escolhido" onClick={()=>setSft(null)} style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub }}>✕</button>
           </div>
@@ -801,7 +909,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
         {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
         <PrimaryBtn onClick={submit} disabled={!canSubmit} color={T.brand}>
-          {canSubmit ? `🟥 Atribuir ${sft.amount}€ a ${tm.find(m=>m.id===mid)?.name||roleWord(team.sport, false, true)}` : (!mid ? `← Seleciona um ${roleWord(team.sport, false, true)}` : "← Seleciona o tipo")}
+          {canSubmit ? `🟥 Atribuir ${money(sft.amount)} a ${tm.find(m=>m.id===mid)?.name||roleWord(team.sport, false, true)}` : (!mid ? `← Seleciona um ${roleWord(team.sport, false, true)}` : "← Seleciona o tipo")}
         </PrimaryBtn>
       </>)}
     </Sheet>
@@ -809,6 +917,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
 };
 
 const EditFineModal = ({ fine, onSave, onClose }) => {
+  const money = useMoney();
   const EMOJIS = ["🟥","🟨","⏰","👕","🏃","🚫","❌","💸","🤦","📵","🤕","😤","🍺","🎂","🍕","🚗","📱","🎯","🔇","💤","🎪","🤡","🍾","🃏","🏆","🎖️"];
   const [emoji, setEmoji] = useState(storableIcon(fine.emoji || "🟥"));
   const [reason, setReason] = useState(fine.reason || "");
@@ -832,7 +941,7 @@ const EditFineModal = ({ fine, onSave, onClose }) => {
       </div>
       <FL>Motivo</FL>
       <FI type="text" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Motivo da multa..." />
-      <FL>Valor (€)</FL>
+      <FL>Valor ({money.sym})</FL>
       <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0" />
       <PrimaryBtn onClick={save} disabled={!ok||saving} color={T.brand}>{saving?"A guardar...":"Guardar alterações"}</PrimaryBtn>
     </Sheet>
@@ -875,6 +984,7 @@ const LogSessionModal = ({ training, existingDates, onLog, onClose }) => {
 
 // Nova despesa; com `expense` (e onSave) edita a despesa: só fecha depois de a escrita ser confirmada
 const AddExpenseModal = ({ team, onAdd, onClose, expense, onSave }) => {
+  const money = useMoney();
   const editing = !!expense;
   const [desc, setDesc] = useState(editing ? expense.description : ""); const [amount, setAmount] = useState(editing ? String(Math.abs(expense.amount)) : "");
   const [busy, setBusy] = useState(false);
@@ -894,7 +1004,7 @@ const AddExpenseModal = ({ team, onAdd, onClose, expense, onSave }) => {
   return (
     <Sheet title={editing ? "✏️ Editar despesa" : "💸 Nova despesa"} onClose={busy ? ()=>{} : onClose}>
       <FL>Descrição</FL><FI type="text" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Ex: Jantar de equipa..." />
-      <FL>Valor (€)</FL><FI type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
+      <FL>Valor ({money.sym})</FL><FI type="number" min="0" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" />
       {amount !== "" && !valid && <p style={{ color:T.brand, fontSize:13, fontWeight:700, margin:"-6px 0 10px" }}>O valor tem de ser maior que zero.</p>}
       <PrimaryBtn onClick={submit} disabled={!ok || busy} color={T.navy}>{busy ? "A guardar…" : editing ? "Guardar" : "Registar despesa"}</PrimaryBtn>
     </Sheet>
@@ -1215,7 +1325,8 @@ const EMOJIS = ["⚽","🏀","🏈","⚾","🎾","🏐","🥅","🏸","🏓","�
 const COLORS = ["#1D3557","#2A7D4F","#C77B2A","#7B2D8B","#1565C0","#C62828","#00695C","#E65100","#37474F","#558B2F"];
 const COUNTRIES = ["Portugal","Suíça","Espanha","França","Alemanha","Itália","Brasil","Angola","Moçambique","Cabo Verde","Reino Unido","Holanda","Bélgica","Outro"];
 const SPORTS = ["Futebol 11","Futebol 7","Futebol 5 / Futsal","Futebol de Praia","Futebol Feminino","Futebol Júnior","Outro"];
-const CURRENCIES = ["EUR (€)","CHF (Fr.)","GBP (£)","BRL (R$)","USD ($)"];
+const CURRENCIES = ["EUR (€)","CHF (Fr.)","GBP (£)","BRL (R$)","USD ($)","AOA (Kz)","MZN (MT)","CVE (Esc.)"]; // os 3 últimos acrescentados no fim
+const COUNTRY_CUR = { "Portugal":"EUR (€)", "Suíça":"CHF (Fr.)", "Espanha":"EUR (€)", "França":"EUR (€)", "Alemanha":"EUR (€)", "Itália":"EUR (€)", "Brasil":"BRL (R$)", "Angola":"AOA (Kz)", "Moçambique":"MZN (MT)", "Cabo Verde":"CVE (Esc.)", "Reino Unido":"GBP (£)", "Holanda":"EUR (€)", "Bélgica":"EUR (€)" }; // "Outro" não tem moeda sugerida
 
 const CreateTeamModal = ({ onAdd, onClose }) => {
   const [name, setName]       = useState("");
@@ -1225,6 +1336,7 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
   const [country, setCountry] = useState("Portugal");
   const [sport, setSport]     = useState("Futebol 11");
   const [currency, setCurrency] = useState("EUR (€)");
+  const [curTouched, setCurTouched] = useState(false); // a moeda escolhida à mão não é mais mudada pelo país
   const [city, setCity]       = useState("");
   const [postal, setPostal]   = useState("");
   const [sportOther, setSportOther] = useState("");
@@ -1247,7 +1359,7 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
       {(issue || err) && <p role="alert" data-team-name-error style={{ margin:"-6px 0 12px", fontSize:13, fontWeight:700, color:"#B42318" }}>{err || issue}</p>}
 
       <FL>País</FL>
-      <FSel value={country} onChange={e=>setCountry(e.target.value)}>
+      <FSel value={country} onChange={e=>{ const v = e.target.value; setCountry(v); if (!curTouched && COUNTRY_CUR[v]) setCurrency(COUNTRY_CUR[v]); }}>
         {COUNTRIES.map(c=><option key={c} value={c}>{c}</option>)}
       </FSel>
 
@@ -1262,7 +1374,7 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
       </>}
 
       <FL>Moeda</FL>
-      <FSel value={currency} onChange={e=>setCurrency(e.target.value)}>
+      <FSel value={currency} onChange={e=>{ setCurrency(e.target.value); setCurTouched(true); }}>
         {CURRENCIES.map(c=><option key={c} value={c}>{c}</option>)}
       </FSel>
 
@@ -1817,6 +1929,7 @@ const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, on
 // ── TABS ──────────────────────────────────────────────────────
 
 const FineGroup = ({ group, color }) => {
+  const money = useMoney();
   const [open, setOpen] = React.useState(false);
   const mk2 = s => (s||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   return (
@@ -1825,7 +1938,7 @@ const FineGroup = ({ group, color }) => {
         <div style={{ width:36, height:36, borderRadius:18, background:color||T.brand, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800, flexShrink:0 }}>{mk2(group.name)}</div>
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
-          <p style={{ margin:0, fontSize:12, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · {group.unpaid>0?<span style={{color:T.brand}}>{group.unpaid.toFixed(1)}€ por pagar</span>:<span style={{color:T.green}}>tudo pago ✓</span>}</p>
+          <p style={{ margin:0, fontSize:12, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · {group.unpaid>0?<span style={{color:T.brand}}>{money(group.unpaid)} por pagar</span>:<span style={{color:T.green}}>tudo pago ✓</span>}</p>
         </div>
         <span style={{ fontSize:15, color:T.sub, flexShrink:0 }}>{open?"▲":"▼"}</span>
       </div>
@@ -1836,7 +1949,7 @@ const FineGroup = ({ group, color }) => {
             <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason||"—"}</p>
             <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
           </div>
-          <span style={{ fontSize:13, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{Number(f.amount).toFixed(1)}€</span>
+          <span style={{ fontSize:13, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{money(f.amount)}</span>
         </div>
       ))}
     </div>
@@ -1844,6 +1957,7 @@ const FineGroup = ({ group, color }) => {
 };
 
 const DevedorCard = ({ member, isTop, color, onOpen }) => {
+  const money = useMoney();
   const [open, setOpen] = React.useState(false);
   return (
     <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 6px 20px ${T.brand}55`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
@@ -1860,7 +1974,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
           <p style={{ margin:0, fontSize:12, color:isTop?"rgba(255,255,255,0.75)":T.sub }}>{member.fines.length} multa{member.fines.length!==1?"s":""} por pagar</p>
         </div>
         <div style={{ textAlign:"right", flexShrink:0 }}>
-          <p style={{ margin:0, fontWeight:900, fontSize:isTop?24:18, color:isTop?"#fff":T.brand }}>{member.unpaid.toFixed(1)}€</p>
+          <p style={{ margin:0, fontWeight:900, fontSize:isTop?24:18, color:isTop?"#fff":T.brand }}>{money(member.unpaid)}</p>
           <span style={{ fontSize:11, color:isTop?"rgba(255,255,255,0.6)":T.sub }}>{open?"▲":"▼ Ver"}</span>
         </div>
       </div>
@@ -1873,7 +1987,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
                 <p style={{ margin:0, fontSize:13, fontWeight:600, color:isTop?"rgba(255,255,255,0.9)":T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
                 <p style={{ margin:0, fontSize:11, color:isTop?"rgba(255,255,255,0.55)":T.sub }}>{fmtDay(f.date)}</p>
               </div>
-              <span style={{ fontSize:14, fontWeight:800, color:isTop?"#fff":T.brand, flexShrink:0 }}>{f.amount}€</span>
+              <span style={{ fontSize:14, fontWeight:800, color:isTop?"#fff":T.brand, flexShrink:0 }}>{money(f.amount)}</span>
             </div>
           ))}
         </div>
@@ -1883,6 +1997,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
 };
 
 const FineGroupHome = ({ group, color, renderFine }) => {
+  const money = useMoney();
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
@@ -1890,7 +2005,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
         <Avatar initials={group.initials||"?"} color={color} photo={group.avatarUrl} name={group.name} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:15, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
-          <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{group.total.toFixed(1)}€{group.unpaid>0?` · ${group.unpaid.toFixed(1)}€ por pagar`:""}</span></p>
+          <p style={{ margin:0, fontSize:13, color:T.sub }}>{group.fines.length} multa{group.fines.length!==1?"s":""} · <span style={{color:group.unpaid>0?T.brand:T.green, fontWeight:700}}>{money(group.total)}{group.unpaid>0?` · ${money(group.unpaid)} por pagar`:""}</span></p>
         </div>
         <span style={{ fontSize:14, color:T.sub, flexShrink:0 }}>{open?"▲":"▼"}</span>
       </div>
@@ -1905,7 +2020,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
                   <p style={{ margin:0, fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
                   <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
                 </div>
-                <span style={{ fontSize:14, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{f.amount}€</span>
+                <span style={{ fontSize:14, fontWeight:800, color:f.paid?T.green:T.brand, flexShrink:0 }}>{money(f.amount)}</span>
               </div>
             ))
           }
@@ -1916,6 +2031,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
 };
 
 const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
+  const money = useMoney();
   const tf = fineTypes.filter(f => f.teamId === team.id);
   const tm = members.filter(m => m.teamId === team.id);
   const [tab, setTab] = React.useState("tipos");
@@ -1937,7 +2053,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
             <div key={ft.id} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <FineIcon icon={ft.emoji} size={26} style={{ flexShrink:0 }} />
               <p style={{ margin:0, fontWeight:700, fontSize:15, flex:1 }}>{ft.name}</p>
-              <p style={{ margin:0, fontWeight:900, fontSize:18, color:T.brand }}>{ft.amount}€</p>
+              <p style={{ margin:0, fontWeight:900, fontSize:18, color:T.brand }}>{money(ft.amount)}</p>
             </div>
           ))}
         </>
@@ -1955,7 +2071,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
                 <p style={{ margin:0, fontWeight:700, fontSize:14, color:i===0?"#fff":T.text }}>{m.name}</p>
                 <p style={{ margin:0, fontSize:12, color:i===0?"rgba(255,255,255,0.7)":T.sub }}>{m.count} multa{m.count!==1?"s":""} por pagar</p>
               </div>
-              <p style={{ margin:0, fontWeight:900, fontSize:20, color:i===0?"#fff":T.brand }}>{m.unpaid.toFixed(1)}€</p>
+              <p style={{ margin:0, fontWeight:900, fontSize:20, color:i===0?"#fff":T.brand }}>{money(m.unpaid)}</p>
             </div>
           ))}
         </>
@@ -1965,6 +2081,7 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
 };
 
 const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
+  const money = useMoney();
   const tf = fines.filter(f => f.teamId===team.id);
   const [showTabela, setShowTabela] = React.useState(false);
   const [showAll, setShowAll] = React.useState(false); // lista de devedores: estado no topo (um hook dentro de um 'return null' condicional rebentava o ecrã quando surgia a primeira multa por pagar)
@@ -1991,9 +2108,9 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
     <div style={{ padding:"16px 16px 100px" }}>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}cc)`, borderRadius:22, padding:"22px 22px 18px", marginBottom:14, color:"#fff", boxShadow:`0 6px 24px ${team.color}44` }}>
         <p style={{ margin:0, fontSize:12, opacity:0.7, fontWeight:600, textTransform:"uppercase" }}>Caixa · {team.season}</p>
-        <p style={{ margin:"2px 0 16px", fontSize:44, fontWeight:900, letterSpacing:-2 }}>{balance.toFixed(2)}€</p>
+        <p style={{ margin:"2px 0 16px", fontSize:44, fontWeight:900, letterSpacing:-2 }}>{money(balance)}</p>
         <div style={{ display:"flex" }}>
-          {[["Recebido",`+${collected}€`,"#fff"],["Por pagar",`${pending}€`,"#FFF4F4"],["Despesas",`-${spent}€`,"rgba(255,255,255,0.65)"]].map(([l,v,c],i,arr)=>(
+          {[["Recebido",`+${money(collected)}`,"#fff"],["Por pagar",money(pending),"#FFF4F4"],["Despesas",`-${money(spent)}`,"rgba(255,255,255,0.65)"]].map(([l,v,c],i,arr)=>(
             <div key={i} style={{ flex:1, borderRight:i<arr.length-1?"1px solid rgba(255,255,255,0.25)":"none", paddingRight:i<arr.length-1?12:0, paddingLeft:i>0?12:0 }}>
               <p style={{ margin:0, fontSize:10, opacity:0.65, textTransform:"uppercase" }}>{l}</p>
               <p style={{ margin:0, fontSize:17, fontWeight:700, color:c }}>{v}</p>
@@ -2154,7 +2271,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                       <p style={{ margin:0, fontWeight:700, fontSize:isFirst?14:12, textAlign:"center", maxWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#fff" }}>{m.name.split(" ")[0]}</p>
                       <div style={{ background: paidAmt>0?`${pc}30`:"rgba(255,255,255,0.08)", border:`1px solid ${paidAmt>0?pc:"rgba(255,255,255,0.1)"}`, borderRadius:10, padding:"5px 12px" }}>
                         <p style={{ margin:0, fontWeight:900, fontSize:isFirst?18:14, color: paidAmt>0?pc:"rgba(255,255,255,0.4)" }}>
-                          {paidAmt>0?`${paidAmt}€`:unpaidAmt>0?`${unpaidAmt}€ deve`:"✓"}
+                          {paidAmt>0?money(paidAmt):unpaidAmt>0?`${money(unpaidAmt)} deve`:"✓"}
                         </p>
                       </div>
                       <div style={{ width:"100%", height:h, background:pg, borderRadius:"10px 10px 0 0", marginTop:6, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.9 }}>
@@ -2170,7 +2287,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
                 <span style={{ fontSize:16, width:28, textAlign:"center", color:T.sub, fontWeight:700 }}>{i+4}</span>
                 <div style={{ width:36, height:36, borderRadius:18, background:T.bg, border:`2px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:T.sub }}>{m.initials}</div>
                 <p style={{ margin:0, flex:1, fontWeight:600, fontSize:15 }}>{m.name}</p>
-                <p style={{ margin:0, fontWeight:800, fontSize:15, color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?`${m.unpaid}€`:"✓"}</p>
+                <p style={{ margin:0, fontWeight:800, fontSize:15, color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?money(m.unpaid):"✓"}</p>
               </div>
             ))}
           </div>
@@ -2224,6 +2341,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
 };
 
 const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDeleteFine, onEditFine, onSelectMember }) => {
+  const money = useMoney();
   const [filter, setFilter] = useState("all");
   const [collapsedMonths, setCollapsedMonths] = useState({});
   const tf = fines.filter(f=>f.teamId===team.id);
@@ -2241,7 +2359,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
           <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
         </div>
         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, flexShrink:0 }}>
-          <p style={{ margin:0, fontWeight:900, fontSize:16, color:f.paid?T.green:T.brand }}>{f.amount}€</p>
+          <p style={{ margin:0, fontWeight:900, fontSize:16, color:f.paid?T.green:T.brand }}>{money(f.amount)}</p>
           {isAdmin && <button onClick={() => onTogglePaid(f.id)} style={{ padding:"3px 8px", borderRadius:7, border:`1.5px solid ${f.paid?T.green:T.brand}`, background:"transparent", color:f.paid?T.green:T.brand, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{f.paid?"✓":"Pagar"}</button>}
           {isAdmin && onEditFine && <button onClick={() => onEditFine(f)} style={{ padding:"2px 6px", borderRadius:7, border:`1.5px solid ${T.sub}`, background:"transparent", color:T.sub, fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>✏️</button>}
           {isAdmin && onDeleteFine && <button onClick={() => { if(window.confirm("Apagar?")) onDeleteFine(f.id); }} style={{ padding:"2px 6px", borderRadius:7, border:"1.5px solid #888", background:"transparent", color:"#888", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>🗑️</button>}
@@ -2277,7 +2395,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <span style={{ fontSize:14, fontWeight:900, color:team.color, textTransform:"uppercase", letterSpacing:0.5 }}>{month}</span>
                   <span style={{ fontSize:12, color:T.sub }}>{mfines.length} multa{mfines.length!==1?"s":""}</span>
-                  {unpaid>0 ? <span style={{ fontSize:12, color:T.brand, fontWeight:700 }}>· {unpaid.toFixed(1)}€ por pagar</span> : <span style={{ fontSize:12, color:T.green, fontWeight:700 }}>· tudo pago ✓</span>}
+                  {unpaid>0 ? <span style={{ fontSize:12, color:T.brand, fontWeight:700 }}>· {money(unpaid)} por pagar</span> : <span style={{ fontSize:12, color:T.green, fontWeight:700 }}>· tudo pago ✓</span>}
                 </div>
                 <span style={{ fontSize:14, color:T.sub }}>{isCol?"▶":"▼"}</span>
               </button>
@@ -2587,10 +2705,10 @@ const TreinosPage = ({ team, trainings, members, myUserId, isAdmin, presences, o
 
 // valores em cêntimos inteiros nos totais por mês (sem erros de vírgula flutuante)
 const toCents = x => Math.round(Number(x) * 100);
-const eurC = c => { const a = Math.abs(c); return `${a % 100 === 0 ? a / 100 : (a / 100).toFixed(2)}€`; };
-const sgnEurC = c => `${c < 0 ? "-" : "+"}${eurC(c)}`;
 
 const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, onEditExpense, onDeleteExpense }) => {
+  const money = useMoney();
+  const sgnC = c => `${c < 0 ? "-" : "+"}${money(Math.abs(c) / 100)}`; // c em cêntimos
   const tf = fines.filter(f=>f.teamId===team.id&&f.paid);
   const te = expenses.filter(e=>e.teamId===team.id);
   const income = tf.reduce((s,f)=>s+f.amount,0);
@@ -2620,11 +2738,11 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
     <div style={{ padding:"14px 16px 100px" }}>
       <div style={{ background:T.card, borderRadius:20, padding:"20px 20px 16px", marginBottom:14 }}>
         <p style={{ margin:0, color:T.sub, fontSize:12, fontWeight:600, textTransform:"uppercase" }}>Saldo disponível</p>
-        <p style={{ margin:"2px 0 16px", fontSize:42, fontWeight:900, color:balance>=0?T.green:T.brand, letterSpacing:-2 }}>{balance.toFixed(2)}€</p>
+        <p style={{ margin:"2px 0 16px", fontSize:42, fontWeight:900, color:balance>=0?T.green:T.brand, letterSpacing:-2 }}>{money(balance)}</p>
         <div style={{ display:"flex", background:T.bg, borderRadius:12, overflow:"hidden" }}>
-          <div style={{ flex:1, padding:"12px 16px" }}><p style={{ margin:0, fontSize:11, color:T.sub }}>Entradas</p><p style={{ margin:0, fontSize:20, fontWeight:800, color:T.green }}>+{income}€</p></div>
+          <div style={{ flex:1, padding:"12px 16px" }}><p style={{ margin:0, fontSize:11, color:T.sub }}>Entradas</p><p style={{ margin:0, fontSize:20, fontWeight:800, color:T.green }}>+{money(income)}</p></div>
           <div style={{ width:1, background:T.border }} />
-          <div style={{ flex:1, padding:"12px 16px" }}><p style={{ margin:0, fontSize:11, color:T.sub }}>Saídas</p><p style={{ margin:0, fontSize:20, fontWeight:800, color:T.brand }}>-{spent}€</p></div>
+          <div style={{ flex:1, padding:"12px 16px" }}><p style={{ margin:0, fontSize:11, color:T.sub }}>Saídas</p><p style={{ margin:0, fontSize:20, fontWeight:800, color:T.brand }}>-{money(spent)}</p></div>
         </div>
       </div>
       {isAdmin && (
@@ -2641,9 +2759,9 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
               <span aria-hidden="true" style={{ fontSize:12, color:T.sub, width:14, flexShrink:0 }}>{open ? "▼" : "▶"}</span>
               <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontWeight:800, fontSize:15 }}>{monthTitle(g.key)}</p>
-                <p style={{ margin:0, fontSize:12, color:T.sub }}>{plural(g.txs.length, "movimento", "movimentos")} · <span style={{ color:T.green }}>{sgnEurC(g.inC)}</span> · <span style={{ color:T.brand }}>{sgnEurC(-g.outC)}</span></p>
+                <p style={{ margin:0, fontSize:12, color:T.sub }}>{plural(g.txs.length, "movimento", "movimentos")} · <span style={{ color:T.green }}>{sgnC(g.inC)}</span> · <span style={{ color:T.brand }}>{sgnC(-g.outC)}</span></p>
               </div>
-              <span style={{ fontWeight:800, fontSize:15, color:net>=0?T.green:T.brand, flexShrink:0 }}>{sgnEurC(net)}</span>
+              <span style={{ fontWeight:800, fontSize:15, color:net>=0?T.green:T.brand, flexShrink:0 }}>{sgnC(net)}</span>
             </button>
             {open && g.txs.map((tx,i) => (
               <div key={`${tx.type}-${tx.id ?? i}`} style={{ background:T.card, borderRadius:12, padding:"12px 14px", marginBottom:7, display:"flex", alignItems:"center", gap:12 }}>
@@ -2652,11 +2770,11 @@ const TreasuryTab = ({ team, fines, members, expenses, isAdmin, onAddExpense, on
                   <p style={{ margin:0, fontWeight:600, fontSize:14 }}>{tx.label}</p>
                   <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(tx.day)}</p>
                 </div>
-                <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{Math.abs(tx.amount)}€</p>
+                <p style={{ margin:0, fontWeight:800, fontSize:17, color:tx.type==="in"?T.green:T.brand }}>{tx.type==="in"?"+":"-"}{money(Math.abs(tx.amount))}</p>
                 {canEditExp && tx.type==="out" && (
                   <div style={{ display:"flex", flexShrink:0 }}>
                     <button onClick={() => setEditingExp(tx)} aria-label="Editar despesa" style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:16, cursor:"pointer" }}>✏️</button>
-                    <button onClick={() => { if (window.confirm(`Apagar a despesa "${tx.label}" (${Math.abs(tx.amount)}€)? Não tem volta.`)) onDeleteExpense(tx.id); }} aria-label="Apagar despesa" style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:16, cursor:"pointer" }}>🗑️</button>
+                    <button onClick={() => { if (window.confirm(`Apagar a despesa "${tx.label}" (${money(Math.abs(tx.amount))})? Não tem volta.`)) onDeleteExpense(tx.id); }} aria-label="Apagar despesa" style={{ minWidth:44, minHeight:44, background:"none", border:"none", fontSize:16, cursor:"pointer" }}>🗑️</button>
                   </div>
                 )}
               </div>
@@ -2680,7 +2798,7 @@ const adminErrPt = e => {
   return errPt(e, "erro desconhecido");
 };
 const ROLE_PT = { admin:"admin", player:"jogador", treinador:"treinador", diretor:"diretor" };
-const eur = c => `${(c / 100).toFixed(2)}€`; // montantes em cêntimos inteiros
+const eur = (c, code) => fmtMoney(c / 100, code || ""); // montantes em cêntimos inteiros; sem símbolo quando a base de dados não diz a moeda
 const dotsDay = v => { const d = localDay(v); return d ? `${d.slice(8)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : null; }; // DD.MM.YYYY (dia local, via localDay)
 const ADMIN_DAY = 86400000;
 const adminAgeMs = iso => { const t = iso ? Date.parse(iso) : NaN; return isNaN(t) ? Infinity : Date.now() - t; };
@@ -2711,7 +2829,7 @@ const parseAdminUsers = (tot, ov) => {
       };
     });
     return {
-      id: String(x.id), name: x.name || "", emoji: x.emoji || "⚽", season: x.season || "", sport: x.sport || "",
+      id: String(x.id), name: x.name || "", emoji: x.emoji || "⚽", season: x.season || "", sport: x.sport || "", currency: curCode(x.currency),
       membersCount: count(x.members_count, members.length), playersCount: count(x.players_count, members.filter(m => m.role === "player").length),
       unpaid: members.reduce((a, m) => a + m.unpaid, 0), members,
     };
@@ -2780,7 +2898,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
                 <span style={{ display:"block", fontSize:12, color:"#5F5F66" }}>{tm.season ? `${tm.season} · ` : ""}{isFreeSport(tm.sport) ? plural(tm.membersCount, "membro", "membros") : <>{plural(tm.playersCount, "jogador", "jogadores")} · {plural(tm.membersCount, "membro", "membros")}</>}</span>
               </span>
               <span style={{ textAlign:"right", flexShrink:0 }}>
-                <span style={{ display:"block", fontWeight:900, fontSize:15, color: tm.unpaid > 0 ? T.brand : T.navy }}>{eur(tm.unpaid)}</span>
+                <span style={{ display:"block", fontWeight:900, fontSize:15, color: tm.unpaid > 0 ? T.brand : T.navy }}>{eur(tm.unpaid, tm.currency)}</span>
                 <span style={{ display:"block", fontSize:11, color:"#5F5F66" }}>por pagar</span>
               </span>
               <span aria-hidden="true" style={{ fontSize:12, color:T.sub }}>{o ? "▲" : "▼"}</span>
@@ -2801,7 +2919,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
                         </span>
                         <span style={{ display:"block", fontSize:12, color: m.email ? T.text : "#5F5F66", marginTop:2, overflowWrap:"anywhere" }}>{m.email || "Sem conta"}</span>
                         <span style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>Último acesso: {acc || "Nunca"}</span>
-                        <span style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>{plural(m.finesCount, "multa", "multas")} · total {eur(m.total)} · por pagar {eur(m.unpaid)}</span>
+                        <span style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>{plural(m.finesCount, "multa", "multas")} · total {eur(m.total, tm.currency)} · por pagar {eur(m.unpaid, tm.currency)}</span>
                       </button>
                       {mo && (
                         <div style={{ padding:"0 12px 10px" }}>
@@ -2815,7 +2933,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
                                   <p style={{ margin:"1px 0 0", fontSize:11, color:"#5F5F66" }}>{d || "Sem data"}{f.paid ? ` · paga em ${pd || "data desconhecida"}` : ""}</p>
                                 </div>
                                 <div style={{ textAlign:"right", flexShrink:0 }}>
-                                  <p style={{ margin:0, fontSize:13, fontWeight:800 }}>{eur(f.amount)}</p>
+                                  <p style={{ margin:0, fontSize:13, fontWeight:800 }}>{eur(f.amount, tm.currency)}</p>
                                   <p style={{ margin:0, fontSize:11, fontWeight:700, color: f.paid ? T.green : T.brand }}>{f.paid ? "Paga" : "Por pagar"}</p>
                                 </div>
                               </div>
@@ -2852,7 +2970,7 @@ const PushFailsCard = () => {
 
 // ── ABA STATS: cartões de crescimento (só agregados; rpc get_app_growth_stats) ──
 const MESES_CURTOS_PT = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-const eurPt = n => `${Number(n).toLocaleString("pt-PT", { minimumFractionDigits:2, maximumFractionDigits:2 })}€`;
+const eurPt = n => fmtMoney(n, ""); // totais de todas as equipas: moedas diferentes, por isso sem símbolo
 // valida e normaliza a resposta; forma inesperada lança "resposta inválida" (nunca números inventados)
 const parseGrowth = raw => {
   const bad = () => new Error("resposta inválida");
@@ -3041,8 +3159,8 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
       ["👥", "Membros", t.members_count],
       ["📅", "Treinos e jogos", t.trainings_count],
       ["🟥", "Multas", t.fines_count],
-      ["💶", "Total de multas", has(t.fines_total) ? `${t.fines_total}€` : null],
-      ["💸", "Por pagar", has(t.unpaid_total) ? `${t.unpaid_total}€` : null],
+      ["💶", "Total de multas", has(t.fines_total) ? fmtMoney(t.fines_total, curCode(t.currency)) : null],
+      ["💸", "Por pagar", has(t.unpaid_total) ? fmtMoney(t.unpaid_total, curCode(t.currency)) : null],
       ["🕒", "Última atividade", lastAct ? fmtDay(lastAct) : null],
     ];
     return (
@@ -3116,8 +3234,8 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
               <StatCard label="Treinos/Jogos" value={stats.trainings} color={T.green} />
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <StatCard label="Total €"   value={`${stats.fines_total}€`}  color={T.brand} />
-              <StatCard label="Por pagar" value={`${stats.fines_unpaid}€`} color="#F76800" sub={`${unpaidPct}% do total`} />
+              <StatCard label="Total"     value={fmtMoney(stats.fines_total, "")}  color={T.brand} />
+              <StatCard label="Por pagar" value={fmtMoney(stats.fines_unpaid, "")} color="#F76800" sub={`${unpaidPct}% do total`} />
             </div>
           </>
         )}
@@ -3157,7 +3275,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
                   <span style={{ color:T.sub, fontSize:18 }}>›</span>
                 </div>
                 <div style={{ display:"flex", gap:6 }}>
-                  {[["👥",t.members_count,"membro","membros"],["🟥",t.fines_count,"multa","multas"],["💸",`${t.unpaid_total}€`,"por pagar","por pagar"],["📅",t.trainings_count,"treino","treinos"]].map(([icon,val,one,many]) => { const label = Number(val) === 1 ? one : many; return (
+                  {[["👥",t.members_count,"membro","membros"],["🟥",t.fines_count,"multa","multas"],["💸",fmtMoney(t.unpaid_total, curCode(t.currency)),"por pagar","por pagar"],["📅",t.trainings_count,"treino","treinos"]].map(([icon,val,one,many]) => { const label = Number(val) === 1 ? one : many; return (
                     <div key={many} style={{ flex:1, background:T.bg, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
                       <p style={{ margin:0, fontSize:10, color:T.sub }}>{icon}</p>
                       <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{val}</p>
@@ -3580,6 +3698,7 @@ const EmojiPicker = ({ value, onChange, color }) => (
 );
 
 const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, token }) => {
+  const money = useMoney();
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [name, setName] = useState(""); const [amount, setAmount] = useState(""); const [custom, setCustom] = useState(null);
@@ -3632,7 +3751,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
             <FineIcon icon={ft.emoji} size={26} />
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:14 }}>{ft.name}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub }}>{ft.amount}€</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>{money(ft.amount)}</p>
             </div>
             <button onClick={() => editingId===ft.id ? setEditingId(null) : startEdit(ft)} style={{ background:"none", border:`1.5px solid ${editingId===ft.id?team.color:T.border}`, borderRadius:8, fontSize:13, fontWeight:700, color:editingId===ft.id?team.color:T.sub, cursor:"pointer", padding:"4px 10px", fontFamily:"inherit" }}>✏️</button>
             <button onClick={() => del(ft.id)} style={{ background:"none", border:"none", fontSize:18, cursor:"pointer", color:T.sub, padding:"4px 8px" }}>🗑️</button>
@@ -3642,7 +3761,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
               <FineIconField name={editName} custom={editCustom} onCustom={setEditCustom} />
               <FL>Nome</FL>
               <FI value={editName} onChange={e=>setEditName(e.target.value)} placeholder="Nome do tipo..." />
-              <FL>Valor (€)</FL>
+              <FL>Valor ({money.sym})</FL>
               <FI type="number" value={editAmount} onChange={e=>setEditAmount(e.target.value)} placeholder="0" />
               <div style={{ display:"flex", gap:8 }}>
                 <PrimaryBtn onClick={() => saveEdit(ft.id)} disabled={!editName.trim()||!editAmount||saving} color={team.color}>
@@ -3658,7 +3777,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
         <div style={{ background:T.card, borderRadius:12, padding:"14px", marginBottom:8 }}>
           <FineIconField name={name} custom={custom} onCustom={setCustom} />
           <FI value={name} onChange={e=>setName(e.target.value)} placeholder="Nome (ex: Atraso)" />
-          <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Valor em € (ex: 5)" />
+          <FI type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder={`Valor em ${money.sym} (ex: 5)`} />
           <div style={{ display:"flex", gap:8 }}>
             <PrimaryBtn onClick={save} disabled={!name.trim()||!amount||saving} color={team.color}>
               {saving ? "A guardar..." : "✓ Adicionar"}
@@ -3684,13 +3803,14 @@ const TeamDataSection = ({ team, onSave }) => {
   const [err, setErr] = useState("");
   const [sportSel, setSportSel] = useState(() => sportSplit(team.sport).sel);
   const [sportOther, setSportOther] = useState(() => sportSplit(team.sport).text);
+  const [curAsk, setCurAsk] = useState(null); // país mudado → pergunta se a moeda também muda (nunca muda sozinha)
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
   const nameIssue = teamNameIssue(f.name);
   const legacyOutro = normSport(team.sport).toLowerCase() === SPORT_OTHER.toLowerCase(); // equipa antiga com "Outro": fica como está
   const sportIssue = sportSel === SPORT_OTHER ? sportOtherIssue(sportOther, legacyOutro) : "";
   const nameOk = !nameIssue, seasonOk = f.season.trim().length > 0;
   const canSave = nameOk && seasonOk && !sportIssue && !busy;
-  const open = () => { setF(init()); const sp = sportSplit(team.sport); setSportSel(sp.sel); setSportOther(sp.text); setErr(""); setEditing(true); };
+  const open = () => { setCurAsk(null); setF(init()); const sp = sportSplit(team.sport); setSportSel(sp.sel); setSportOther(sp.text); setErr(""); setEditing(true); };
   const save = async () => {
     if (!canSave) return;
     const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim(), sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
@@ -3757,13 +3877,22 @@ const TeamDataSection = ({ team, onSave }) => {
             {sportIssue && <p role="alert" data-sport-error style={{ margin:"-6px 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{sportIssue}</p>}
           </>}
           <FL>Moeda</FL>
-          <FSel value={f.currency} onChange={e=>set("currency",e.target.value)}>
+          <FSel value={f.currency} onChange={e=>{ set("currency",e.target.value); setCurAsk(null); }}>
             {opt(CURRENCIES, f.currency).map(x=><option key={x} value={x}>{x}</option>)}
           </FSel>
           <FL>País</FL>
-          <FSel value={f.country} onChange={e=>set("country",e.target.value)}>
+          <FSel value={f.country} onChange={e=>{ const v = e.target.value; set("country", v); const sug = COUNTRY_CUR[v]; setCurAsk(sug && curCode(sug) !== (curCode(f.currency) || "EUR") ? { country:v, cur:sug } : null); }}>
             {opt(COUNTRIES, f.country).map(x=><option key={x} value={x}>{x}</option>)}
           </FSel>
+          {curAsk && (
+            <div role="group" aria-label="Mudar a moeda" data-moeda-aviso style={{ background:"#FFF4D6", border:"1.5px solid #8A5A00", borderRadius:12, padding:"12px 14px", margin:"-6px 0 14px" }}>
+              <p style={{ margin:"0 0 10px", fontSize:14, fontWeight:700, color:"#3D2B00" }}>Mudaste o país para {curAsk.country}. Mudar a moeda para {curAsk.cur}? Os valores já registados não são convertidos.</p>
+              <div style={{ display:"flex", gap:8 }}>
+                <button type="button" data-moeda-confirmar onClick={()=>{ set("currency", curAsk.cur); setCurAsk(null); }} style={{ flex:1, minHeight:44, border:"none", borderRadius:10, background:"#3D2B00", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Confirmar</button>
+                <button type="button" data-moeda-cancelar onClick={()=>setCurAsk(null)} style={{ flex:1, minHeight:44, border:"1.5px solid #3D2B00", borderRadius:10, background:"transparent", color:"#3D2B00", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+              </div>
+            </div>
+          )}
           <div style={{ display:"flex", gap:10 }}>
             <div style={{ flex:2 }}>
               <FL>Cidade</FL>
@@ -4236,6 +4365,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
 };
 
 const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin, absences, absHandlers, readOnly }) => {
+  const money = useMoney();
   const [ptab, setPtab] = useState("multas");
   const [adding, setAdding] = useState(false);
   const showHist = (isAdmin && !!absHandlers) || !!readOnly; // modo leitura (super admin): histórico visível, sem ações
@@ -4255,9 +4385,9 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         {member.phone && <p style={{ margin:"4px 0 0", opacity:0.6, fontSize:13 }}>📱 {member.phone}</p>}
         {member.birthday && <p style={{ margin:"2px 0 0", opacity:0.6, fontSize:13 }}>🎂 {fmtDate(member.birthday)}</p>}
         <div style={{ display:"flex", justifyContent:"center", gap:28, marginTop:18 }}>
-          <div><p style={{ margin:0, fontSize:24, fontWeight:900, color:"#FFD6D6" }}>{unpaid}€</p><p style={{ margin:0, fontSize:11, opacity:0.7 }}>POR PAGAR</p></div>
+          <div><p style={{ margin:0, fontSize:24, fontWeight:900, color:"#FFD6D6" }}>{money(unpaid)}</p><p style={{ margin:0, fontSize:11, opacity:0.7 }}>POR PAGAR</p></div>
           <div style={{ width:1, background:"rgba(255,255,255,0.2)" }} />
-          <div><p style={{ margin:0, fontSize:24, fontWeight:900 }}>{paid}€</p><p style={{ margin:0, fontSize:11, opacity:0.7 }}>PAGO</p></div>
+          <div><p style={{ margin:0, fontSize:24, fontWeight:900 }}>{money(paid)}</p><p style={{ margin:0, fontSize:11, opacity:0.7 }}>PAGO</p></div>
         </div>
       </div>
       <div style={{ padding:"16px 16px 100px" }}>
@@ -4295,7 +4425,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
               <p style={{ margin:0, fontSize:12, color:T.sub }}>{fmtDay(f.date)}</p>
             </div>
             <div style={{ textAlign:"right" }}>
-              <p style={{ margin:0, fontWeight:800, fontSize:16, color:f.paid?T.green:T.brand }}>{f.amount}€</p>
+              <p style={{ margin:0, fontWeight:800, fontSize:16, color:f.paid?T.green:T.brand }}>{money(f.amount)}</p>
               {isAdmin && (
                 <button onClick={() => onTogglePaid(f.id)} style={{ marginTop:4, padding:"3px 8px", borderRadius:7, border:`1.5px solid ${f.paid?T.green:T.brand}`, background:"transparent", color:f.paid?T.green:T.brand, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {f.paid?"✓":"Pagar"}
@@ -4669,6 +4799,21 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
   );
 };
 
+const SessionSplash = () => (
+  <div role="status" aria-live="polite" data-session-splash style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, color:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"0 28px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <p style={{ margin:"0 0 8px", fontSize:28, fontWeight:900, letterSpacing:-0.5 }}>Multeam</p>
+    <p style={{ margin:0, fontSize:16, fontWeight:700, opacity:0.9 }}>A entrar…</p>
+  </div>
+);
+const SessionOffline = ({ onRetry, onOther, busy }) => (
+  <div data-session-offline style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, color:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"0 28px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", textAlign:"center" }}>
+    <p style={{ margin:"0 0 8px", fontSize:28, fontWeight:900, letterSpacing:-0.5 }}>Sem ligação</p>
+    <p style={{ margin:"0 0 22px", fontSize:15, lineHeight:1.4, maxWidth:320, opacity:0.92 }}>Não foi possível entrar agora. A tua sessão está guardada: tenta outra vez quando tiveres rede.</p>
+    <button onClick={onRetry} disabled={busy} style={{ width:"100%", maxWidth:320, minHeight:48, borderRadius:14, border:"none", background:T.brand, color:"#fff", fontWeight:800, fontSize:16, cursor:"pointer", marginBottom:10, fontFamily:"inherit", opacity:busy?0.6:1 }}>{busy ? "A tentar…" : "Tentar novamente"}</button>
+    <button onClick={onOther} style={{ width:"100%", maxWidth:320, minHeight:48, borderRadius:14, border:"2px solid rgba(255,255,255,0.7)", background:"transparent", color:"#fff", fontWeight:800, fontSize:15, cursor:"pointer", fontFamily:"inherit" }}>Entrar com outra conta</button>
+  </div>
+);
+
 export default function App() {
   // Detect tokens from email links (magic link or password recovery)
   const [recoveryToken] = useState(() => {
@@ -4989,6 +5134,7 @@ export default function App() {
       const tok = d.access_token || d.session?.access_token;
       const uid = d.user?.id;
       if (!tok || !uid) throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
+      const ss = sessFromAuth(d); if (ss) sessWrite(ss); // sessão persistente
       setToken(tok); setMyUserId(uid); await initApp(tok, uid);
     } catch(e) { setAuthError(errPt(e)); setLoading(false); }
   };
@@ -5003,13 +5149,14 @@ export default function App() {
         // Update profile with the provided name
         let nameFailed = false;
         try { needRows(await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok)); } catch(e) { nameFailed = true; console.warn('profile name update failed:', e); }
+        const ss = sessFromAuth(d); if (ss) sessWrite(ss); // sessão persistente
         setToken(tok); setMyUserId(uid); await initApp(tok, uid);
         if (nameFailed) showToast("⚠️ Conta criada, mas o teu nome não ficou guardado. Edita-o em Geral.", T.brand);
       } else if (uid) {
         try {
           const d2 = await api.signIn(email, pass);
           const tok2 = d2.access_token || d2.session?.access_token;
-          if (tok2) { setToken(tok2); setMyUserId(d2.user.id); await initApp(tok2, d2.user.id); }
+          if (tok2) { const ss = sessFromAuth(d2); if (ss) sessWrite(ss); setToken(tok2); setMyUserId(d2.user.id); await initApp(tok2, d2.user.id); }
           else setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
         } catch { setAuthError("Conta criada! Toca em 'Entrar' para aceder."); }
       } else {
@@ -5019,7 +5166,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => { RO.on = false; roHistoryRef.current = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
+  const handleLogout = (opts) => { RO.on = false; sessClear(); if (!(opts && opts.local)) sessServerLogout(token); roHistoryRef.current = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
 
   // Data actions
   const addFine = async d => {
@@ -5634,10 +5781,10 @@ export default function App() {
   const addFineWithToast = async d => {
     await addFine(d);
     const m = members.find(x => String(x.id) === String(d.memberId));
-    showToast(`🟥 Multa de ${d.amount}€ atribuída a ${m?.name || roleWord(team?.sport, false, true)}`, T.brand);
+    showToast(`🟥 Multa de ${fmtMoney(d.amount, teamCur(teams.find(t=>t.id===d.teamId)||team))} atribuída a ${m?.name || roleWord(team?.sport, false, true)}`, T.brand);
     // Send push to the fined member
     if (m?.userId) {
-      sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${d.amount}€ — ${d.reason || "Multa atribuída"}`).catch(()=>{});
+      sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${fmtMoney(d.amount, teamCur(teams.find(t=>t.id===d.teamId)||team))} — ${d.reason || "Multa atribuída"}`).catch(()=>{});
     }
   };
   const addCardWithAlert = async d => {
@@ -5663,12 +5810,71 @@ export default function App() {
     fetch(`${SB_URL}/auth/v1/user`, {
       headers: { "apikey": SB_KEY, "Authorization": `Bearer ${magicToken.access}` }
     }).then(r => r.json()).then(u => {
-      if (u.id) { setToken(magicToken.access); setMyUserId(u.id); window.history.replaceState(null, "", "/"); }
+      if (u.id) { const ss = sessFromAuth({ access_token: magicToken.access, refresh_token: magicToken.refresh, user: { id: u.id } }); if (ss) sessWrite(ss); setToken(magicToken.access); setMyUserId(u.id); window.history.replaceState(null, "", "/"); }
       else { console.warn("magic link inválido:", u && (u.msg || u.error_description || u.error)); setAuthError("O link de acesso expirou ou não é válido. Entra com o teu email e password."); try { window.history.replaceState(null, "", "/"); } catch(e) {} }
     }).catch(e => { console.warn("magic link falhou:", e && e.message); setAuthError(errPt(e)); });
   }, [magicToken]);
 
+  // ── Sessão persistente: restaurar no arranque, renovar e sincronizar entre janelas ──
+  // "none" | "restoring" (a entrar com a sessão guardada) | "offline" (sem ligação: a sessão fica guardada). O link de recuperação e o link de convite têm prioridade.
+  const [sessState, setSessState] = useState(() => (recoveryToken || magicToken || !sessNewest()) ? "none" : "restoring");
+  const [sessBusy, setSessBusy] = useState(false);
+  const tokenRef = React.useRef(null); tokenRef.current = token;
+  const uidRef = React.useRef(null); uidRef.current = myUserId;
+  const logoutRef = React.useRef(null); logoutRef.current = handleLogout;
+  const restoreSession = async (silent) => {
+    if (!silent) setSessState("restoring"); setSessBusy(true);
+    const r = await sessRenew(false);
+    setSessBusy(false);
+    if (r.status === "ok") {
+      setToken(r.s.at); setMyUserId(r.s.uid);
+      const okInit = await initApp(r.s.at, r.s.uid);
+      if (okInit) { setSessState("none"); return; }
+      setToken(null); setMyUserId(null); setAuthError(null); setSessState("offline"); // não conseguiu carregar a conta: a sessão fica guardada
+    } else if (r.status === "transient") setSessState("offline");
+    else { setSessState("none"); if (r.status === "invalid") setAuthError("A sessão terminou. Entra outra vez."); }
+  };
+  useEffect(() => { if (sessState === "restoring") restoreSession(); }, []);
+  useEffect(() => { // sem ligação: volta a tentar sozinho quando a rede volta e de 20 em 20 s
+    if (sessState !== "offline") return;
+    const go = () => { if (!sessBusy) restoreSession(true); };
+    window.addEventListener("online", go); const iv = setInterval(go, 20000);
+    return () => { window.removeEventListener("online", go); clearInterval(iv); };
+  }, [sessState, sessBusy]);
+  useEffect(() => { // renovação antes de expirar (também ao voltar a ver a app e quando volta a rede)
+    if (!token) return;
+    let t = null, dead = false;
+    const schedule = () => { const ss = sessNewest(); if (!ss) return; t = setTimeout(tick, Math.min(Math.max(2000, ss.exp - ss.m - Date.now()), 2147000000)); };
+    const tick = async () => {
+      const r = await sessRenew(false);
+      if (dead) return;
+      if (r.status === "ok") { if (r.s.at !== tokenRef.current) setToken(r.s.at); else schedule(); }
+      else if (r.status === "transient") t = setTimeout(tick, 30000);
+      else { logoutRef.current({ local:true }); setAuthError("A sessão terminou. Entra outra vez."); }
+    };
+    const wake = () => { const ss = sessNewest(); if (ss && ss.exp - Date.now() < ss.m) { clearTimeout(t); tick(); } };
+    const vis = () => { if (document.visibilityState === "visible") wake(); };
+    schedule();
+    document.addEventListener("visibilitychange", vis); window.addEventListener("online", wake);
+    return () => { dead = true; clearTimeout(t); document.removeEventListener("visibilitychange", vis); window.removeEventListener("online", wake); };
+  }, [token]);
+  useEffect(() => { // outra janela: terminou a sessão (sai daqui também), renovou o token (usa-o) ou entrou com outra conta (sai daqui)
+    const on = e => {
+      if (e.key !== SESSION_KEY) return;
+      if (!e.newValue) { if (tokenRef.current) logoutRef.current({ local:true }); return; }
+      try {
+        const o = JSON.parse(e.newValue);
+        if (!o || !o.at || !tokenRef.current) return;
+        if (o.uid && uidRef.current && o.uid !== uidRef.current) { logoutRef.current({ local:true }); return; }
+        if (o.at !== tokenRef.current) setToken(o.at);
+      } catch(err) {}
+    };
+    window.addEventListener("storage", on); return () => window.removeEventListener("storage", on);
+  }, []);
+
   if (recoveryToken) return <ResetPasswordScreen accessToken={recoveryToken} onDone={()=>{ window.history.replaceState(null,"","/"); window.location.reload(); }} />;
+  if ((!token || !appReady) && sessState === "restoring") return <SessionSplash />;
+  if (!token && sessState === "offline") return <SessionOffline busy={sessBusy} onRetry={()=>restoreSession()} onOther={()=>{ sessClear(); setSessState("none"); }} />;
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
@@ -5701,7 +5907,7 @@ export default function App() {
       <button onClick={()=>refresh()} style={{ minHeight:44, padding:"0 16px", borderRadius:12, border:"2px solid #1a1a1f", background:"#1a1a1f", color:"#fff", fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button>
     </div>
   ) : null;
-  const wrap = ch => <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{roBanner}{loadWarnBox}{ch}</div>;
+  const wrap = ch => <MoneyCtx.Provider value={teamCur(team)}><div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>{roBanner}{loadWarnBox}{ch}</div></MoneyCtx.Provider>;
 
   // Super admin sem equipa própria: ecrã principal só com Geral e o painel de super admin (ver "Abrir equipa")
   if (!team && profile?.isAppAdmin) return (
@@ -5753,21 +5959,21 @@ export default function App() {
   );
 
   if (tab==="treinos") return (
-    <div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+    <MoneyCtx.Provider value={teamCur(team)}><div style={{ fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {roBanner}
       {loadWarnBox}
       {toastBox}
       <TreinosPage team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
-    </div>
+    </div></MoneyCtx.Provider>
   );
   if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</>);
+    return wrap(<MoneyCtx.Provider value={teamCur(mt)}><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</MoneyCtx.Provider>);
   }
 
   return (
-    <div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
+    <MoneyCtx.Provider value={teamCur(team)}><div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {roBanner}
       {loadWarnBox}
       {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
@@ -5816,6 +6022,6 @@ export default function App() {
         await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
       }} onClose={()=>setModal(null)} />}
       {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
-    </div>
+    </div></MoneyCtx.Provider>
   );
 }
