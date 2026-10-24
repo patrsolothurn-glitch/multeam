@@ -1205,7 +1205,7 @@ const AddMemberModal = ({ team, onAdd, onClose }) => {
   );
 };
 
-const EMOJIS = ["⚽","🏀","🏈","⚾","🎾","🏐","🥅","🏸","🏓","🏒","🥊","🏊","🚴","🏋️","🏖️","🎯","🏆","🤺"];
+const EMOJIS = ["⚽","🏀","🏈","⚾","🎾","🏐","🥅","🏸","🏓","🏒","🥊","🏊","🚴","🏋️","🏖️","🎯","🏆","🤺","🥋","🏃","🤸","🧘","🧗","⛳","🤾","🏹","🚣"]; // os 9 últimos acrescentados no fim (karaté e outros desportos)
 const COLORS = ["#1D3557","#2A7D4F","#C77B2A","#7B2D8B","#1565C0","#C62828","#00695C","#E65100","#37474F","#558B2F"];
 const COUNTRIES = ["Portugal","Suíça","Espanha","França","Alemanha","Itália","Brasil","Angola","Moçambique","Cabo Verde","Reino Unido","Holanda","Bélgica","Outro"];
 const SPORTS = ["Futebol 11","Futebol 7","Futebol 5 / Futsal","Futebol de Praia","Futebol Feminino","Futebol Júnior","Outro"];
