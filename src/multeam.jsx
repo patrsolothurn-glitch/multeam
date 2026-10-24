@@ -79,7 +79,7 @@ const api = {
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, createdBy:t.created_by });
-const aMember = m => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:m.position||m.profiles?.position||'Jogador', phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
+const aMember = (m, sport) => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:isFreeSport(sport)?(m.position||''):(m.position||m.profiles?.position||'Jogador'), phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
   return { id:f.id, teamId:f.team_id, memberId:f.member_id, amount:Number(f.amount), reason:f.reason||'', emoji:iconForFine(f.reason, f.emoji), paid:f.paid, paidAt:f.paid_at||null, date:f.date||localDate };
@@ -225,6 +225,14 @@ const sportJoin = (sel, text, keep) => {
   if (!n) return keep == null ? SPORT_OTHER : keep;
   return sportListed(n) || n;
 };
+// Posição por desporto: nas equipas com desporto livre ("Outro") a posição é texto livre (opcional, máx. 30, sem espaços a mais)
+// e grava-se só em team_members.position (nunca em profiles.position). Nos desportos da lista mantém-se a lista de posições.
+const POSITION_MAX = 30;
+const isFreeSport = sport => !!normSport(sport) && sportSplit(sport).sel === SPORT_OTHER;
+// Palavra do papel 'player' no ecrã: "Membro/Membros" em desporto livre ("Outro"), "Jogador/Jogadores" nos outros ou quando o desporto não é conhecido.
+// Só muda o texto mostrado: o valor guardado continua 'player'.
+const roleWord = (sport, plural, lower) => { const w = isFreeSport(sport) ? (plural ? "Membros" : "Membro") : (plural ? "Jogadores" : "Jogador"); return lower ? w.toLowerCase() : w; };
+const positionIssue = text => normSport(text).length > POSITION_MAX ? `A posição pode ter no máximo ${POSITION_MAX} caracteres.` : "";
 // uma escrita bloqueada por RLS responde com sucesso mas sem linhas: tratar como erro
 const needRows = res => { if (!Array.isArray(res) || !res.length) throw new Error("sem permissão, ou o registo já não existe"); return res; };
 // "YYYY-MM-DD" -> dias do calendário (UTC só como contador, sem fuso)
@@ -470,7 +478,7 @@ const PersonIcon = ({ size=12, color="#fff" }) => (
   </svg>
 );
 
-const RoleBadge = ({ role, teamColor, size="sm" }) => {
+const RoleBadge = ({ role, teamColor, size="sm", sport }) => {
   const isAdmin = role === "admin";
   const bg = isAdmin ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)";
   const border = isAdmin ? "1px solid rgba(255,255,255,0.35)" : "1px solid rgba(255,255,255,0.15)";
@@ -480,7 +488,7 @@ const RoleBadge = ({ role, teamColor, size="sm" }) => {
     <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:bg, border, borderRadius:7, padding:p }}>
       {isAdmin ? <ShieldIcon size={fs} color="#fff" /> : <PersonIcon size={fs} color="rgba(255,255,255,0.7)" />}
       <span style={{ color:isAdmin?"#fff":"rgba(255,255,255,0.75)", fontSize:fs, fontWeight:700, letterSpacing:0.3 }}>
-        {isAdmin ? "Admin" : "Jogador"}
+        {isAdmin ? "Admin" : roleWord(sport)}
       </span>
     </div>
   );
@@ -495,12 +503,12 @@ const AdminHeaderBadge = ({ teamColor }) => (
 );
 
 // Role badge on light background (for lists/cards)
-const RoleBadgeLight = ({ role }) => {
+const RoleBadgeLight = ({ role, sport }) => {
   const cfg = {
     admin:     { label:"Admin",     color:"#1D3557" },
     treinador: { label:"Treinador", color:"#2E7D32" },
     diretor:   { label:"Diretor",   color:"#7B1FA2" },
-    player:    { label:"Jogador",   color:"#6B6B72" },
+    player:    { label:roleWord(sport), color:"#6B6B72" },
   };
   const c = cfg[role]||cfg.player;
   return (
@@ -659,7 +667,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         name: profMap[m.user_id]?.name || 'Utilizador',
         phone: profMap[m.user_id]?.phone || '',
         birthday: profMap[m.user_id]?.birthday || '',
-        position: m.position || profMap[m.user_id]?.position || 'Jogador',
+        position: isFreeSport(team.sport) ? (m.position || '') : (m.position || profMap[m.user_id]?.position || 'Jogador'),
         avatarUrl: profMap[m.user_id]?.avatar_url || null,
         initials: (profMap[m.user_id]?.name||'U').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
       }))));
@@ -704,9 +712,9 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
       ) : (<>
         {profWarn && <LoadWarn id="perfis-multa" onRetry={()=>setTick(t=>t+1)}>{PROFILES_WARN}</LoadWarn>}
         {/* Player selector */}
-        <FL>Jogador ({tm.length})</FL>
+        <FL>{roleWord(team.sport)} ({tm.length})</FL>
         <FSel value={mid} onChange={e => setMid(e.target.value)}>
-          <option value="">— Selecionar jogador —</option>
+          <option value="">{`— Selecionar ${roleWord(team.sport, false, true)} —`}</option>
           {tm.map(m => <option key={m.id} value={m.id}>{m.name}{m.role==='admin'?' (Admin)':''}</option>)}
         </FSel>
 
@@ -787,7 +795,7 @@ const AddFineModal = ({ team, myUserId, token, onAdd, onClose }) => {
         <FI type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder={sft ? sft.name : "Descreve o motivo..."} />
         {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
         <PrimaryBtn onClick={submit} disabled={!canSubmit} color={T.brand}>
-          {canSubmit ? `🟥 Atribuir ${sft.amount}€ a ${tm.find(m=>m.id===mid)?.name||"jogador"}` : (!mid ? "← Seleciona um jogador" : "← Seleciona o tipo")}
+          {canSubmit ? `🟥 Atribuir ${sft.amount}€ a ${tm.find(m=>m.id===mid)?.name||roleWord(team.sport, false, true)}` : (!mid ? `← Seleciona um ${roleWord(team.sport, false, true)}` : "← Seleciona o tipo")}
         </PrimaryBtn>
       </>)}
     </Sheet>
@@ -1153,22 +1161,33 @@ const PositionSelect = ({ value, onChange, placeholder }) => {
   );
 };
 
+// Posição: lista nos desportos da lista; texto livre (opcional) em "Outro". O rótulo vem incluído.
+const PositionField = ({ sport, value, onChange, placeholder }) => {
+  if (!isFreeSport(sport)) return <><FL>Posição</FL><PositionSelect value={value} onChange={onChange} placeholder={placeholder} /></>;
+  const issue = positionIssue(value);
+  return <>
+    <FL>Posição (opcional)</FL>
+    <FI value={value} onChange={onChange} placeholder="Ex: Pivot, Base, Libero" data-position-free aria-label="Posição (opcional)" />
+    {issue && <p role="alert" data-position-error style={{ margin:"-6px 0 12px", fontSize:13, fontWeight:700, color:"#B42318" }}>{issue}</p>}
+  </>;
+};
+
 const AddMemberModal = ({ team, onAdd, onClose }) => {
   const [name, setName] = useState(""); const [pos, setPos] = useState(""); const [phone, setPhone] = useState(""); const [bday, setBday] = useState(""); const [role, setRole] = useState("player");
   const [busy, setBusy] = useState(false);
   const lock = React.useRef(false);
-  const ok = name.trim().length > 1 && !!pos; // a posição tem de ser escolhida (quem não tem posição escolhe "Outro")
+  const free = isFreeSport(team.sport);
+  const ok = name.trim().length > 1 && (free ? !positionIssue(pos) : !!pos); // a posição tem de ser escolhida (quem não tem posição escolhe "Outro"); em desporto livre é opcional
   const initials = name.trim().split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   return (
     <Sheet title="➕ Adicionar membro" onClose={onClose}>
       <FL>Nome</FL><FI value={name} onChange={e=>setName(e.target.value)} placeholder="Nome completo" />
-      <FL>Posição</FL>
-      <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} placeholder="Escolhe a posição…" />
+      <PositionField sport={team.sport} value={pos} onChange={e=>setPos(e.target.value)} placeholder="Escolhe a posição…" />
       <FL>Telefone</FL><FI type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+351 / +41..." />
       <FL>Aniversário</FL><FI type="date" value={bday} onChange={e=>setBday(e.target.value)} />
       <FL>Função na equipa</FL>
       <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-        {[["player","👤 Jogador"],["admin","👑 Administrador"]].map(([v,l]) => (
+        {[["player",`👤 ${roleWord(team.sport)}`],["admin","👑 Administrador"]].map(([v,l]) => (
           <button key={v} onClick={() => setRole(v)} style={{ flex:1, padding:"12px", borderRadius:12, border:`2px solid ${role===v?(v==="admin"?T.yellow:team.color):T.border}`, background:role===v?(v==="admin"?`${T.yellow}18`:`${team.color}15`):T.inputBg, cursor:"pointer", fontWeight:700, fontSize:14, fontFamily:"inherit" }}>{l}</button>
         ))}
       </div>
@@ -1176,11 +1195,11 @@ const AddMemberModal = ({ team, onAdd, onClose }) => {
         if (!ok || lock.current) return;
         lock.current = true; setBusy(true);
         let done = false;
-        try { done = await onAdd({ teamId:team.id, userId:Date.now(), name:name.trim(), initials:initials||name[0].toUpperCase(), position:pos, phone, birthday:bday, role }); }
+        try { done = await onAdd({ teamId:team.id, userId:Date.now(), name:name.trim(), initials:initials||name[0].toUpperCase(), position:free ? normSport(pos) : pos, phone, birthday:bday, role }); }
         finally { lock.current = false; setBusy(false); }
         if (done) onClose(); // só fecha com a escrita confirmada; se falhar, fica aberto com o que escreveste
       }} disabled={!ok || busy} color={team.color}>
-        {busy ? "A adicionar…" : `Adicionar ${role==="admin"?"administrador":"jogador"}`}
+        {busy ? "A adicionar…" : `Adicionar ${role==="admin"?"administrador":roleWord(team.sport, false, true)}`}
       </PrimaryBtn>
     </Sheet>
   );
@@ -1272,7 +1291,8 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
   );
 };
 
-const EditProfileModal = ({ user, onSave, onClose }) => {
+const EditProfileModal = ({ user, team, onSave, onClose }) => {
+  const free = !!team && isFreeSport(team.sport); // equipa com desporto livre: texto livre, só na equipa
   const [name, setName] = useState(user.name); const [pos, setPos] = useState(user.position); const [phone, setPhone] = useState(user.phone); const [bday, setBday] = useState(user.birthday);
   const [photo, setPhoto] = useState(user.avatarUrl||null);
   const fileRef = React.useRef();
@@ -1309,11 +1329,10 @@ const EditProfileModal = ({ user, onSave, onClose }) => {
         {photo && <button onClick={() => setPhoto(null)} style={{ marginTop:4, fontSize:11, color:T.brand, background:"none", border:"none", cursor:"pointer" }}>Remover foto</button>}
       </div>
       <FL>Nome</FL><FI value={name} onChange={e=>setName(e.target.value)} />
-      <FL>Posição</FL>
-      <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} />
+      <PositionField sport={free ? team.sport : ""} value={pos} onChange={e=>setPos(e.target.value)} />
       <FL>Telefone</FL><FI type="tel" value={phone} onChange={e=>setPhone(e.target.value)} />
       <FL>Aniversário</FL><FI type="date" value={bday} onChange={e=>setBday(e.target.value)} />
-      <PrimaryBtn onClick={() => { onSave({ ...user, name, position:pos, phone, birthday:bday, avatarUrl:photo }); onClose(); }} color={T.navy}>Guardar perfil</PrimaryBtn>
+      <PrimaryBtn onClick={() => { if (free && positionIssue(pos)) return; onSave({ ...user, name, position:free ? normSport(pos) : pos, phone, birthday:bday, avatarUrl:photo }); onClose(); }} color={T.navy} disabled={free && !!positionIssue(pos)}>Guardar perfil</PrimaryBtn>
     </Sheet>
   );
 };
@@ -1321,7 +1340,8 @@ const EditProfileModal = ({ user, onSave, onClose }) => {
 // ── MODAL: EDIT MEMBER ───────────────────────────────────────
 const EditMemberModal = ({ member, team, onSave, onClose }) => {
   const [name, setName] = useState(member.name);
-  const [pos, setPos] = useState(member.position || "Jogador");
+  const free = isFreeSport(team.sport);
+  const [pos, setPos] = useState(free ? realPosition(member.position) : (member.position || "Jogador"));
   const [phone, setPhone] = useState(member.phone || "");
   const [bday, setBday] = useState(member.birthday || "");
   const [photo, setPhoto] = useState(member.avatarUrl || null);
@@ -1357,11 +1377,10 @@ const EditMemberModal = ({ member, team, onSave, onClose }) => {
         {photo && <button onClick={() => setPhoto(null)} style={{ marginTop:4, fontSize:11, color:T.brand, background:"none", border:"none", cursor:"pointer" }}>Remover foto</button>}
       </div>
       <FL>Nome</FL><FI value={name} onChange={e=>setName(e.target.value)} />
-      <FL>Posição</FL>
-      <PositionSelect value={pos} onChange={e=>setPos(e.target.value)} />
+      <PositionField sport={team.sport} value={pos} onChange={e=>setPos(e.target.value)} />
       <FL>Telefone</FL><FI type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+351 / +41..." />
       <FL>Aniversário</FL><FI type="date" value={bday} onChange={e=>setBday(e.target.value)} />
-      <PrimaryBtn onClick={() => { onSave(member.id, { name, position:pos, phone, birthday:bday, avatarUrl:photo }); onClose(); }} color={team.color}>
+      <PrimaryBtn disabled={free && !!positionIssue(pos)} onClick={() => { if (free && positionIssue(pos)) return; onSave(member.id, { name, position:free ? normSport(pos) : pos, phone, birthday:bday, avatarUrl:photo }); onClose(); }} color={team.color}>
         Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -1716,7 +1735,7 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
               <div style={{ padding:"12px 16px" }}>
                 {alreadyMember
                   ? <p style={{ margin:0, fontSize:13, color:T.green, fontWeight:700 }}>✓ Já és membro desta equipa.</p>
-                  : <p style={{ margin:0, fontSize:13, color:T.sub }}>Vais entrar como <strong>👤 Jogador</strong>. O admin pode depois alterar a tua função.</p>
+                  : <p style={{ margin:0, fontSize:13, color:T.sub }}>Vais entrar como <strong>👤 {roleWord(found.sport)}</strong>. O admin pode depois alterar a tua função.</p>
                 }
               </div>
             </div>
@@ -1775,7 +1794,7 @@ const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, on
             <div style={{ width:42, height:42, borderRadius:12, background:t.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{t.emoji}</div>
             <div style={{ flex:1 }}>
               <p style={{ margin:0, fontWeight:700, fontSize:16 }}>{t.name}</p>
-              <p style={{ margin:0, fontSize:12, color:T.sub }}>{readOnly ? t.season : `${me?.role==="admin"?"🛡 Admin":"· Jogador"} · ${t.season}`}</p>
+              <p style={{ margin:0, fontSize:12, color:T.sub }}>{readOnly ? t.season : `${me?.role==="admin"?"🛡 Admin":`· ${roleWord(t.sport)}`} · ${t.season}`}</p>
             </div>
             {t.id===currentTeamId && <span style={{ color:t.color, fontWeight:800, fontSize:18 }}>✓</span>}
           </button>
@@ -2686,7 +2705,7 @@ const parseAdminUsers = (tot, ov) => {
       };
     });
     return {
-      id: String(x.id), name: x.name || "", emoji: x.emoji || "⚽", season: x.season || "",
+      id: String(x.id), name: x.name || "", emoji: x.emoji || "⚽", season: x.season || "", sport: x.sport || "",
       membersCount: count(x.members_count, members.length), playersCount: count(x.players_count, members.filter(m => m.role === "player").length),
       unpaid: members.reduce((a, m) => a + m.unpaid, 0), members,
     };
@@ -2752,7 +2771,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
               <span style={{ fontSize:26 }}>{tm.emoji}</span>
               <span style={{ flex:1, minWidth:0 }}>
                 <span style={{ display:"block", fontWeight:800, fontSize:15, color:T.text, overflowWrap:"anywhere" }}>{tm.name || "Sem nome"}</span>
-                <span style={{ display:"block", fontSize:12, color:"#5F5F66" }}>{tm.season ? `${tm.season} · ` : ""}{plural(tm.playersCount, "jogador", "jogadores")} · {plural(tm.membersCount, "membro", "membros")}</span>
+                <span style={{ display:"block", fontSize:12, color:"#5F5F66" }}>{tm.season ? `${tm.season} · ` : ""}{isFreeSport(tm.sport) ? plural(tm.playersCount, "membro", "membros") : plural(tm.playersCount, "jogador", "jogadores")} · {plural(tm.membersCount, "membro", "membros")}</span>
               </span>
               <span style={{ textAlign:"right", flexShrink:0 }}>
                 <span style={{ display:"block", fontWeight:900, fontSize:15, color: tm.unpaid > 0 ? T.brand : T.navy }}>{eur(tm.unpaid)}</span>
@@ -2771,7 +2790,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
                       <button onClick={()=>setOpenM(p=>({ ...p, [tm.id + "/" + m.key]: !mo }))} aria-expanded={mo} style={{ display:"block", width:"100%", padding:"10px 12px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit", boxSizing:"border-box" }}>
                         <span style={{ display:"flex", alignItems:"center", gap:8 }}>
                           <span style={{ flex:1, minWidth:0, fontWeight:800, fontSize:14, color:T.text, overflowWrap:"anywhere" }}>{m.name || "Sem nome"}</span>
-                          <span style={{ fontSize:11, fontWeight:700, color:T.navy, border:`1px solid ${T.border}`, borderRadius:6, padding:"1px 6px", flexShrink:0 }}>{ROLE_PT[m.role] || m.role || "membro"}</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:T.navy, border:`1px solid ${T.border}`, borderRadius:6, padding:"1px 6px", flexShrink:0 }}>{(m.role === "player" ? roleWord(tm.sport, false, true) : ROLE_PT[m.role]) || m.role || "membro"}</span>
                           <span aria-hidden="true" style={{ fontSize:11, color:T.sub }}>{mo ? "▲" : "▼"}</span>
                         </span>
                         <span style={{ display:"block", fontSize:12, color: m.email ? T.text : "#5F5F66", marginTop:2, overflowWrap:"anywhere" }}>{m.email || "Sem conta"}</span>
@@ -3402,7 +3421,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
         }
       }
       const merged = mRaw.map(m => ({
-        ...aMember({ ...m, profiles: profilesMap[m.user_id] || null })
+        ...aMember({ ...m, profiles: profilesMap[m.user_id] || null }, teams.find(t => t.id === teamId)?.sport)
       }));
       setTeamMembers(merged);
     } catch(e) { console.error(e); setMembersWarn("Não foi possível carregar os membros da equipa."); }
@@ -3427,7 +3446,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
                 <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{m.name}</p>
-                <span style={{ fontSize:11, background:m.role==="admin"?`${t?.color||T.navy}20`:"transparent", color:m.role==="admin"?t?.color||T.navy:T.sub, borderRadius:6, padding:"2px 6px", fontWeight:700, border:`1px solid ${m.role==="admin"?t?.color||T.navy:T.border}` }}>{m.role==="admin"?"Admin":"Jogador"}</span>
+                <span style={{ fontSize:11, background:m.role==="admin"?`${t?.color||T.navy}20`:"transparent", color:m.role==="admin"?t?.color||T.navy:T.sub, borderRadius:6, padding:"2px 6px", fontWeight:700, border:`1px solid ${m.role==="admin"?t?.color||T.navy:T.border}` }}>{m.role==="admin"?"Admin":roleWord(t?.sport)}</span>
               </div>
               {m.position && <p style={{ margin:"0 0 3px", fontSize:13, color:T.sub }}>🏃 {m.position}</p>}
               {m.phone && <p style={{ margin:"0 0 3px", fontSize:13, color:T.text }}>📱 <a href={`tel:${m.phone}`} style={{ color:T.navy, textDecoration:"none", fontWeight:600 }}>{m.phone}</a></p>}
@@ -3481,7 +3500,7 @@ const GeneralTab = ({ user, myUserId, teams, members, onEditProfile, onManageTea
               <div style={{ flex:1 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:16 }}>{t.name}</p>
                 <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:3 }}>
-                  {!readOnly && <RoleBadgeLight role={admin?"admin":"player"} />}
+                  {!readOnly && <RoleBadgeLight role={admin?"admin":"player"} sport={t.sport} />}
                   <span style={{ fontSize:12, color:T.sub }}>{t.season}</span>
                 </div>
               </div>
@@ -3884,7 +3903,7 @@ const AbsenceArchive = ({ team, absences = [], onUpdate, onClose, onDelete }) =>
   return (
     <div data-testid="absence-archive">
       {absences.length > 0 && <>
-        <FSel value={fPlayer} onChange={e=>setFPlayer(e.target.value)}><option value="">Todos os jogadores</option>{players.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</FSel>
+        <FSel value={fPlayer} onChange={e=>setFPlayer(e.target.value)}><option value="">{`Todos os ${roleWord(team.sport, true, true)}`}</option>{players.map(([k, n]) => <option key={k} value={k}>{n}</option>)}</FSel>
         <div style={{ display:"flex", gap:8 }}>
           <div style={{ flex:1 }}><FSel value={fKind} onChange={e=>setFKind(e.target.value)}><option value="">Todos os tipos</option><option value="lesao">Lesões</option><option value="ausencia">Ausências</option></FSel></div>
           <div style={{ flex:1 }}><FSel value={fSeason} onChange={e=>setFSeason(e.target.value)}><option value="">Todas as épocas</option>{seasons.map(s => <option key={s} value={s}>{s}</option>)}</FSel></div>
@@ -4005,7 +4024,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   const groups = [
     { role:"admin",  title:admins.length===1?"Administrador":"Administradores", color:"#1D3557", list:admins },
     { role:"staff",  title:"Equipa técnica",                                   color:"#2E7D32", list:staff },
-    { role:"player", title:players.length===1?"Jogador":"Jogadores",           color:T.sub,     list:players },
+    { role:"player", title:players.length===1?roleWord(team.sport):roleWord(team.sport, true),           color:T.sub,     list:players },
   ].filter(g => g.list.length > 0);
   const [roleErr, setRoleErr] = useState(null); // { id, msg }
   const changeRole = async (m, r) => {
@@ -4045,7 +4064,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
               <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{m.name}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</p>
               {m.userId===myUserId && <Badge label="Tu" color={team.color} />}
-              <RoleBadgeLight role={m.role} />
+              <RoleBadgeLight role={m.role} sport={team.sport} />
             </div>
             {subLine && <p style={{ margin:0, fontSize:13, color:T.sub }}>{subLine}</p>}
           </div>
@@ -4082,7 +4101,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {m.userId !== myUserId && (
                 <>
                   <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
-                    {[["admin","🛡 Admin","#1D3557"],["player","👤 Jogador","#6B6B72"]].map(([r,l,c]) => (
+                    {[["admin","🛡 Admin","#1D3557"],["player",`👤 ${roleWord(team.sport)}`,"#6B6B72"]].map(([r,l,c]) => (
                       <button key={r} onClick={() => m.role!==r && changeRole(m, r)} style={{ padding:"7px 10px", borderRadius:10, border:`1.5px solid ${m.role===r?solidForWhite(team.color):T.border}`, background:m.role===r?solidForWhite(team.color):"transparent", color:m.role===r?"#fff":T.sub, fontSize:12, fontWeight:m.role===r?800:700, cursor:m.role===r?"default":"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
@@ -4121,7 +4140,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
               {copied ? "✓ Copiado!" : "Copiar"}
             </button>
           </div>
-          <p style={{ margin:"0 0 10px", fontSize:13, color:T.sub }}>Partilha o convite com os teus jogadores:</p>
+          <p style={{ margin:"0 0 10px", fontSize:13, color:T.sub }}>{`Partilha o convite com os teus ${roleWord(team.sport, true, true)}:`}</p>
           <div style={{ display:"flex", gap:8 }}>
             <a href={`https://wa.me/?text=${encodeURIComponent(`🟥 *Multeam* — Junta-te à equipa *${team.name}*!\n\n1. Abre o link: ${APP_URL}/?invite=${team.inviteCode}\n2. Cria conta\n3. O código entra automaticamente!\n\nCódigo manual: *${team.inviteCode}*`)}`}
                target="_blank" rel="noopener" style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", minHeight:44, borderRadius:12, background:"#0E7A3E", color:"#fff", fontWeight:700, fontSize:14, textDecoration:"none" }}>
@@ -4141,7 +4160,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           <span style={{ fontSize:20 }}>👑</span>
           <div>
             <p style={{ margin:0, fontWeight:700, fontSize:14 }}>Administradores têm nível máximo</p>
-            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>Podem gerir membros, atribuir multas, despesas e treinos. Jogadores só veem e confirmam presenças.</p>
+            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>Podem gerir membros, atribuir multas, despesas e treinos. {roleWord(team.sport, true)} só veem e confirmam presenças.</p>
           </div>
         </div>
 
@@ -4188,7 +4207,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           <div style={{ background:T.card, borderRadius:20, padding:"24px", width:"100%", maxWidth:360 }}>
             <p style={{ fontSize:36, textAlign:"center", margin:"0 0 10px" }}>⚠️</p>
             <p style={{ fontWeight:800, fontSize:18, textAlign:"center", margin:"0 0 8px" }}>Remover {confirmRemove.name}?</p>
-            <p style={{ color:T.sub, fontSize:14, textAlign:"center", margin:"0 0 24px" }}>Este jogador perderá o acesso à equipa. Podes adicioná-lo novamente com um novo convite.</p>
+            <p style={{ color:T.sub, fontSize:14, textAlign:"center", margin:"0 0 24px" }}>Este {roleWord(team.sport, false, true)} perderá o acesso à equipa. Podes adicioná-lo novamente com um novo convite.</p>
             {removeErr && <p style={{ margin:"-12px 0 16px", fontSize:13, fontWeight:600, color:T.brand, textAlign:"center" }}>{removeErr}</p>}
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={closeRemove} disabled={removeBusy} style={{ flex:1, padding:"13px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:15 }}>Cancelar</button>
@@ -4226,7 +4245,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         </div>
         <Avatar initials={member.initials} color="rgba(255,255,255,0.2)" size={64} photo={member.avatarUrl} name={member.name} />
         <h2 style={{ margin:"12px 0 2px", fontSize:24, fontWeight:800 }}>{member.name}</h2>
-        <p style={{ margin:0, opacity:0.7, fontSize:14 }}>{member.position} · {member.role==="admin"?"Admin":"Jogador"}</p>
+        <p style={{ margin:0, opacity:0.7, fontSize:14 }}>{`${member.position ? member.position + " · " : ""}${member.role==="admin"?"Admin":roleWord(team.sport)}`}</p>
         {member.phone && <p style={{ margin:"4px 0 0", opacity:0.6, fontSize:13 }}>📱 {member.phone}</p>}
         {member.birthday && <p style={{ margin:"2px 0 0", opacity:0.6, fontSize:13 }}>🎂 {fmtDate(member.birthday)}</p>}
         <div style={{ display:"flex", justifyContent:"center", gap:28, marginTop:18 }}>
@@ -4452,7 +4471,7 @@ const AddCardModal = ({ team, members, cards, onAdd, onClose }) => {
           </div>
         </div>
       )}
-      <FL>{sel ? "Mudar jogador" : "Jogador"}</FL>
+      <FL>{sel ? `Mudar ${roleWord(team.sport, false, true)}` : roleWord(team.sport)}</FL>
       <div style={{ maxHeight:200, overflowY:"auto", marginBottom:14, border:`1.5px solid ${T.border}`, borderRadius:12 }}>
         {tm.map(m => (
           <div key={m.id} onClick={()=>setMid(m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", cursor:"pointer", background:String(mid)===String(m.id)?`${T.navy}18`:"transparent", borderBottom:`1px solid ${T.border}` }}>
@@ -4628,7 +4647,7 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
         </div>
       )}
       {canManage && <button onClick={onAddCard} style={{ width:"100%", padding:"16px", borderRadius:14, border:"none", background:T.navy, color:"#fff", fontSize:16, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>+ Lançar cartão</button>}
-      {rows.length===0 && <p style={{ textAlign:"center", color:T.sub }}>Sem jogadores na equipa.</p>}
+      {rows.length===0 && <p style={{ textAlign:"center", color:T.sub }}>Sem {roleWord(team.sport, true, true)} na equipa.</p>}
       {withCards.map(renderRow)}
       {noCards.length>0 && (
         <>
@@ -4698,6 +4717,7 @@ export default function App() {
   const exitRoRef = React.useRef(null);      // última versão de exitAdminView, para o botão "atrás" do navegador
 
   const team = teams.find(t=>t.id===teamId);
+  const freeSport = !!team && isFreeSport(team.sport); // desporto livre ("Outro"): posição em texto livre, só na equipa
   // modo leitura só existe para o super admin (profile.isAppAdmin); aí ninguém é admin da equipa aberta
   const roMode = adminView && !!profile?.isAppAdmin;
   const isAdmin = !roMode && (members.some(m=>m.teamId===teamId&&m.userId===myUserId&&m.role==="admin") || team?.createdBy===myUserId);
@@ -4772,7 +4792,7 @@ export default function App() {
     const profilesMap = {}; profs.forEach(p => { if (p && p.id != null) profilesMap[p.id] = p; });
     const presMap = {};
     pData.forEach(p => { if (!presMap[p.training_id]) presMap[p.training_id] = {}; presMap[p.training_id][p.member_id] = p.status; });
-    return { team:aTeam(r.team), members:mRaw.map(m => aMember({ ...m, profiles: profilesMap[m.user_id] || null })), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:aData.map(aAbsence), cards:cData.map(aCard) };
+    return { team:aTeam(r.team), members:mRaw.map(m => aMember({ ...m, profiles: profilesMap[m.user_id] || null }, r.team.sport)), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:aData.map(aAbsence), cards:cData.map(aCard) };
   };
   const applyAdminData = td => {
     setTeams(p => p.some(x => x.id === td.team.id) ? p.map(x => x.id === td.team.id ? td.team : x) : [...p, td.team]);
@@ -5059,7 +5079,7 @@ export default function App() {
       const done = needRows(await api.patch(`cards?id=in.(${ids.join(',')})`, { consumed:true }, token)).map(r => r.id);
       setCards(p => p.map(c => done.includes(c.id) ? {...c, consumed:true} : c));
       if (done.length < ids.length) throw new Error(`só ${done.length} de ${ids.length} cartões foram atualizados`);
-      showToast(`Contador de ${members.find(m => String(m.id)===String(memberId))?.name || "jogador"} reposto a 0`, T.navy);
+      showToast(`Contador de ${members.find(m => String(m.id)===String(memberId))?.name || roleWord(team?.sport, false, true)} reposto a 0`, T.navy);
       return true;
     } catch(e){ writeFailed("repor o contador", e); return false; }
   });
@@ -5202,7 +5222,7 @@ export default function App() {
     // UPDATE bloqueado por RLS devolve sucesso sem alterar nada: só é sucesso se voltou uma linha
     if (!Array.isArray(res) || !res.length) throw new Error("Não foi possível alterar o papel (sem permissão?)");
     setMembers(p=>p.map(x=>x.id===id?{...x,role:nr}:x));
-    showToast(`${m.name} agora é ${ROLE_LABEL[nr] || nr}`, T.navy);
+    showToast(`${m.name} agora é ${nr === "player" ? roleWord((teams || []).find(t => t && t.id === m.teamId)?.sport, false, true) : (ROLE_LABEL[nr] || nr)}`, T.navy);
   };
   const removeMember = async id => {
     const m = members.find(x => x.id === id);
@@ -5239,7 +5259,7 @@ export default function App() {
       needNote(v);
       const a = await callOpen(memberId, v);
       absPut(a); setMemberUnavail(memberId, a);
-      showToast(`${m ? m.name : "Jogador"} marcado como indisponível`, T.navy);
+      showToast(`${m ? m.name : roleWord(team?.sport)} marcado como indisponível`, T.navy);
       return true;
     } catch(e) { writeFailed("guardar a lesão/ausência", e); return false; }
   });
@@ -5331,8 +5351,9 @@ export default function App() {
       const tmr = await api.get(`team_members?id=eq.${id}&select=position`, token);
       if (!prof || !Array.isArray(tmr) || !tmr.length) throw new Error("não foi possível confirmar o que ficou gravado");
       const saved = { name: prof.name || '', phone: prof.phone || '', birthday: prof.birthday || '', position: tmr[0].position || '', avatarUrl: prof.avatar_url || null };
-      setMembers(p => p.map(x => x.id === id ? { ...x, ...saved, position: saved.position || x.position, initials: mk(saved.name || x.name) } : x));
-      if (m.userId === myUserId) setProfile(p => ({ ...p, ...saved }));
+      const free = isFreeSport((teams || []).find(t => t && t.id === m.teamId)?.sport);
+      setMembers(p => p.map(x => x.id === id ? { ...x, ...saved, position: free ? saved.position : (saved.position || x.position), initials: mk(saved.name || x.name) } : x));
+      if (m.userId === myUserId) setProfile(p => free ? ({ ...p, ...saved, position: p.position }) : ({ ...p, ...saved }));
       const same = (a, b) => String(a == null ? "" : a).trim() === String(b == null ? "" : b).trim();
       const diff = [["nome", data.name, saved.name], ["telefone", data.phone, saved.phone], ["aniversário", data.birthday, saved.birthday], ["posição", data.position, saved.position]].filter(([, sent, got]) => !same(sent, got)).map(([n]) => n);
       if (diff.length) throw new Error(`a base de dados não guardou: ${diff.join(", ")}`);
@@ -5605,7 +5626,7 @@ export default function App() {
   const addFineWithToast = async d => {
     await addFine(d);
     const m = members.find(x => String(x.id) === String(d.memberId));
-    showToast(`🟥 Multa de ${d.amount}€ atribuída a ${m?.name || "jogador"}`, T.brand);
+    showToast(`🟥 Multa de ${d.amount}€ atribuída a ${m?.name || roleWord(team?.sport, false, true)}`, T.brand);
     // Send push to the fined member
     if (m?.userId) {
       sendPushToTeam(d.teamId, [m], "🟥 Recebeste uma multa!", `${d.amount}€ — ${d.reason || "Multa atribuída"}`).catch(()=>{});
@@ -5614,7 +5635,7 @@ export default function App() {
   const addCardWithAlert = async d => {
     const c = await addCard(d);
     const m = members.find(x => String(x.id) === String(d.memberId));
-    const name = m?.name || "jogador";
+    const name = m?.name || roleWord(team?.sport, false, true);
     showToast(`${d.kind==='amarelo'?"🟨":"🟥"} Cartão ${d.kind} lançado a ${name}`, d.kind==='amarelo'?"#B38F00":T.brand);
     if (c.kind !== 'amarelo') return;
     const y = cards.filter(x => x.teamId===d.teamId && String(x.memberId)===String(d.memberId) && x.kind==='amarelo' && !x.consumed).length + 1;
@@ -5760,7 +5781,7 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || profile?.position || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
+      {tab==="geral" && <GeneralTab user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
@@ -5779,10 +5800,11 @@ export default function App() {
       {modal==="expense" && isAdmin && <AddExpenseModal team={team} onAdd={addExpense} onClose={()=>setModal(null)} />}
       {editingFine && isAdmin && <EditFineModal fine={editingFine} onSave={editFine} onClose={()=>setEditingFine(null)} />}
       {modal==="team"    && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
-        try { needRows(await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token)); }
+      {modal==="profile" && <EditProfileModal user={freeSport ? { ...(profile||{}), position: realPosition(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position) } : (profile||{})} team={team} onSave={async u=>{
+        // desporto livre ("Outro"): o texto da posição vai só para a equipa; profiles.position não se toca
+        try { needRows(await api.patch(`profiles?id=eq.${myUserId}`,freeSport ? {name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null} : {name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token)); }
         catch(e){ writeFailed("guardar o perfil", e); return; }
-        setProfile(p=>({...p,...u}));
+        setProfile(p=>freeSport ? ({...p,...u,position:p.position}) : ({...p,...u}));
         await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
       }} onClose={()=>setModal(null)} />}
       {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
