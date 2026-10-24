@@ -523,6 +523,7 @@ var aTeam = function aTeam(t) {
     id: t.id,
     name: t.name,
     emoji: t.emoji || '⚽',
+    emojiRaw: t.emoji || '',
     color: t.color || '#1D3557',
     season: t.season || '2025/26',
     inviteCode: t.invite_code,
@@ -884,6 +885,11 @@ var isFreeSport = function isFreeSport(sport) {
 var roleWord = function roleWord(sport, plural, lower) {
   var w = isFreeSport(sport) ? plural ? "Membros" : "Membro" : plural ? "Jogadores" : "Jogador";
   return lower ? w.toLowerCase() : w;
+};
+var posIcon = function posIcon(team) {
+  if (!team || !isFreeSport(team.sport)) return "🏃";
+  var raw = team.emojiRaw !== undefined ? team.emojiRaw : team.emoji;
+  return String(raw == null ? "" : raw).trim() || "👤";
 };
 var positionIssue = function positionIssue(text) {
   return normSport(text).length > POSITION_MAX ? "A posi\xE7\xE3o pode ter no m\xE1ximo ".concat(POSITION_MAX, " caracteres.") : "";
@@ -12351,7 +12357,8 @@ var PrivacySection = function PrivacySection() {
   }, "Contacto"), "."));
 };
 var GeneralTab = function GeneralTab(_ref132) {
-  var user = _ref132.user,
+  var activeTeam = _ref132.activeTeam,
+    user = _ref132.user,
     myUserId = _ref132.myUserId,
     teams = _ref132.teams,
     members = _ref132.members,
@@ -12645,7 +12652,7 @@ var GeneralTab = function GeneralTab(_ref132) {
           fontSize: 13,
           color: T.sub
         }
-      }, "\uD83C\uDFC3 ", m.position), m.phone && React.createElement("p", {
+      }, posIcon(t), " ", m.position), m.phone && React.createElement("p", {
         style: {
           margin: "0 0 3px",
           fontSize: 13,
@@ -12748,7 +12755,7 @@ var GeneralTab = function GeneralTab(_ref132) {
       gridTemplateColumns: "1fr 1fr",
       gap: 10
     }
-  }, [["🏃 Posição", user.position || "—", false], ["📱 Telefone", user.phone || "—", false], ["🎂 Aniversário", user.birthday ? "".concat(fmtDate(user.birthday)).concat(myAge ? " \xB7 ".concat(myAge, " anos") : "") : "—", true]].map(function (_ref134) {
+  }, [["".concat(posIcon(activeTeam), " Posi\xE7\xE3o"), user.position || "—", false], ["📱 Telefone", user.phone || "—", false], ["🎂 Aniversário", user.birthday ? "".concat(fmtDate(user.birthday)).concat(myAge ? " \xB7 ".concat(myAge, " anos") : "") : "—", true]].map(function (_ref134) {
     var _ref135 = _slicedToArray(_ref134, 3),
       l = _ref135[0],
       v = _ref135[1],
@@ -21547,6 +21554,7 @@ function App() {
     onEditExpense: isAdmin ? editExpense : null,
     onDeleteExpense: isAdmin ? deleteExpense : null
   }), tab === "geral" && React.createElement(GeneralTab, {
+    activeTeam: team,
     user: _objectSpread(_objectSpread({}, profile || {}), {}, {
       position: ((_members$find3 = members.find(function (m) {
         return m.userId === myUserId && m.teamId === teamId;
