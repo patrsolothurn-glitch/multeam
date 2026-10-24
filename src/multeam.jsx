@@ -47,6 +47,10 @@ const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stat
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
+  if (m === "POST") { // exceção única: renovar a sessão (POST /auth/v1/token?grant_type=refresh_token); login, registo, logout e qualquer outra escrita continuam bloqueados
+    const parts = String(url).split("?");
+    if (parts[0] === `${SB_URL}/auth/v1/token` && /(^|&)grant_type=refresh_token(&|$)/.test(parts[1] || "")) return true;
+  }
   return m === "POST" && RO_RPCS.some(f => String(url).split("?")[0] === `${SB_URL}/rest/v1/rpc/${f}`);
 };
 const roCheck = (url, method) => { if (RO.on && !roAllows(url, method)) throw new Error(RO_MSG); };
@@ -75,6 +79,101 @@ const api = {
   async resetPassword(email) { await fetch(`${SB_URL}/auth/v1/recover`,{method:'POST',headers:{'apikey':SB_KEY,'Content-Type':'application/json'},body:JSON.stringify({email})}); },
   async updatePassword(newPass, accessToken) { const r=await fetch(`${SB_URL}/auth/v1/user`,{method:'PUT',headers:{'apikey':SB_KEY,'Authorization':`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({password:newPass})}); const d=await r.json(); if(d.error)throw new Error(d.error_description||'Erro'); return d; },
 };
+
+// ── SESSÃO PERSISTENTE ───────────────────────────────────────
+// A sessão (access + refresh token) fica em localStorage ("multeam.sessao") para o login sobreviver a fechar e reabrir a app.
+// Não depende das definições de Auth do Supabase: a validade vem da resposta (expires_at, expires_in ou o próprio JWT) e funciona com a rotação
+// do refresh token ligada ou desligada (se a resposta não trouxer refresh_token novo, mantém-se o antigo).
+const SESSION_KEY = "multeam.sessao";
+const sessRead = () => { try { const j = JSON.parse(window.localStorage.getItem(SESSION_KEY) || "null"); return j && typeof j === "object" && j.rt && j.uid && j.at ? j : null; } catch(e) { return null; } };
+// Entre janelas, uma escrita em localStorage pode demorar uns milissegundos a ficar visível na outra janela. Por isso cada escrita leva um número de sequência (seq)
+// e é também anunciada por BroadcastChannel; cada janela guarda a sessão mais recente de que tem notícia (sessLatest) e usa sempre a de maior seq.
+let sessLatest = null;
+const sessSeq = o => (o && o.seq) || 0;
+const sessNewest = () => { const a = sessRead(); return sessSeq(sessLatest) > sessSeq(a) ? sessLatest : a; };
+let sessBC = null;
+try {
+  if (typeof BroadcastChannel !== "undefined") {
+    sessBC = new BroadcastChannel("multeam-sessao");
+    sessBC.onmessage = e => { const o = e.data; if (o && o.fim) { sessLatest = null; return; } if (o && o.rt && sessSeq(o) > sessSeq(sessLatest)) sessLatest = o; };
+  }
+  if (typeof window !== "undefined") window.addEventListener("storage", e => {
+    if (e.key !== "multeam.sessao") return;
+    if (!e.newValue) { sessLatest = null; return; }
+    try { const o = JSON.parse(e.newValue); if (o && o.rt && sessSeq(o) >= sessSeq(sessLatest)) sessLatest = o; } catch(err) {}
+  });
+} catch(e) {}
+const sessWrite = o => {
+  const n = { ...o, seq: sessSeq(sessNewest()) + 1 };
+  sessLatest = n;
+  try { window.localStorage.setItem(SESSION_KEY, JSON.stringify(n)); } catch(e) {}
+  try { sessBC && sessBC.postMessage(n); } catch(e) {}
+  return n;
+};
+const sessClear = () => { sessLatest = null; try { window.localStorage.removeItem(SESSION_KEY); } catch(e) {} try { sessBC && sessBC.postMessage({ fim:true }); } catch(e) {} };
+const jwtExpMs = t => { try { const q = JSON.parse(atob(String(t).split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); return q && q.exp ? q.exp * 1000 : 0; } catch(e) { return 0; } };
+// resposta do Supabase (token, signup ou link) → sessão a guardar; m = margem de renovação (1/3 da validade, entre 2 s e 5 min)
+const sessFromAuth = (d, prev) => {
+  if (!d || typeof d !== "object") return null;
+  const at = d.access_token || (d.session && d.session.access_token);
+  const rt = d.refresh_token || (d.session && d.session.refresh_token) || (prev && prev.rt) || "";
+  const uid = (d.user && d.user.id) || (d.session && d.session.user && d.session.user.id) || (prev && prev.uid) || "";
+  if (!at || !rt || !uid) return null;
+  const now = Date.now();
+  const exp = d.expires_at ? d.expires_at * 1000 : (d.expires_in ? now + d.expires_in * 1000 : (jwtExpMs(at) || now + 50 * 60000));
+  return { at, rt, uid, exp, m: Math.min(300000, Math.max(2000, Math.round(Math.max(exp - now, 1000) / 3))) };
+};
+// uma chamada de renovação: "ok" | "invalid" (o refresh token já não vale) | "transient" (rede, 5xx, 429: a sessão guarda-se)
+const sessCall = async (rt, uid) => {
+  let ctl = null, timer = null;
+  try { ctl = typeof AbortController !== "undefined" ? new AbortController() : null; timer = setTimeout(() => { try { ctl && ctl.abort(); } catch(e) {} }, 15000); } catch(e) {}
+  try {
+    const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{ "apikey":SB_KEY, "Content-Type":"application/json" }, body:JSON.stringify({ refresh_token: rt }), signal: ctl ? ctl.signal : undefined });
+    let d = null; try { d = await r.json(); } catch(e) { d = null; }
+    if (r.ok && d && d.access_token) { const o = sessFromAuth(d, { rt, uid }); return o ? { status:"ok", s:o } : { status:"transient" }; }
+    if ([400, 401, 403, 404, 422].includes(r.status)) return { status:"invalid" };
+    return { status:"transient" };
+  } catch(e) { return { status:"transient" }; }
+  finally { if (timer) clearTimeout(timer); }
+};
+let sessInflight = null; // dentro desta janela, uma renovação de cada vez
+// dá uns instantes (voltas de mensagens, não depende de setTimeout) para a escrita desta janela chegar às outras antes de largar o bloqueio
+const sessSettle = async () => { try { const mc = new MessageChannel(), t0 = performance.now(); for (let i = 0; i < 2000 && performance.now() - t0 < 40; i++) await new Promise(res => { mc.port1.onmessage = () => res(); mc.port2.postMessage(0); }); } catch(e) {} };
+// Web Locks: uma janela de cada vez. Se tivemos de esperar pelo bloqueio, outra janela acabou de renovar: assenta antes de ler. Sem Web Locks (ou sem permissão), corre na mesma.
+const sessLock = async fn => {
+  try {
+    if (typeof navigator !== "undefined" && navigator.locks && navigator.locks.request) {
+      const free = await navigator.locks.request("multeam-auth", { ifAvailable:true }, async lock => lock ? { v: await fn(false) } : null);
+      if (free) return free.v;
+      return await navigator.locks.request("multeam-auth", () => fn(true));
+    }
+  } catch(e) { if (!(e && e.name === "SecurityError")) throw e; }
+  return fn(false);
+};
+// Renova se for preciso. Entre janelas: Web Locks (uma de cada vez) e, já dentro do bloqueio, volta a ler o armazenamento, porque outra janela pode
+// ter renovado entretanto (o refresh token pode ser de uso único): nesse caso usa o que lá está em vez de renovar outra vez.
+const sessRenew = force => {
+  if (sessInflight) return sessInflight;
+  sessInflight = sessLock(async (esperou) => {
+    if (esperou) await sessSettle();
+    const cur = sessNewest();
+    if (!cur) return { status:"none" };
+    if (!force && cur.exp - Date.now() > cur.m) return { status:"ok", s:cur, same:true };
+    let r = await sessCall(cur.rt, cur.uid);
+    if (r.status === "invalid") {
+      await sessSettle();
+      const again = sessNewest();
+      if (!again) return { status:"none" };
+      if (again.rt !== cur.rt) { if (again.exp - Date.now() > 1000) return { status:"ok", s:again, same:true }; r = await sessCall(again.rt, again.uid); }
+    }
+    if (r.status === "ok") { r.s = sessWrite(r.s); await sessSettle(); } // só larga o bloqueio depois de a escrita ter chegado às outras janelas
+    else if (r.status === "invalid") { sessClear(); await sessSettle(); }
+    return r;
+  }).finally(() => { sessInflight = null; });
+  return sessInflight;
+};
+// terminar sessão: revoga no servidor (sem bloquear nem falhar o logout local)
+const sessServerLogout = tok => { if (!tok) return; try { fetch(`${SB_URL}/auth/v1/logout`, { method:"POST", headers:{ "apikey":SB_KEY, "Authorization":`Bearer ${tok}`, "Content-Type":"application/json" }, keepalive:true }).catch(() => {}); } catch(e) {} };
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
@@ -4663,6 +4762,21 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
   );
 };
 
+const SessionSplash = () => (
+  <div role="status" aria-live="polite" data-session-splash style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, color:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"0 28px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <p style={{ margin:"0 0 8px", fontSize:28, fontWeight:900, letterSpacing:-0.5 }}>Multeam</p>
+    <p style={{ margin:0, fontSize:16, fontWeight:700, opacity:0.9 }}>A entrar…</p>
+  </div>
+);
+const SessionOffline = ({ onRetry, onOther, busy }) => (
+  <div data-session-offline style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, color:"#fff", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"0 28px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", textAlign:"center" }}>
+    <p style={{ margin:"0 0 8px", fontSize:28, fontWeight:900, letterSpacing:-0.5 }}>Sem ligação</p>
+    <p style={{ margin:"0 0 22px", fontSize:15, lineHeight:1.4, maxWidth:320, opacity:0.92 }}>Não foi possível entrar agora. A tua sessão está guardada: tenta outra vez quando tiveres rede.</p>
+    <button onClick={onRetry} disabled={busy} style={{ width:"100%", maxWidth:320, minHeight:48, borderRadius:14, border:"none", background:T.brand, color:"#fff", fontWeight:800, fontSize:16, cursor:"pointer", marginBottom:10, fontFamily:"inherit", opacity:busy?0.6:1 }}>{busy ? "A tentar…" : "Tentar novamente"}</button>
+    <button onClick={onOther} style={{ width:"100%", maxWidth:320, minHeight:48, borderRadius:14, border:"2px solid rgba(255,255,255,0.7)", background:"transparent", color:"#fff", fontWeight:800, fontSize:15, cursor:"pointer", fontFamily:"inherit" }}>Entrar com outra conta</button>
+  </div>
+);
+
 export default function App() {
   // Detect tokens from email links (magic link or password recovery)
   const [recoveryToken] = useState(() => {
@@ -4983,6 +5097,7 @@ export default function App() {
       const tok = d.access_token || d.session?.access_token;
       const uid = d.user?.id;
       if (!tok || !uid) throw new Error(d.error_description || d.msg || 'Email ou password incorretos');
+      const ss = sessFromAuth(d); if (ss) sessWrite(ss); // sessão persistente
       setToken(tok); setMyUserId(uid); await initApp(tok, uid);
     } catch(e) { setAuthError(errPt(e)); setLoading(false); }
   };
@@ -4997,13 +5112,14 @@ export default function App() {
         // Update profile with the provided name
         let nameFailed = false;
         try { needRows(await api.patch(`profiles?id=eq.${uid}`, { name, initials: mk(name) }, tok)); } catch(e) { nameFailed = true; console.warn('profile name update failed:', e); }
+        const ss = sessFromAuth(d); if (ss) sessWrite(ss); // sessão persistente
         setToken(tok); setMyUserId(uid); await initApp(tok, uid);
         if (nameFailed) showToast("⚠️ Conta criada, mas o teu nome não ficou guardado. Edita-o em Geral.", T.brand);
       } else if (uid) {
         try {
           const d2 = await api.signIn(email, pass);
           const tok2 = d2.access_token || d2.session?.access_token;
-          if (tok2) { setToken(tok2); setMyUserId(d2.user.id); await initApp(tok2, d2.user.id); }
+          if (tok2) { const ss = sessFromAuth(d2); if (ss) sessWrite(ss); setToken(tok2); setMyUserId(d2.user.id); await initApp(tok2, d2.user.id); }
           else setAuthError("Conta criada! Toca em 'Entrar' para aceder.");
         } catch { setAuthError("Conta criada! Toca em 'Entrar' para aceder."); }
       } else {
@@ -5013,7 +5129,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => { RO.on = false; roHistoryRef.current = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
+  const handleLogout = (opts) => { RO.on = false; sessClear(); if (!(opts && opts.local)) sessServerLogout(token); roHistoryRef.current = false; setAdminView(false); setAdminErr(null); setToken(null); setMyUserId(null); setProfile(null); setTeams([]); setMembers([]); setFineTypes([]); setFines([]); setCards([]); setExpenses([]); setTrainings([]); setPresences({}); setAbsences([]); setTeamId(null); setAppReady(false); setTab("home"); };
 
   // Data actions
   const addFine = async d => {
@@ -5657,12 +5773,71 @@ export default function App() {
     fetch(`${SB_URL}/auth/v1/user`, {
       headers: { "apikey": SB_KEY, "Authorization": `Bearer ${magicToken.access}` }
     }).then(r => r.json()).then(u => {
-      if (u.id) { setToken(magicToken.access); setMyUserId(u.id); window.history.replaceState(null, "", "/"); }
+      if (u.id) { const ss = sessFromAuth({ access_token: magicToken.access, refresh_token: magicToken.refresh, user: { id: u.id } }); if (ss) sessWrite(ss); setToken(magicToken.access); setMyUserId(u.id); window.history.replaceState(null, "", "/"); }
       else { console.warn("magic link inválido:", u && (u.msg || u.error_description || u.error)); setAuthError("O link de acesso expirou ou não é válido. Entra com o teu email e password."); try { window.history.replaceState(null, "", "/"); } catch(e) {} }
     }).catch(e => { console.warn("magic link falhou:", e && e.message); setAuthError(errPt(e)); });
   }, [magicToken]);
 
+  // ── Sessão persistente: restaurar no arranque, renovar e sincronizar entre janelas ──
+  // "none" | "restoring" (a entrar com a sessão guardada) | "offline" (sem ligação: a sessão fica guardada). O link de recuperação e o link de convite têm prioridade.
+  const [sessState, setSessState] = useState(() => (recoveryToken || magicToken || !sessNewest()) ? "none" : "restoring");
+  const [sessBusy, setSessBusy] = useState(false);
+  const tokenRef = React.useRef(null); tokenRef.current = token;
+  const uidRef = React.useRef(null); uidRef.current = myUserId;
+  const logoutRef = React.useRef(null); logoutRef.current = handleLogout;
+  const restoreSession = async (silent) => {
+    if (!silent) setSessState("restoring"); setSessBusy(true);
+    const r = await sessRenew(false);
+    setSessBusy(false);
+    if (r.status === "ok") {
+      setToken(r.s.at); setMyUserId(r.s.uid);
+      const okInit = await initApp(r.s.at, r.s.uid);
+      if (okInit) { setSessState("none"); return; }
+      setToken(null); setMyUserId(null); setAuthError(null); setSessState("offline"); // não conseguiu carregar a conta: a sessão fica guardada
+    } else if (r.status === "transient") setSessState("offline");
+    else { setSessState("none"); if (r.status === "invalid") setAuthError("A sessão terminou. Entra outra vez."); }
+  };
+  useEffect(() => { if (sessState === "restoring") restoreSession(); }, []);
+  useEffect(() => { // sem ligação: volta a tentar sozinho quando a rede volta e de 20 em 20 s
+    if (sessState !== "offline") return;
+    const go = () => { if (!sessBusy) restoreSession(true); };
+    window.addEventListener("online", go); const iv = setInterval(go, 20000);
+    return () => { window.removeEventListener("online", go); clearInterval(iv); };
+  }, [sessState, sessBusy]);
+  useEffect(() => { // renovação antes de expirar (também ao voltar a ver a app e quando volta a rede)
+    if (!token) return;
+    let t = null, dead = false;
+    const schedule = () => { const ss = sessNewest(); if (!ss) return; t = setTimeout(tick, Math.min(Math.max(2000, ss.exp - ss.m - Date.now()), 2147000000)); };
+    const tick = async () => {
+      const r = await sessRenew(false);
+      if (dead) return;
+      if (r.status === "ok") { if (r.s.at !== tokenRef.current) setToken(r.s.at); else schedule(); }
+      else if (r.status === "transient") t = setTimeout(tick, 30000);
+      else { logoutRef.current({ local:true }); setAuthError("A sessão terminou. Entra outra vez."); }
+    };
+    const wake = () => { const ss = sessNewest(); if (ss && ss.exp - Date.now() < ss.m) { clearTimeout(t); tick(); } };
+    const vis = () => { if (document.visibilityState === "visible") wake(); };
+    schedule();
+    document.addEventListener("visibilitychange", vis); window.addEventListener("online", wake);
+    return () => { dead = true; clearTimeout(t); document.removeEventListener("visibilitychange", vis); window.removeEventListener("online", wake); };
+  }, [token]);
+  useEffect(() => { // outra janela: terminou a sessão (sai daqui também), renovou o token (usa-o) ou entrou com outra conta (sai daqui)
+    const on = e => {
+      if (e.key !== SESSION_KEY) return;
+      if (!e.newValue) { if (tokenRef.current) logoutRef.current({ local:true }); return; }
+      try {
+        const o = JSON.parse(e.newValue);
+        if (!o || !o.at || !tokenRef.current) return;
+        if (o.uid && uidRef.current && o.uid !== uidRef.current) { logoutRef.current({ local:true }); return; }
+        if (o.at !== tokenRef.current) setToken(o.at);
+      } catch(err) {}
+    };
+    window.addEventListener("storage", on); return () => window.removeEventListener("storage", on);
+  }, []);
+
   if (recoveryToken) return <ResetPasswordScreen accessToken={recoveryToken} onDone={()=>{ window.history.replaceState(null,"","/"); window.location.reload(); }} />;
+  if ((!token || !appReady) && sessState === "restoring") return <SessionSplash />;
+  if (!token && sessState === "offline") return <SessionOffline busy={sessBusy} onRetry={()=>restoreSession()} onOther={()=>{ sessClear(); setSessState("none"); }} />;
   if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
