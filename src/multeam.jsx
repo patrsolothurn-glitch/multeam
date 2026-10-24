@@ -2771,7 +2771,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
               <span style={{ fontSize:26 }}>{tm.emoji}</span>
               <span style={{ flex:1, minWidth:0 }}>
                 <span style={{ display:"block", fontWeight:800, fontSize:15, color:T.text, overflowWrap:"anywhere" }}>{tm.name || "Sem nome"}</span>
-                <span style={{ display:"block", fontSize:12, color:"#5F5F66" }}>{tm.season ? `${tm.season} · ` : ""}{isFreeSport(tm.sport) ? plural(tm.playersCount, "membro", "membros") : plural(tm.playersCount, "jogador", "jogadores")} · {plural(tm.membersCount, "membro", "membros")}</span>
+                <span style={{ display:"block", fontSize:12, color:"#5F5F66" }}>{tm.season ? `${tm.season} · ` : ""}{isFreeSport(tm.sport) ? plural(tm.membersCount, "membro", "membros") : <>{plural(tm.playersCount, "jogador", "jogadores")} · {plural(tm.membersCount, "membro", "membros")}</>}</span>
               </span>
               <span style={{ textAlign:"right", flexShrink:0 }}>
                 <span style={{ display:"block", fontWeight:900, fontSize:15, color: tm.unpaid > 0 ? T.brand : T.navy }}>{eur(tm.unpaid)}</span>
