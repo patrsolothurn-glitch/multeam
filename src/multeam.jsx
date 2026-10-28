@@ -340,45 +340,8 @@ const TACTICS_BY_SPORT = {
 const tacticList = sport => TACTICS_BY_SPORT[sportSplit(sport).sel] || null;
 const normTactic = v => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, TACTIC_MAX).trim();
 const TACTIC_OTHER = "__outra";
-// Seletor da tática (só mostrado a admins). emptyLabel = texto da opção "sem valor" ("Por definir" na equipa; "Da equipa (…)" nos eventos).
-const TacticField = ({ sport, value, onChange, emptyLabel, color }) => {
-  const list = tacticList(sport);
-  const v = value || "";
-  const [other, setOther] = useState(() => !!v && !!list && !list.includes(v));
-  const showText = !list || other;
-  const selVal = !list ? "" : other ? TACTIC_OTHER : (list.includes(v) ? v : "");
-  return (
-    <div data-tactic-field>
-      <FL>Tática</FL>
-      {list && (
-        <FSel value={selVal} onChange={e=>{ const x = e.target.value; if (x === TACTIC_OTHER) { setOther(true); onChange(""); } else { setOther(false); onChange(x); } }}>
-          <option value="">{emptyLabel}</option>
-          {list.map(x=><option key={x} value={x}>{x}</option>)}
-          <option value={TACTIC_OTHER}>Outra (escrever)</option>
-        </FSel>
-      )}
-      {showText && <FI value={v} maxLength={TACTIC_MAX} onChange={e=>onChange(e.target.value)} placeholder={list ? "Escreve a tática" : `Opcional (${emptyLabel})`} data-tactic-input style={{ borderColor:color }} />}
-    </div>
-  );
-};
-// Valor da tática em destaque (letra grande, negrito)
-const TacticBig = ({ tactic }) => {
-  const n = String(tactic||"").length;
-  return tactic
-    ? <p data-tactic-value style={{ margin:0, fontSize:n<=8?32:n<=14?24:20, fontWeight:900, lineHeight:1.15, overflowWrap:"anywhere" }}>{tactic}</p>
-    : <p data-tactic-value style={{ margin:0, fontSize:15, color:T.sub, fontWeight:600 }}>Por definir</p>;
-};
 // Linha pequena de tática (cartões); sem tática (do evento ou da equipa) = linha escondida
 const tacticOf = (t, team) => (t && t.tactic) || (team && team.tactic) || "";
-const TacticLine = ({ t, team }) => {
-  const x = tacticOf(t, team);
-  return x ? <p data-tactic-line style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>🎯 Tática: <b style={{ color:T.text, fontWeight:800 }}>{x}</b></p> : null;
-};
-// Campo da tática nos modais de evento (só admins): "" = usa a da equipa
-const EventTactic = ({ team, isAdmin, value, onChange }) => !isAdmin ? null : (
-  <TacticField sport={team.sport} value={value} onChange={onChange} color={team.color}
-    emptyLabel={`Da equipa (${team.tactic || "por definir"})`} />
-);
 // Posição por desporto: nas equipas com desporto livre ("Outro") a posição é texto livre (opcional, máx. 30, sem espaços a mais)
 // e grava-se só em team_members.position (nunca em profiles.position). Nos desportos da lista mantém-se a lista de posições.
 const POSITION_MAX = 30;
@@ -717,6 +680,44 @@ const PrimaryBtn = ({ onClick, disabled, color = T.brand, children }) => (
   <button onClick={onClick} disabled={disabled} style={{ width:"100%", padding:"15px", borderRadius:14, border:"none", background:disabled ? T.border : color, color:"#fff", fontSize:16, fontWeight:800, cursor:disabled ? "default" : "pointer", fontFamily:"inherit", marginTop:4 }}>
     {children}
   </button>
+);
+
+// Seletor da tática (só mostrado a admins). emptyLabel = texto da opção "sem valor" ("Por definir" na equipa; "Da equipa (…)" nos eventos).
+const TacticField = ({ sport, value, onChange, emptyLabel, color }) => {
+  const list = tacticList(sport);
+  const v = value || "";
+  const [other, setOther] = useState(() => !!v && !!list && !list.includes(v));
+  const showText = !list || other;
+  const selVal = !list ? "" : other ? TACTIC_OTHER : (list.includes(v) ? v : "");
+  return (
+    <div data-tactic-field>
+      <FL>Tática</FL>
+      {list && (
+        <FSel value={selVal} onChange={e=>{ const x = e.target.value; if (x === TACTIC_OTHER) { setOther(true); onChange(""); } else { setOther(false); onChange(x); } }}>
+          <option value="">{emptyLabel}</option>
+          {list.map(x=><option key={x} value={x}>{x}</option>)}
+          <option value={TACTIC_OTHER}>Outra (escrever)</option>
+        </FSel>
+      )}
+      {showText && <FI value={v} maxLength={TACTIC_MAX} onChange={e=>onChange(e.target.value)} placeholder={list ? "Escreve a tática" : `Opcional (${emptyLabel})`} data-tactic-input style={{ borderColor:color }} />}
+    </div>
+  );
+};
+// Valor da tática em destaque (letra grande, negrito)
+const TacticBig = ({ tactic }) => {
+  const n = String(tactic||"").length;
+  return tactic
+    ? <p data-tactic-value style={{ margin:0, fontSize:n<=8?32:n<=14?24:20, fontWeight:900, lineHeight:1.15, overflowWrap:"anywhere" }}>{tactic}</p>
+    : <p data-tactic-value style={{ margin:0, fontSize:15, color:T.sub, fontWeight:600 }}>Por definir</p>;
+};
+const TacticLine = ({ t, team }) => {
+  const x = tacticOf(t, team);
+  return x ? <p data-tactic-line style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>🎯 Tática: <b style={{ color:T.text, fontWeight:800 }}>{x}</b></p> : null;
+};
+// Campo da tática nos modais de evento (só admins): "" = usa a da equipa
+const EventTactic = ({ team, isAdmin, value, onChange }) => !isAdmin ? null : (
+  <TacticField sport={team.sport} value={value} onChange={onChange} color={team.color}
+    emptyLabel={`Da equipa (${team.tactic || "por definir"})`} />
 );
 
 // ── MODALS ────────────────────────────────────────────────────

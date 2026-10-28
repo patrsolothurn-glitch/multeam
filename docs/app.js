@@ -1316,113 +1316,8 @@ var normTactic = function normTactic(v) {
   return String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, TACTIC_MAX).trim();
 };
 var TACTIC_OTHER = "__outra";
-var TacticField = function TacticField(_ref8) {
-  var sport = _ref8.sport,
-    value = _ref8.value,
-    _onChange = _ref8.onChange,
-    emptyLabel = _ref8.emptyLabel,
-    color = _ref8.color;
-  var list = tacticList(sport);
-  var v = value || "";
-  var _useState = useState(function () {
-      return !!v && !!list && !list.includes(v);
-    }),
-    _useState2 = _slicedToArray(_useState, 2),
-    other = _useState2[0],
-    setOther = _useState2[1];
-  var showText = !list || other;
-  var selVal = !list ? "" : other ? TACTIC_OTHER : list.includes(v) ? v : "";
-  return React.createElement("div", {
-    "data-tactic-field": true
-  }, React.createElement(FL, null, "T\xE1tica"), list && React.createElement(FSel, {
-    value: selVal,
-    onChange: function onChange(e) {
-      var x = e.target.value;
-      if (x === TACTIC_OTHER) {
-        setOther(true);
-        _onChange("");
-      } else {
-        setOther(false);
-        _onChange(x);
-      }
-    }
-  }, React.createElement("option", {
-    value: ""
-  }, emptyLabel), list.map(function (x) {
-    return React.createElement("option", {
-      key: x,
-      value: x
-    }, x);
-  }), React.createElement("option", {
-    value: TACTIC_OTHER
-  }, "Outra (escrever)")), showText && React.createElement(FI, {
-    value: v,
-    maxLength: TACTIC_MAX,
-    onChange: function onChange(e) {
-      return _onChange(e.target.value);
-    },
-    placeholder: list ? "Escreve a tática" : "Opcional (".concat(emptyLabel, ")"),
-    "data-tactic-input": true,
-    style: {
-      borderColor: color
-    }
-  }));
-};
-var TacticBig = function TacticBig(_ref9) {
-  var tactic = _ref9.tactic;
-  var n = String(tactic || "").length;
-  return tactic ? React.createElement("p", {
-    "data-tactic-value": true,
-    style: {
-      margin: 0,
-      fontSize: n <= 8 ? 32 : n <= 14 ? 24 : 20,
-      fontWeight: 900,
-      lineHeight: 1.15,
-      overflowWrap: "anywhere"
-    }
-  }, tactic) : React.createElement("p", {
-    "data-tactic-value": true,
-    style: {
-      margin: 0,
-      fontSize: 15,
-      color: T.sub,
-      fontWeight: 600
-    }
-  }, "Por definir");
-};
 var tacticOf = function tacticOf(t, team) {
   return t && t.tactic || team && team.tactic || "";
-};
-var TacticLine = function TacticLine(_ref0) {
-  var t = _ref0.t,
-    team = _ref0.team;
-  var x = tacticOf(t, team);
-  return x ? React.createElement("p", {
-    "data-tactic-line": true,
-    style: {
-      margin: "1px 0 0",
-      fontSize: 13,
-      color: T.sub
-    }
-  }, "\uD83C\uDFAF T\xE1tica: ", React.createElement("b", {
-    style: {
-      color: T.text,
-      fontWeight: 800
-    }
-  }, x)) : null;
-};
-var EventTactic = function EventTactic(_ref1) {
-  var team = _ref1.team,
-    isAdmin = _ref1.isAdmin,
-    value = _ref1.value,
-    onChange = _ref1.onChange;
-  return !isAdmin ? null : React.createElement(TacticField, {
-    sport: team.sport,
-    value: value,
-    onChange: onChange,
-    color: team.color,
-    emptyLabel: "Da equipa (".concat(team.tactic || "por definir", ")")
-  });
 };
 var POSITION_MAX = 30;
 var isFreeSport = function isFreeSport(sport) {
@@ -1603,10 +1498,10 @@ var normCountry = function normCountry(s) {
   return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 };
 var COUNTRY_ISO = {};
-[["PT", "portugal"], ["CH", "suica", "switzerland", "schweiz", "suisse", "svizzera"], ["ES", "espanha", "spain", "espana"], ["FR", "franca", "france", "frankreich"], ["DE", "alemanha", "germany", "deutschland"], ["IT", "italia", "italy", "italien"], ["BR", "brasil", "brazil"], ["AO", "angola"], ["MZ", "mocambique", "mozambique"], ["CV", "cabo verde", "cape verde"], ["GB", "reino unido", "united kingdom", "uk", "gb", "great britain"], ["NL", "holanda", "paises baixos", "netherlands", "niederlande"], ["BE", "belgica", "belgium", "belgien"], ["LU", "luxemburgo", "luxembourg"], ["AT", "austria", "osterreich"], ["LI", "liechtenstein"]].forEach(function (_ref10) {
-  var _ref11 = _toArray(_ref10),
-    iso = _ref11[0],
-    names = _arrayLikeToArray(_ref11).slice(1);
+[["PT", "portugal"], ["CH", "suica", "switzerland", "schweiz", "suisse", "svizzera"], ["ES", "espanha", "spain", "espana"], ["FR", "franca", "france", "frankreich"], ["DE", "alemanha", "germany", "deutschland"], ["IT", "italia", "italy", "italien"], ["BR", "brasil", "brazil"], ["AO", "angola"], ["MZ", "mocambique", "mozambique"], ["CV", "cabo verde", "cape verde"], ["GB", "reino unido", "united kingdom", "uk", "gb", "great britain"], ["NL", "holanda", "paises baixos", "netherlands", "niederlande"], ["BE", "belgica", "belgium", "belgien"], ["LU", "luxemburgo", "luxembourg"], ["AT", "austria", "osterreich"], ["LI", "liechtenstein"]].forEach(function (_ref8) {
+  var _ref9 = _toArray(_ref8),
+    iso = _ref9[0],
+    names = _arrayLikeToArray(_ref9).slice(1);
   COUNTRY_ISO[iso.toLowerCase()] = iso;
   names.forEach(function (n) {
     COUNTRY_ISO[n] = iso;
@@ -1651,10 +1546,10 @@ var fetchHourly = function fetchHourly(city, country) {
 var useForecast = function useForecast(team, trainings) {
   var city = (team && team.city || "").trim();
   var key = city ? "".concat(team.id, "|").concat(city, "|").concat(team.country || "") : "";
-  var _useState3 = useState(null),
-    _useState4 = _slicedToArray(_useState3, 2),
-    hourly = _useState4[0],
-    setHourly = _useState4[1];
+  var _useState = useState(null),
+    _useState2 = _slicedToArray(_useState, 2),
+    hourly = _useState2[0],
+    setHourly = _useState2[1];
   useEffect(function () {
     if (!key) {
       setHourly(null);
@@ -1731,11 +1626,11 @@ var cardStatus = function cardStatus(y) {
 var age = function age(d) {
   return d ? Math.floor((new Date() - new Date(d)) / (365.25 * 24 * 3600 * 1000)) : null;
 };
-var FineIcon = function FineIcon(_ref12) {
-  var icon = _ref12.icon,
-    _ref12$size = _ref12.size,
-    size = _ref12$size === void 0 ? 24 : _ref12$size,
-    style = _ref12.style;
+var FineIcon = function FineIcon(_ref0) {
+  var icon = _ref0.icon,
+    _ref0$size = _ref0.size,
+    size = _ref0$size === void 0 ? 24 : _ref0$size,
+    style = _ref0.style;
   return icon === MULTEAM_ICON ? React.createElement("img", {
     src: "icon-192.png",
     alt: "Multeam",
@@ -1760,10 +1655,10 @@ var LB = {
   n: 0,
   guard: 0
 };
-var PhotoLightbox = function PhotoLightbox(_ref13) {
-  var src = _ref13.src,
-    name = _ref13.name,
-    onClose = _ref13.onClose;
+var PhotoLightbox = function PhotoLightbox(_ref1) {
+  var src = _ref1.src,
+    name = _ref1.name,
+    onClose = _ref1.onClose;
   var closeRef = React.useRef(onClose);
   closeRef.current = onClose;
   useEffect(function () {
@@ -1874,15 +1769,15 @@ var PhotoLightbox = function PhotoLightbox(_ref13) {
   }, name));
   return typeof ReactDOM !== "undefined" && ReactDOM.createPortal ? ReactDOM.createPortal(node, document.body) : node;
 };
-var ZoomPhoto = function ZoomPhoto(_ref14) {
-  var src = _ref14.src,
-    name = _ref14.name,
-    style = _ref14.style,
-    onTapGesture = _ref14.onTapGesture;
-  var _useState5 = useState(false),
-    _useState6 = _slicedToArray(_useState5, 2),
-    open = _useState6[0],
-    setOpen = _useState6[1];
+var ZoomPhoto = function ZoomPhoto(_ref10) {
+  var src = _ref10.src,
+    name = _ref10.name,
+    style = _ref10.style,
+    onTapGesture = _ref10.onTapGesture;
+  var _useState3 = useState(false),
+    _useState4 = _slicedToArray(_useState3, 2),
+    open = _useState4[0],
+    setOpen = _useState4[1];
   return React.createElement(React.Fragment, null, React.createElement("img", {
     src: src,
     alt: name || "",
@@ -1913,15 +1808,15 @@ var readableOn = function readableOn(c) {
   var L = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
   return 1.05 / (L + 0.05) >= 4.5 ? "#fff" : "#1a1a1f";
 };
-var Avatar = function Avatar(_ref15) {
-  var initials = _ref15.initials,
-    _ref15$color = _ref15.color,
-    color = _ref15$color === void 0 ? T.navy : _ref15$color,
-    _ref15$size = _ref15.size,
-    size = _ref15$size === void 0 ? 38 : _ref15$size,
-    photo = _ref15.photo,
-    name = _ref15.name,
-    onTapGesture = _ref15.onTapGesture;
+var Avatar = function Avatar(_ref11) {
+  var initials = _ref11.initials,
+    _ref11$color = _ref11.color,
+    color = _ref11$color === void 0 ? T.navy : _ref11$color,
+    _ref11$size = _ref11.size,
+    size = _ref11$size === void 0 ? 38 : _ref11$size,
+    photo = _ref11.photo,
+    name = _ref11.name,
+    onTapGesture = _ref11.onTapGesture;
   return photo ? React.createElement("div", {
     style: {
       width: size,
@@ -1980,9 +1875,9 @@ var useMoney = function useMoney() {
   f.sym = curSym(c);
   return f;
 };
-var Badge = function Badge(_ref16) {
-  var label = _ref16.label,
-    color = _ref16.color;
+var Badge = function Badge(_ref12) {
+  var label = _ref12.label,
+    color = _ref12.color;
   return React.createElement("span", {
     style: {
       display: "inline-block",
@@ -1995,11 +1890,11 @@ var Badge = function Badge(_ref16) {
     }
   }, label);
 };
-var ShieldIcon = function ShieldIcon(_ref17) {
-  var _ref17$size = _ref17.size,
-    size = _ref17$size === void 0 ? 12 : _ref17$size,
-    _ref17$color = _ref17.color,
-    color = _ref17$color === void 0 ? "#fff" : _ref17$color;
+var ShieldIcon = function ShieldIcon(_ref13) {
+  var _ref13$size = _ref13.size,
+    size = _ref13$size === void 0 ? 12 : _ref13$size,
+    _ref13$color = _ref13.color,
+    color = _ref13$color === void 0 ? "#fff" : _ref13$color;
   return React.createElement("svg", {
     width: size,
     height: size,
@@ -2009,11 +1904,11 @@ var ShieldIcon = function ShieldIcon(_ref17) {
     d: "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"
   }));
 };
-var PersonIcon = function PersonIcon(_ref18) {
-  var _ref18$size = _ref18.size,
-    size = _ref18$size === void 0 ? 12 : _ref18$size,
-    _ref18$color = _ref18.color,
-    color = _ref18$color === void 0 ? "#fff" : _ref18$color;
+var PersonIcon = function PersonIcon(_ref14) {
+  var _ref14$size = _ref14.size,
+    size = _ref14$size === void 0 ? 12 : _ref14$size,
+    _ref14$color = _ref14.color,
+    color = _ref14$color === void 0 ? "#fff" : _ref14$color;
   return React.createElement("svg", {
     width: size,
     height: size,
@@ -2023,12 +1918,12 @@ var PersonIcon = function PersonIcon(_ref18) {
     d: "M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"
   }));
 };
-var RoleBadge = function RoleBadge(_ref19) {
-  var role = _ref19.role,
-    teamColor = _ref19.teamColor,
-    _ref19$size = _ref19.size,
-    size = _ref19$size === void 0 ? "sm" : _ref19$size,
-    sport = _ref19.sport;
+var RoleBadge = function RoleBadge(_ref15) {
+  var role = _ref15.role,
+    teamColor = _ref15.teamColor,
+    _ref15$size = _ref15.size,
+    size = _ref15$size === void 0 ? "sm" : _ref15$size,
+    sport = _ref15.sport;
   var isAdmin = role === "admin";
   var bg = isAdmin ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.1)";
   var border = isAdmin ? "1px solid rgba(255,255,255,0.35)" : "1px solid rgba(255,255,255,0.15)";
@@ -2059,8 +1954,8 @@ var RoleBadge = function RoleBadge(_ref19) {
     }
   }, isAdmin ? "Admin" : roleWord(sport)));
 };
-var AdminHeaderBadge = function AdminHeaderBadge(_ref20) {
-  var teamColor = _ref20.teamColor;
+var AdminHeaderBadge = function AdminHeaderBadge(_ref16) {
+  var teamColor = _ref16.teamColor;
   return React.createElement("div", {
     style: {
       display: "inline-flex",
@@ -2085,9 +1980,9 @@ var AdminHeaderBadge = function AdminHeaderBadge(_ref20) {
     }
   }, "Admin"));
 };
-var RoleBadgeLight = function RoleBadgeLight(_ref21) {
-  var role = _ref21.role,
-    sport = _ref21.sport;
+var RoleBadgeLight = function RoleBadgeLight(_ref17) {
+  var role = _ref17.role,
+    sport = _ref17.sport;
   var cfg = {
     admin: {
       label: "Admin",
@@ -2125,11 +2020,11 @@ var RoleBadgeLight = function RoleBadgeLight(_ref21) {
     }
   }, c.label));
 };
-var Chip = function Chip(_ref22) {
-  var active = _ref22.active,
-    color = _ref22.color,
-    onClick = _ref22.onClick,
-    children = _ref22.children;
+var Chip = function Chip(_ref18) {
+  var active = _ref18.active,
+    color = _ref18.color,
+    onClick = _ref18.onClick,
+    children = _ref18.children;
   return React.createElement("button", {
     onClick: onClick,
     style: {
@@ -2146,8 +2041,8 @@ var Chip = function Chip(_ref22) {
     }
   }, children);
 };
-var Sec = function Sec(_ref23) {
-  var label = _ref23.label;
+var Sec = function Sec(_ref19) {
+  var label = _ref19.label;
   return React.createElement("p", {
     style: {
       margin: "18px 0 8px",
@@ -2159,10 +2054,10 @@ var Sec = function Sec(_ref23) {
     }
   }, label);
 };
-var Sheet = function Sheet(_ref24) {
-  var onClose = _ref24.onClose,
-    title = _ref24.title,
-    children = _ref24.children;
+var Sheet = function Sheet(_ref20) {
+  var onClose = _ref20.onClose,
+    title = _ref20.title,
+    children = _ref20.children;
   return React.createElement("div", {
     style: {
       position: "fixed",
@@ -2223,8 +2118,8 @@ var Sheet = function Sheet(_ref24) {
     }
   }, "\xD7")), children));
 };
-var FL = function FL(_ref25) {
-  var children = _ref25.children;
+var FL = function FL(_ref21) {
+  var children = _ref21.children;
   return React.createElement("p", {
     style: {
       margin: "0 0 6px",
@@ -2236,9 +2131,9 @@ var FL = function FL(_ref25) {
     }
   }, children);
 };
-var FI = function FI(_ref26) {
-  var style = _ref26.style,
-    props = _objectWithoutProperties(_ref26, _excluded);
+var FI = function FI(_ref22) {
+  var style = _ref22.style,
+    props = _objectWithoutProperties(_ref22, _excluded);
   return React.createElement("input", _extends({
     style: _objectSpread({
       width: "100%",
@@ -2254,10 +2149,10 @@ var FI = function FI(_ref26) {
     }, style)
   }, props));
 };
-var FSel = function FSel(_ref27) {
-  var value = _ref27.value,
-    onChange = _ref27.onChange,
-    children = _ref27.children;
+var FSel = function FSel(_ref23) {
+  var value = _ref23.value,
+    onChange = _ref23.onChange,
+    children = _ref23.children;
   return React.createElement("select", {
     value: value,
     onChange: onChange,
@@ -2275,12 +2170,12 @@ var FSel = function FSel(_ref27) {
     }
   }, children);
 };
-var PrimaryBtn = function PrimaryBtn(_ref28) {
-  var onClick = _ref28.onClick,
-    disabled = _ref28.disabled,
-    _ref28$color = _ref28.color,
-    color = _ref28$color === void 0 ? T.brand : _ref28$color,
-    children = _ref28.children;
+var PrimaryBtn = function PrimaryBtn(_ref24) {
+  var onClick = _ref24.onClick,
+    disabled = _ref24.disabled,
+    _ref24$color = _ref24.color,
+    color = _ref24$color === void 0 ? T.brand : _ref24$color,
+    children = _ref24.children;
   return React.createElement("button", {
     onClick: onClick,
     disabled: disabled,
@@ -2298,6 +2193,111 @@ var PrimaryBtn = function PrimaryBtn(_ref28) {
       marginTop: 4
     }
   }, children);
+};
+var TacticField = function TacticField(_ref25) {
+  var sport = _ref25.sport,
+    value = _ref25.value,
+    _onChange = _ref25.onChange,
+    emptyLabel = _ref25.emptyLabel,
+    color = _ref25.color;
+  var list = tacticList(sport);
+  var v = value || "";
+  var _useState5 = useState(function () {
+      return !!v && !!list && !list.includes(v);
+    }),
+    _useState6 = _slicedToArray(_useState5, 2),
+    other = _useState6[0],
+    setOther = _useState6[1];
+  var showText = !list || other;
+  var selVal = !list ? "" : other ? TACTIC_OTHER : list.includes(v) ? v : "";
+  return React.createElement("div", {
+    "data-tactic-field": true
+  }, React.createElement(FL, null, "T\xE1tica"), list && React.createElement(FSel, {
+    value: selVal,
+    onChange: function onChange(e) {
+      var x = e.target.value;
+      if (x === TACTIC_OTHER) {
+        setOther(true);
+        _onChange("");
+      } else {
+        setOther(false);
+        _onChange(x);
+      }
+    }
+  }, React.createElement("option", {
+    value: ""
+  }, emptyLabel), list.map(function (x) {
+    return React.createElement("option", {
+      key: x,
+      value: x
+    }, x);
+  }), React.createElement("option", {
+    value: TACTIC_OTHER
+  }, "Outra (escrever)")), showText && React.createElement(FI, {
+    value: v,
+    maxLength: TACTIC_MAX,
+    onChange: function onChange(e) {
+      return _onChange(e.target.value);
+    },
+    placeholder: list ? "Escreve a tática" : "Opcional (".concat(emptyLabel, ")"),
+    "data-tactic-input": true,
+    style: {
+      borderColor: color
+    }
+  }));
+};
+var TacticBig = function TacticBig(_ref26) {
+  var tactic = _ref26.tactic;
+  var n = String(tactic || "").length;
+  return tactic ? React.createElement("p", {
+    "data-tactic-value": true,
+    style: {
+      margin: 0,
+      fontSize: n <= 8 ? 32 : n <= 14 ? 24 : 20,
+      fontWeight: 900,
+      lineHeight: 1.15,
+      overflowWrap: "anywhere"
+    }
+  }, tactic) : React.createElement("p", {
+    "data-tactic-value": true,
+    style: {
+      margin: 0,
+      fontSize: 15,
+      color: T.sub,
+      fontWeight: 600
+    }
+  }, "Por definir");
+};
+var TacticLine = function TacticLine(_ref27) {
+  var t = _ref27.t,
+    team = _ref27.team;
+  var x = tacticOf(t, team);
+  return x ? React.createElement("p", {
+    "data-tactic-line": true,
+    style: {
+      margin: "1px 0 0",
+      fontSize: 13,
+      color: T.sub
+    }
+  }, "\uD83C\uDFAF T\xE1tica: ", React.createElement("b", {
+    style: {
+      color: T.text,
+      fontWeight: 800
+    }
+  }, x)) : null;
+};
+var EventTactic = function EventTactic(_ref28) {
+  var team = _ref28.team,
+    isAdmin = _ref28.isAdmin,
+    value = _ref28.value,
+    onChange = _ref28.onChange;
+  return !isAdmin ? null : React.createElement(TacticField, {
+    sport: team.sport,
+    value: value,
+    onChange: onChange,
+    color: team.color,
+    emptyLabel: "Da equipa (".concat(team.tactic || "por definir", ")")
+  });
 };
 var FINE_ICON_CATS = [["Multas", ["🟥", "🟨", "⏰", "❌", "⚽", "🥅", "🏆", "😞"]], ["Equipamento e balneário", ["👕", "🧹", "📵", "🚐"]], ["Comportamento", ["🗣️", "😴", "🎯", "✍️", "😤", "🤦", "🚫", "🔇", "🤡"]], ["Dinheiro", ["💶", "💸"]], ["Comida e festa", ["🎂", "🍽️", "🍺", "🍕", "🍾"]], ["Outros", ["⚪", "🃏", "🎪", "🎖️", "🤕", "💪", "🚗", "💬"]]];
 var resolveTypeIcon = function resolveTypeIcon(name, custom) {
