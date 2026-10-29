@@ -2147,7 +2147,22 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
   );
 };
 
-const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
+// Aviso único, só para admins: novidade da Tática. "Já visto" por utilizador em localStorage (chave própria; o "Terminar sessão" só apaga a sessão).
+const TACTIC_NOTICE_KEY = "multeam.novidade.tatica.";
+const TacticNotice = ({ userId }) => {
+  const key = TACTIC_NOTICE_KEY + userId;
+  const [hidden, setHidden] = useState(() => { try { return window.localStorage.getItem(key) === "1"; } catch(e) { return false; } });
+  const close = () => { try { window.localStorage.setItem(key, "1"); } catch(e) { /* sem armazenamento: só esconde nesta sessão */ } setHidden(true); };
+  if (!userId || hidden) return null;
+  return (
+    <div role="note" aria-label="Novidade: Tática" data-novidade-tatica style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"13px 14px", marginBottom:14 }}>
+      <p style={{ margin:0, fontSize:14, lineHeight:1.4 }}><b>Novidade: Tática.</b> Em Gerir &gt; Dados da equipa podes definir a tática da equipa e, ao marcar um treino ou jogo, escolher outra para esse dia.</p>
+      <button onClick={close} style={{ minHeight:44, marginTop:8, padding:"8px 18px", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", fontSize:14, fontWeight:700, cursor:"pointer", color:T.text, fontFamily:"inherit" }}>Fechar</button>
+    </div>
+  );
+};
+
+const HomeTab = ({ noticeUserId, team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
   const money = useMoney();
   const tf = fines.filter(f => f.teamId===team.id);
   const [showTabela, setShowTabela] = React.useState(false);
@@ -2185,6 +2200,7 @@ const HomeTab = ({ team, fines, members, expenses, trainings, isAdmin, onAddFine
           ))}
         </div>
       </div>
+      <TacticNotice userId={noticeUserId} />
       {(() => {
         if (!myMember || myMember.unavailable || !onSetPresence) return null;
         const ev = nextPresenceEvent(trainings, team.id);
@@ -6071,7 +6087,7 @@ export default function App() {
         </div>
       </div>
 
-      {tab==="home"  && <HomeTab team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={roMode ? null : members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={roMode ? null : setPresence} />}
+      {tab==="home"  && <HomeTab noticeUserId={(!roMode && myUserId && teams.some(t => t.createdBy===myUserId || members.some(m=>m.teamId===t.id&&m.userId===myUserId&&m.role==="admin"))) ? myUserId : null} team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={roMode ? null : members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={roMode ? null : setPresence} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
