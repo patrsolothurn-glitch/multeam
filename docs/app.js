@@ -1190,6 +1190,9 @@ var TEAM_NAME_CHECK_FAIL = "Não foi possível verificar o nome. Tenta novamente
 var normTeamName = function normTeamName(s) {
   return String(s == null ? "" : s).trim().replace(/\s+/g, " ");
 };
+var normPlace = function normPlace(s) {
+  return normTeamName(s);
+};
 var teamNameIssue = function teamNameIssue(s) {
   var n = normTeamName(s);
   if (n.length < TEAM_NAME_MIN) return "O nome tem de ter pelo menos ".concat(TEAM_NAME_MIN, " caracteres.");
@@ -4936,8 +4939,8 @@ var CreateTeamModal = function CreateTeamModal(_ref70) {
               country: country,
               sport: sportJoin(sport, sportOther),
               currency: currency,
-              city: city,
-              postal: postal
+              city: normPlace(city),
+              postal: normPlace(postal)
             }, normTactic(tactic) ? {
               tactic: normTactic(tactic)
             } : {}));
@@ -14276,14 +14279,14 @@ var TeamDataSection = function TeamDataSection(_ref151) {
             cur = init(), next = _objectSpread(_objectSpread({}, f), {}, {
               name: normTeamName(f.name),
               season: f.season.trim(),
-              city: f.city.trim(),
-              postal: f.postal.trim(),
+              city: normPlace(f.city),
+              postal: normPlace(f.postal),
               tactic: normTactic(f.tactic),
               sport: sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER)
             });
             patch = {};
             Object.keys(next).forEach(function (k) {
-              if (next[k] !== cur[k]) patch[k] = next[k];
+              if (next[k] !== cur[k] && !((k === "city" || k === "postal") && next[k] === normPlace(cur[k]))) patch[k] = next[k];
             });
             if (patch.tactic !== undefined) patch.tactic = patch.tactic || null;
             if (Object.keys(patch).length) {
@@ -20700,8 +20703,8 @@ function App() {
               country: d.country || 'Portugal',
               sport: d.sport || 'Futebol 11',
               currency: d.currency || 'EUR',
-              city: d.city || '',
-              postal: d.postal || ''
+              city: normPlace(d.city),
+              postal: normPlace(d.postal)
             }, normTactic(d.tactic) ? {
               tactic: normTactic(d.tactic)
             } : {}), {}, {
