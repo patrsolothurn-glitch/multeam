@@ -281,6 +281,8 @@ const TEAM_NAME_MIN = 2, TEAM_NAME_MAX = 40;
 const TEAM_NAME_TAKEN = "Já existe uma equipa com este nome. Escolhe outro, por exemplo acrescenta a localidade.";
 const TEAM_NAME_CHECK_FAIL = "Não foi possível verificar o nome. Tenta novamente.";
 const normTeamName = s => String(s == null ? "" : s).trim().replace(/\s+/g, " ");
+// Cidade e código postal: a mesma limpeza do nome da equipa (corta as pontas e junta espaços repetidos)
+const normPlace = s => normTeamName(s);
 const teamNameIssue = s => { const n = normTeamName(s); if (n.length < TEAM_NAME_MIN) return `O nome tem de ter pelo menos ${TEAM_NAME_MIN} caracteres.`; if (n.length > TEAM_NAME_MAX) return `O nome pode ter no máximo ${TEAM_NAME_MAX} caracteres.`; return ""; };
 // 409 / 23505 por nome repetido (não confunde com o código de convite nem com a chave da equipa)
 const isTeamNameDup = e => { const m = String(e && e.message || ""); return /duplicate key|23505|unique constraint/i.test(m) && !/invite|pkey/i.test(m); };
@@ -1413,7 +1415,7 @@ const CreateTeamModal = ({ onAdd, onClose }) => {
   const submit = async () => { // só fecha quando a criação der certo; o erro fica dentro do modal
     if (!ok || busy) return;
     setBusy(true); setErr("");
-    try { await onAdd({ name:normTeamName(name), emoji, color, season, country, sport:sportJoin(sport, sportOther), currency, city, postal, ...(normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); onClose(); }
+    try { await onAdd({ name:normTeamName(name), emoji, color, season, country, sport:sportJoin(sport, sportOther), currency, city:normPlace(city), postal:normPlace(postal), ...(normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); onClose(); }
     catch(e) { setErr((e && e.message) || ERR_GENERIC); setBusy(false); }
   };
 
@@ -3902,9 +3904,9 @@ const TeamDataSection = ({ team, onSave }) => {
   const open = () => { setCurAsk(null); setF(init()); const sp = sportSplit(team.sport); setSportSel(sp.sel); setSportOther(sp.text); setErr(""); setEditing(true); };
   const save = async () => {
     if (!canSave) return;
-    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:f.city.trim(), postal:f.postal.trim(), tactic:normTactic(f.tactic), sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
+    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:normPlace(f.city), postal:normPlace(f.postal), tactic:normTactic(f.tactic), sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
     const patch = {};
-    Object.keys(next).forEach(k => { if (next[k] !== cur[k]) patch[k] = next[k]; });
+    Object.keys(next).forEach(k => { if (next[k] !== cur[k] && !((k === "city" || k === "postal") && next[k] === normPlace(cur[k]))) patch[k] = next[k]; }); // cidade/postal antigos só diferem em espaços: não se reescrevem
     if (patch.tactic !== undefined) patch.tactic = patch.tactic || null; // apagar = voltar a "Por definir" (null)
     if (!Object.keys(patch).length) { setEditing(false); return; }
     setBusy(true); setErr("");
@@ -5624,7 +5626,7 @@ export default function App() {
       const invCode = Math.random().toString(36).substring(2,5).toUpperCase()+'-'+Math.random().toString(36).substring(2,6).toUpperCase();
 
       // 1. Inserir equipa
-      await api.post('teams',{ id:tid, name:nome, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:d.city||'', postal:d.postal||'', ...(normTactic(d.tactic) ? { tactic:normTactic(d.tactic) } : {}), created_by:myUserId, invite_code:invCode },token);
+      await api.post('teams',{ id:tid, name:nome, emoji:d.emoji, color:d.color, season:d.season||'2025/26', country:d.country||'Portugal', sport:d.sport||'Futebol 11', currency:d.currency||'EUR', city:normPlace(d.city), postal:normPlace(d.postal), ...(normTactic(d.tactic) ? { tactic:normTactic(d.tactic) } : {}), created_by:myUserId, invite_code:invCode },token);
 
       criada = true;
       // 2. Usar RPC security definer para bypass RLS (insere membro + multas padrão)
