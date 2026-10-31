@@ -43,7 +43,7 @@ const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KE
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "list_team_claims"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -252,6 +252,46 @@ const rpcCall = async (fn, body, tok) => {
   try { j = await r.json(); } catch(e) { j = null; }
   if (!r.ok) throw new Error((j && j.message) || `Erro ${r.status}`);
   return j;
+};
+// ── ESTADO DE MANUTENÇÃO (interruptor manual do super admin; rpc get_app_status / set_app_status) ──
+// Falha segura: leitura que falha, vem vazia, com outro formato ou demora mais de 3 s = verde (nada aparece, nada bloqueia).
+const STATUS_MAX = 200, STATUS_TIMEOUT = 3000, STATUS_EVERY = 60000, STATUS_LONG_H = 6;
+const STATUS_DEFAULT = "Estamos a atualizar a Multeam. Podes usar a app, mas algumas coisas podem falhar durante alguns minutos.";
+const statusText = v => String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, STATUS_MAX).trim();
+// resposta → { modo, texto, desde:Date } ou null (formato inesperado)
+const parseStatusRow = raw => {
+  const r = Array.isArray(raw) ? (raw.length === 1 ? raw[0] : null) : raw;
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  if (r.modo !== "verde" && r.modo !== "laranja") return null;
+  if (typeof r.texto !== "string") return null;
+  const d = new Date(r.desde);
+  if (!r.desde || isNaN(d.getTime())) return null;
+  return { modo:r.modo, texto:statusText(r.texto), desde:d };
+};
+// para a faixa: só devolve algo quando está laranja e válido
+const parseAppStatus = raw => { const r = parseStatusRow(raw); return r && r.modo === "laranja" ? r : null; };
+const pad2 = n => String(n).padStart(2, "0");
+// "desde as 14:05" se for de hoje; "desde 29/10 às 14:05" se for de outro dia (hora local do aparelho)
+const statusSince = (d, now) => {
+  const n = now || new Date();
+  const hm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return (d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate())
+    ? `desde as ${hm}` : `desde ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)} às ${hm}`;
+};
+const statusLong = (d, now) => (now ? now.getTime() : Date.now()) - d.getTime() > STATUS_LONG_H * 3600000;
+// leitura com limite de 3 s; qualquer falha lança (quem chama trata como verde)
+const readAppStatus = async tok => {
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  let timer = null;
+  const limite = new Promise((_, rej) => { timer = setTimeout(() => { try { ctl && ctl.abort(); } catch(e) { /* nada */ } rej(new Error("tempo")); }, STATUS_TIMEOUT); });
+  try {
+    const pedido = (async () => {
+      const r = await fetch(`${SB_URL}/rest/v1/rpc/get_app_status`, { method:"POST", headers:api.h(tok), body:"{}", cache:"no-store", signal: ctl ? ctl.signal : undefined });
+      if (!r.ok) throw new Error(`Erro ${r.status}`);
+      return await r.json();
+    })();
+    return await Promise.race([pedido, limite]);
+  } finally { clearTimeout(timer); }
 };
 // Mensagens de erro para o utilizador: sempre em português claro e curto. O texto original (da base de dados, do Supabase ou do
 // navegador) fica só no console.error. Mensagens que já estão em português passam iguais.
@@ -2164,7 +2204,7 @@ const TacticNotice = ({ userId }) => {
   );
 };
 
-const HomeTab = ({ noticeUserId, team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
+const HomeTab = ({ appStatus, noticeUserId, team, fines, members, expenses, trainings, isAdmin, onAddFine, onSelectMember, fineTypes, presences, myMember, onSetPresence }) => {
   const money = useMoney();
   const tf = fines.filter(f => f.teamId===team.id);
   const [showTabela, setShowTabela] = React.useState(false);
@@ -2190,6 +2230,7 @@ const HomeTab = ({ noticeUserId, team, fines, members, expenses, trainings, isAd
   const gm = id => members.find(m=>m.id===id);
   return (
     <div style={{ padding:"16px 16px 100px" }}>
+      <StatusBanner status={appStatus} where="inicio" />
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}cc)`, borderRadius:22, padding:"22px 22px 18px", marginBottom:14, color:"#fff", boxShadow:`0 6px 24px ${team.color}44` }}>
         <p style={{ margin:0, fontSize:12, opacity:0.7, fontWeight:600, textTransform:"uppercase" }}>Caixa · {team.season}</p>
         <p style={{ margin:"2px 0 16px", fontSize:44, fontWeight:900, letterSpacing:-2 }}>{money(balance)}</p>
@@ -3179,7 +3220,72 @@ const LocationSummary = ({ locs, teams }) => {
 };
 
 // ── APP ADMIN TAB ─────────────────────────────────────────────
-const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }) => {
+// Faixa laranja (não bloqueia nada). O texto vai como texto (nunca como HTML) e a hora é a do aparelho.
+const StatusBanner = ({ status, where }) => {
+  if (!status) return null;
+  return (
+    <div role="status" data-estado-faixa={where} style={{ background:"#B54708", color:"#fff", borderRadius:14, padding:"12px 14px", marginBottom:14, width:"100%", boxSizing:"border-box", textAlign:"left" }}>
+      <p style={{ margin:0, fontSize:14, fontWeight:700, lineHeight:1.4, overflowWrap:"anywhere" }}>{status.texto || STATUS_DEFAULT}</p>
+      <p data-estado-desde style={{ margin:"4px 0 0", fontSize:13 }}>{statusSince(status.desde)}</p>
+    </div>
+  );
+};
+// Separador "Estado" do painel (só o super admin chega aqui): interruptor verde/laranja + texto (máx. 200)
+const AdminStatusSection = ({ token, onSaved }) => {
+  const [st, setSt] = useState({ status:"loading", row:null, error:"" });
+  const [modo, setModo] = useState("verde");
+  const [texto, setTexto] = useState(STATUS_DEFAULT);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ kind:"", text:"" });
+  const load = async () => {
+    setSt({ status:"loading", row:null, error:"" });
+    try {
+      const row = parseStatusRow(await rpcCall("get_app_status", {}, token));
+      if (!row) throw new Error("Resposta inesperada do servidor.");
+      setSt({ status:"ok", row, error:"" }); setModo(row.modo); setTexto(row.texto || STATUS_DEFAULT);
+    } catch(e) { setSt({ status:"error", row:null, error:adminErrPt(e) }); }
+  };
+  useEffect(() => { load(); }, []);
+  const save = async () => {
+    if (busy) return;
+    const t = statusText(texto) || (modo === "laranja" ? STATUS_DEFAULT : "");
+    setBusy(true); setMsg({ kind:"", text:"" });
+    try {
+      await rpcCall("set_app_status", { p_modo:modo, p_texto:t }, token);
+      setMsg({ kind:"ok", text:"Guardado ✓" });
+      if (onSaved) onSaved();
+      await load();
+    } catch(e) { setMsg({ kind:"err", text:adminErrPt(e) }); }
+    setBusy(false);
+  };
+  if (st.status === "loading") return <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar…</p>;
+  if (st.status === "error") return (
+    <LoadWarn id="estado" onRetry={load}>Não foi possível ler o estado: {st.error}</LoadWarn>
+  );
+  const laranja = modo === "laranja";
+  const longo = st.row.modo === "laranja" && statusLong(st.row.desde);
+  return (
+    <div data-estado-painel style={{ background:T.card, borderRadius:16, padding:"16px" }}>
+      <p style={{ margin:"0 0 10px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Estado da app</p>
+      <p data-estado-atual style={{ margin:"0 0 12px", fontSize:14, fontWeight:700 }}>
+        {st.row.modo === "laranja" ? `🟠 Laranja ${statusSince(st.row.desde)}` : "🟢 Verde: tudo normal"}
+      </p>
+      {longo && <p data-estado-longo role="alert" style={{ margin:"0 0 12px", fontSize:13, fontWeight:700, color:"#B42318" }}>Ligado há mais de {STATUS_LONG_H} h. Lembra-te de voltar a verde quando acabar.</p>}
+      <button role="switch" aria-checked={laranja} data-estado-interruptor onClick={() => setModo(laranja ? "verde" : "laranja")}
+        style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, width:"100%", minHeight:44, padding:"8px 14px", borderRadius:12, border:`2px solid ${laranja ? "#B54708" : T.green}`, background:laranja ? "#FFF1E3" : "#EAF7EE", color:T.text, fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:14 }}>
+        <span>{laranja ? "🟠 Laranja (faixa ligada)" : "🟢 Verde (sem faixa)"}</span>
+        <span style={{ fontSize:12, color:T.sub, fontWeight:700 }}>{laranja ? "Tocar para voltar a verde" : "Tocar para ligar laranja"}</span>
+      </button>
+      <FL>Texto da faixa ({statusText(texto).length}/{STATUS_MAX})</FL>
+      <textarea data-estado-texto value={texto} maxLength={STATUS_MAX} rows={4} onChange={e => setTexto(e.target.value)}
+        style={{ width:"100%", padding:"12px 14px", borderRadius:12, border:`1.5px solid ${T.border}`, fontSize:15, background:T.inputBg, boxSizing:"border-box", outline:"none", fontFamily:"inherit", marginBottom:14, resize:"vertical" }} />
+      {msg.text && <p role={msg.kind === "err" ? "alert" : "status"} style={{ margin:"0 0 10px", fontSize:13, fontWeight:700, color:msg.kind === "err" ? "#B42318" : T.green }}>{msg.text}</p>}
+      <PrimaryBtn onClick={save} disabled={busy} color={T.navy}>{busy ? "A guardar…" : "Guardar"}</PrimaryBtn>
+    </div>
+  );
+};
+
+const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, onStatusSaved }) => {
   const [stats, setStats] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null); // hora local da última carga dos dados
   const [teams, setTeams] = useState(Array.isArray(initialTeams) ? initialTeams : []); // initialTeams: lista já conhecida (ao voltar do modo leitura); é atualizada na mesma
@@ -3294,7 +3400,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
   // percentagem por pagar / total (só apresentação): 0% se o total for 0 ou não for número; sem divisão por zero
   const totalN = Number(stats && stats.fines_total), unpaidN = Number(stats && stats.fines_unpaid);
   const unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
-  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"]];
+  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"]];
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
@@ -3378,6 +3484,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams }
           </>
         )}
         {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
+        {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
       </div>
     </div>
   );
@@ -4601,7 +4708,7 @@ const ResetPasswordScreen = ({ accessToken, onDone }) => {
 };
 
 // ── AUTH SCREEN ───────────────────────────────────────────────
-const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
+const AuthScreen = ({ onLogin, onRegister, error, loading, appStatus }) => {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState(""); const [pass, setPass] = useState(""); const [name, setName] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -4609,6 +4716,7 @@ const AuthScreen = ({ onLogin, onRegister, error, loading }) => {
   return (
     <div style={{ minHeight:"100vh", background:`linear-gradient(160deg, ${T.navy} 0%, #0a1628 100%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"68px 28px 28px", position:"relative" }}>
       <a href="/sobre/" target="_blank" rel="noopener" style={{ position:"absolute", top:"calc(env(safe-area-inset-top, 0px) + 12px)", right:14, display:"flex", alignItems:"center", justifyContent:"center", gap:6, minHeight:44, padding:"0 16px", borderRadius:22, border:"1.5px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.12)", color:"#fff", fontSize:14, fontWeight:700, textDecoration:"none", fontFamily:"inherit" }}>ⓘ Sobre a app</a>
+      <div style={{ width:"100%", maxWidth:360 }}><StatusBanner status={appStatus} where="login" /></div>
       <div style={{ marginBottom:36, textAlign:"center" }}>
         <div style={{ width:80, height:80, borderRadius:22, margin:"0 auto 18px", background:"#12121f", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 8px 32px rgba(230,57,70,0.5)", position:"relative", overflow:"visible" }}>
           <svg width="60" height="72" viewBox="0 0 60 72" style={{ position:"absolute" }}>
@@ -5181,6 +5289,7 @@ export default function App() {
 
   // Pull-to-refresh
   const refresh = useCallback(async (opts) => {
+    loadStatus();
     const notify = !!(opts && opts.notify); // só o botão ↺ avisa "Atualizado ✓" (o puxar-para-atualizar tem a sua própria indicação)
     if (refreshing || !token || !teamId) return;
     setRefreshing(true);
@@ -5918,6 +6027,24 @@ export default function App() {
   const [sessState, setSessState] = useState(() => (recoveryToken || magicToken || !sessNewest()) ? "none" : "restoring");
   const [sessBusy, setSessBusy] = useState(false);
   const tokenRef = React.useRef(null); tokenRef.current = token;
+  // Estado de manutenção: lido ao abrir, no ↺ e ao voltar ao primeiro plano, no máximo 1 vez por minuto; qualquer falha = verde
+  const [appStatus, setAppStatus] = useState(null);
+  const statusAt = React.useRef(0), statusSeq = React.useRef(0);
+  const loadStatus = useCallback(async (force) => {
+    const now = Date.now();
+    if (!force && now - statusAt.current < STATUS_EVERY) return;
+    statusAt.current = now;
+    const my = ++statusSeq.current;
+    let next = null;
+    try { next = parseAppStatus(await readAppStatus(tokenRef.current)); } catch(e) { next = null; }
+    if (my === statusSeq.current) setAppStatus(next);
+  }, []);
+  useEffect(() => {
+    loadStatus();
+    const vis = () => { if (document.visibilityState === "visible") loadStatus(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => document.removeEventListener("visibilitychange", vis);
+  }, []);
   const uidRef = React.useRef(null); uidRef.current = myUserId;
   const logoutRef = React.useRef(null); logoutRef.current = handleLogout;
   const restoreSession = async (silent) => {
@@ -5973,7 +6100,7 @@ export default function App() {
   if (recoveryToken) return <ResetPasswordScreen accessToken={recoveryToken} onDone={()=>{ window.history.replaceState(null,"","/"); window.location.reload(); }} />;
   if ((!token || !appReady) && sessState === "restoring") return <SessionSplash />;
   if (!token && sessState === "offline") return <SessionOffline busy={sessBusy} onRetry={()=>restoreSession()} onOther={()=>{ sessClear(); setSessState("none"); }} />;
-  if (!token || !appReady) return <AuthScreen onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
+  if (!token || !appReady) return <AuthScreen appStatus={appStatus} onLogin={handleLogin} onRegister={handleRegister} error={authError} loading={loading} />;
   if (loading) return <Spinner />;
 
   const roBanner = roMode ? (
@@ -6016,7 +6143,7 @@ export default function App() {
         <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Super admin</h2>
       </div>
       {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} pushIssue={pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={claimsWarn} onRetryClaims={()=>refreshClaims()} />}
-      {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
+      {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} onStatusSaved={()=>loadStatus(true)} />}
       {tab!=="geral" && tab!=="appadmin" && (
         <div style={{ textAlign:"center", padding:"60px 24px 120px", color:T.sub }}>
           <p style={{ fontSize:40, margin:"0 0 8px" }}>⚽</p>
@@ -6089,12 +6216,12 @@ export default function App() {
         </div>
       </div>
 
-      {tab==="home"  && <HomeTab noticeUserId={(!roMode && myUserId && teams.some(t => t.createdBy===myUserId || members.some(m=>m.teamId===t.id&&m.userId===myUserId&&m.role==="admin"))) ? myUserId : null} team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={roMode ? null : members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={roMode ? null : setPresence} />}
+      {tab==="home"  && <HomeTab appStatus={appStatus} noticeUserId={(!roMode && myUserId && teams.some(t => t.createdBy===myUserId || members.some(m=>m.teamId===t.id&&m.userId===myUserId&&m.role==="admin"))) ? myUserId : null} team={team} fines={fines} members={members} expenses={expenses} trainings={trainings} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onSelectMember={m=>setSub({type:"member",data:m})} fineTypes={fineTypes} presences={presences} myMember={roMode ? null : members.find(m=>m.teamId===teamId&&m.userId===myUserId)} onSetPresence={roMode ? null : setPresence} />}
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
       {tab==="geral" && <GeneralTab activeTeam={team} user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
-      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} />}
+      {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} onStatusSaved={()=>loadStatus(true)} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
