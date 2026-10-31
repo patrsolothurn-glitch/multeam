@@ -1,7 +1,7 @@
 // Multeam Service Worker
 // A app (index.html, app.js e React): rede primeiro, com limite de 4 s; a cópia guardada só serve quando a rede falha
 // (sem ligação, site em baixo, erro 404/5xx) ou demora mais do que o limite. O resto: cache primeiro, como antes.
-const CACHE = 'multeam-v325';
+const CACHE = 'multeam-v326';
 const BUILD = CACHE.split('-v')[1];
 const NET_TIMEOUT = 4000;
 const REACT = [

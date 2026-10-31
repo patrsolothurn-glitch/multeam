@@ -1518,14 +1518,38 @@ var localDateStr = function localDateStr(d) {
 var nextOccurrence = function nextOccurrence(days, time) {
   var now = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : new Date();
   if (!days || !days.length) return "";
-  var hh = parseInt((time || "").slice(0, 2), 10);
   for (var i = 0; i < 7; i++) {
     var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     if (!days.includes(d.getDay())) continue;
-    if (i === 0 && !isNaN(hh) && now.getHours() > hh) continue;
     return localDateStr(d);
   }
   return "";
+};
+var presenceView = function presenceView(rows, trainings) {
+  var now = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : new Date();
+  var byId = {};
+  (trainings || []).forEach(function (t) {
+    byId[t.id] = t;
+  });
+  var occ = {};
+  var view = {};
+  var put = function put(tid, mid, st) {
+    if (!view[tid]) view[tid] = {};
+    view[tid][mid] = st;
+  };
+  var occOf = function occOf(t) {
+    return t.id in occ ? occ[t.id] : occ[t.id] = nextOccurrence(t.days, t.time, now);
+  };
+  var list = Array.isArray(rows) ? rows : [];
+  list.forEach(function (p) {
+    var t = byId[p.training_id];
+    if (!t || t.type !== "recorrente") put(p.training_id, p.member_id, p.status);else if (!p.occurrence_date) put(p.training_id, p.member_id, p.status);
+  });
+  list.forEach(function (p) {
+    var t = byId[p.training_id];
+    if (t && t.type === "recorrente" && p.occurrence_date && String(p.occurrence_date).slice(0, 10) === occOf(t)) put(p.training_id, p.member_id, p.status);
+  });
+  return view;
 };
 var matchForecast = function matchForecast(hourly, trainings) {
   var now = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : new Date();
@@ -18925,11 +18949,7 @@ function App() {
                 profiles: profilesMap[m.user_id] || null
               });
             });
-            presMap = {};
-            pData.forEach(function (p) {
-              if (!presMap[p.training_id]) presMap[p.training_id] = {};
-              presMap[p.training_id][p.member_id] = p.status;
-            });
+            presMap = presenceView(pData, tData.map(aTraining));
             return _context70.a(2, {
               members: mData.map(aMember),
               fineTypes: ftData.map(aFineType),
@@ -18999,11 +19019,7 @@ function App() {
             profs.forEach(function (p) {
               if (p && p.id != null) profilesMap[p.id] = p;
             });
-            presMap = {};
-            pData.forEach(function (p) {
-              if (!presMap[p.training_id]) presMap[p.training_id] = {};
-              presMap[p.training_id][p.member_id] = p.status;
-            });
+            presMap = presenceView(pData, tData.map(aTraining));
             return _context71.a(2, {
               team: aTeam(r.team),
               members: mRaw.map(function (m) {
@@ -20327,87 +20343,189 @@ function App() {
       }, _callee95, null, [[1, 3]]);
     })));
   };
-  var setPresence = function setPresence(tid, mid, status) {
-    return guarded("pres:".concat(tid, ":").concat(mid), _asyncToGenerator(_regenerator().m(function _callee96() {
-      var mudou, rows, _t121, _t122;
+  var logSessionOcc = function () {
+    var _ref235 = _asyncToGenerator(_regenerator().m(function _callee96(recurring, date, fallback) {
+      var map, rows, _t121;
       return _regenerator().w(function (_context96) {
         while (1) switch (_context96.p = _context96.n) {
           case 0:
-            _context96.p = 0;
+            map = {};
+            _context96.p = 1;
+            _context96.n = 2;
+            return api.get("presences?training_id=eq.".concat(recurring.id, "&occurrence_date=eq.").concat(date, "&select=member_id,status"), token);
+          case 2:
+            rows = _context96.v;
+            (Array.isArray(rows) ? rows : []).forEach(function (r) {
+              if (r && r.member_id != null && r.status) map[r.member_id] = r.status;
+            });
+            _context96.n = 4;
+            break;
+          case 3:
+            _context96.p = 3;
+            _t121 = _context96.v;
+            writeFailed("ler as presenças dessa data", _t121);
+            return _context96.a(2);
+          case 4:
+            return _context96.a(2, logSession(recurring, date, map));
+        }
+      }, _callee96, null, [[1, 3]]);
+    }));
+    return function logSessionOcc(_x57, _x58, _x59) {
+      return _ref235.apply(this, arguments);
+    };
+  }();
+  var setPresence = function setPresence(tid, mid, status) {
+    return guarded("pres:".concat(tid, ":").concat(mid), _asyncToGenerator(_regenerator().m(function _callee97() {
+      var tr, occ, par, mudou, jaTem, rows, _rows, _t122, _t123, _t124;
+      return _regenerator().w(function (_context97) {
+        while (1) switch (_context97.p = _context97.n) {
+          case 0:
+            _context97.p = 0;
+            tr = trainings.find(function (x) {
+              return x.id === tid;
+            });
+            occ = tr && tr.type === "recorrente" ? nextOccurrence(tr.days, tr.time, new Date()) : "";
+            par = "presences?training_id=eq.".concat(tid, "&member_id=eq.").concat(mid);
             if (status) {
-              _context96.n = 3;
+              _context97.n = 8;
               break;
             }
-            _context96.n = 1;
-            return api.del("presences?training_id=eq.".concat(tid, "&member_id=eq.").concat(mid), token);
+            if (!occ) {
+              _context97.n = 5;
+              break;
+            }
+            _context97.n = 1;
+            return api.del("".concat(par, "&occurrence_date=eq.").concat(occ), token);
           case 1:
-            _context96.n = 2;
-            return confirmGone("presences?training_id=eq.".concat(tid, "&member_id=eq.").concat(mid, "&select=training_id"));
+            _context97.n = 2;
+            return api.del("".concat(par, "&occurrence_date=is.null"), token);
           case 2:
+            _context97.n = 3;
+            return confirmGone("".concat(par, "&occurrence_date=eq.").concat(occ, "&select=training_id"));
+          case 3:
+            _context97.n = 4;
+            return confirmGone("".concat(par, "&occurrence_date=is.null&select=training_id"));
+          case 4:
+            _context97.n = 7;
+            break;
+          case 5:
+            _context97.n = 6;
+            return api.del(par, token);
+          case 6:
+            _context97.n = 7;
+            return confirmGone("".concat(par, "&select=training_id"));
+          case 7:
             setPresences(function (p) {
               var t = _objectSpread({}, p[tid] || {});
               delete t[mid];
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, t));
             });
-            _context96.n = 8;
+            _context97.n = 19;
             break;
-          case 3:
+          case 8:
             mudou = false;
-            if (!(presences[tid] && presences[tid][mid])) {
-              _context96.n = 5;
+            jaTem = !!(presences[tid] && presences[tid][mid]);
+            if (!occ) {
+              _context97.n = 14;
               break;
             }
-            _context96.n = 4;
-            return api.patch("presences?training_id=eq.".concat(tid, "&member_id=eq.").concat(mid), {
+            if (!jaTem) {
+              _context97.n = 11;
+              break;
+            }
+            _context97.n = 9;
+            return api.patch("".concat(par, "&occurrence_date=eq.").concat(occ), {
               status: status
             }, token);
-          case 4:
-            rows = _context96.v;
+          case 9:
+            rows = _context97.v;
             mudou = Array.isArray(rows) && rows.length > 0;
-          case 5:
             if (mudou) {
-              _context96.n = 7;
+              _context97.n = 11;
               break;
             }
-            _t121 = needRows;
-            _context96.n = 6;
+            _context97.n = 10;
+            return api.patch("".concat(par, "&occurrence_date=is.null"), {
+              status: status,
+              occurrence_date: occ
+            }, token);
+          case 10:
+            rows = _context97.v;
+            mudou = Array.isArray(rows) && rows.length > 0;
+          case 11:
+            if (mudou) {
+              _context97.n = 13;
+              break;
+            }
+            _t122 = needRows;
+            _context97.n = 12;
+            return api.upsert('presences?on_conflict=training_id,member_id,occurrence_date', {
+              training_id: tid,
+              member_id: mid,
+              status: status,
+              occurrence_date: occ
+            }, token);
+          case 12:
+            _t122(_context97.v);
+          case 13:
+            _context97.n = 18;
+            break;
+          case 14:
+            if (!jaTem) {
+              _context97.n = 16;
+              break;
+            }
+            _context97.n = 15;
+            return api.patch(par, {
+              status: status
+            }, token);
+          case 15:
+            _rows = _context97.v;
+            mudou = Array.isArray(_rows) && _rows.length > 0;
+          case 16:
+            if (mudou) {
+              _context97.n = 18;
+              break;
+            }
+            _t123 = needRows;
+            _context97.n = 17;
             return api.upsert('presences', {
               training_id: tid,
               member_id: mid,
               status: status
             }, token);
-          case 6:
-            _t121(_context96.v);
-          case 7:
+          case 17:
+            _t123(_context97.v);
+          case 18:
             setPresences(function (p) {
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, _objectSpread(_objectSpread({}, p[tid] || {}), {}, _defineProperty({}, mid, status))));
             });
-          case 8:
-            return _context96.a(2, true);
-          case 9:
-            _context96.p = 9;
-            _t122 = _context96.v;
-            writeFailed("guardar a presença", _t122);
-            return _context96.a(2, false);
+          case 19:
+            return _context97.a(2, true);
+          case 20:
+            _context97.p = 20;
+            _t124 = _context97.v;
+            writeFailed("guardar a presença", _t124);
+            return _context97.a(2, false);
         }
-      }, _callee96, null, [[0, 9]]);
+      }, _callee97, null, [[0, 20]]);
     })));
   };
   var addMember = function () {
-    var _ref236 = _asyncToGenerator(_regenerator().m(function _callee97(d) {
-      var _r, j, m, _t123, _t124;
-      return _regenerator().w(function (_context97) {
-        while (1) switch (_context97.p = _context97.n) {
+    var _ref237 = _asyncToGenerator(_regenerator().m(function _callee98(d) {
+      var _r, j, m, _t125, _t126;
+      return _regenerator().w(function (_context98) {
+        while (1) switch (_context98.p = _context98.n) {
           case 0:
             if (isAdmin) {
-              _context97.n = 1;
+              _context98.n = 1;
               break;
             }
             writeFailed("adicionar o membro", new Error("só os administradores podem adicionar membros"));
-            return _context97.a(2, false);
+            return _context98.a(2, false);
           case 1:
-            _context97.p = 1;
-            _context97.n = 2;
+            _context98.p = 1;
+            _context98.n = 2;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/add_member_to_team"), {
               method: 'POST',
               headers: {
@@ -20425,29 +20543,29 @@ function App() {
               })
             });
           case 2:
-            _r = _context97.v;
+            _r = _context98.v;
             j = null;
-            _context97.p = 3;
-            _context97.n = 4;
+            _context98.p = 3;
+            _context98.n = 4;
             return _r.json();
           case 4:
-            j = _context97.v;
-            _context97.n = 6;
+            j = _context98.v;
+            _context98.n = 6;
             break;
           case 5:
-            _context97.p = 5;
-            _t123 = _context97.v;
+            _context98.p = 5;
+            _t125 = _context98.v;
             j = null;
           case 6:
             if (_r.ok) {
-              _context97.n = 7;
+              _context98.n = 7;
               break;
             }
             throw new Error(j && j.message || "Erro ".concat(_r.status));
           case 7:
             m = Array.isArray(j) ? j[0] : j;
             if (!(!m || !m.id)) {
-              _context97.n = 8;
+              _context98.n = 8;
               break;
             }
             throw new Error("sem permissão, ou resposta vazia");
@@ -20465,39 +20583,39 @@ function App() {
                 birthday: d.birthday || ''
               }]);
             });
-            return _context97.a(2, true);
+            return _context98.a(2, true);
           case 9:
-            _context97.p = 9;
-            _t124 = _context97.v;
-            writeFailed("adicionar o membro", _t124);
-            return _context97.a(2, false);
+            _context98.p = 9;
+            _t126 = _context98.v;
+            writeFailed("adicionar o membro", _t126);
+            return _context98.a(2, false);
         }
-      }, _callee97, null, [[3, 5], [1, 9]]);
+      }, _callee98, null, [[3, 5], [1, 9]]);
     }));
-    return function addMember(_x57) {
-      return _ref236.apply(this, arguments);
+    return function addMember(_x60) {
+      return _ref237.apply(this, arguments);
     };
   }();
   var leaveTeam = function () {
-    var _ref237 = _asyncToGenerator(_regenerator().m(function _callee98(tid) {
-      var m, remaining, _t125;
-      return _regenerator().w(function (_context98) {
-        while (1) switch (_context98.p = _context98.n) {
+    var _ref238 = _asyncToGenerator(_regenerator().m(function _callee99(tid) {
+      var m, remaining, _t127;
+      return _regenerator().w(function (_context99) {
+        while (1) switch (_context99.p = _context99.n) {
           case 0:
             m = members.find(function (m) {
               return m.teamId === tid && m.userId === myUserId;
             });
             if (m) {
-              _context98.n = 1;
+              _context99.n = 1;
               break;
             }
-            return _context98.a(2);
+            return _context99.a(2);
           case 1:
-            _context98.p = 1;
-            _context98.n = 2;
+            _context99.p = 1;
+            _context99.n = 2;
             return api.del("team_members?id=eq.".concat(m.id), token);
           case 2:
-            _context98.n = 3;
+            _context99.n = 3;
             return confirmGone("team_members?id=eq.".concat(m.id, "&select=id"));
           case 3:
             setTeams(function (p) {
@@ -20514,25 +20632,25 @@ function App() {
               return t.id !== tid;
             });
             if (!(remaining.length > 0)) {
-              _context98.n = 4;
+              _context99.n = 4;
               break;
             }
-            _context98.n = 4;
+            _context99.n = 4;
             return switchTeam(remaining[0].id);
           case 4:
-            _context98.n = 6;
+            _context99.n = 6;
             break;
           case 5:
-            _context98.p = 5;
-            _t125 = _context98.v;
-            writeFailed("sair da equipa", _t125);
+            _context99.p = 5;
+            _t127 = _context99.v;
+            writeFailed("sair da equipa", _t127);
           case 6:
-            return _context98.a(2);
+            return _context99.a(2);
         }
-      }, _callee98, null, [[1, 5]]);
+      }, _callee99, null, [[1, 5]]);
     }));
-    return function leaveTeam(_x58) {
-      return _ref237.apply(this, arguments);
+    return function leaveTeam(_x61) {
+      return _ref238.apply(this, arguments);
     };
   }();
   var ROLE_LABEL = {
@@ -20547,36 +20665,36 @@ function App() {
     }).length;
   };
   var toggleRole = function () {
-    var _ref238 = _asyncToGenerator(_regenerator().m(function _callee99(id, newRole) {
+    var _ref239 = _asyncToGenerator(_regenerator().m(function _callee100(id, newRole) {
       var _find;
       var m, nr, res;
-      return _regenerator().w(function (_context99) {
-        while (1) switch (_context99.n) {
+      return _regenerator().w(function (_context100) {
+        while (1) switch (_context100.n) {
           case 0:
             m = members.find(function (m) {
               return m.id === id;
             });
             if (m) {
-              _context99.n = 1;
+              _context100.n = 1;
               break;
             }
             throw new Error("Membro não encontrado");
           case 1:
             nr = newRole || (m.role === 'admin' ? 'player' : 'admin');
             if (!(m.role === "admin" && nr !== "admin" && adminCount(m.teamId) <= 1)) {
-              _context99.n = 2;
+              _context100.n = 2;
               break;
             }
             throw new Error("A equipa tem de ter pelo menos um administrador.");
           case 2:
-            _context99.n = 3;
+            _context100.n = 3;
             return api.patch("team_members?id=eq.".concat(id), {
               role: nr
             }, token);
           case 3:
-            res = _context99.v;
+            res = _context100.v;
             if (!(!Array.isArray(res) || !res.length)) {
-              _context99.n = 4;
+              _context100.n = 4;
               break;
             }
             throw new Error("Não foi possível alterar o papel (sem permissão?)");
@@ -20592,38 +20710,38 @@ function App() {
               return t && t.id === m.teamId;
             })) === null || _find === void 0 ? void 0 : _find.sport, false, true) : ROLE_LABEL[nr] || nr), T.navy);
           case 5:
-            return _context99.a(2);
+            return _context100.a(2);
         }
-      }, _callee99);
+      }, _callee100);
     }));
-    return function toggleRole(_x59, _x60) {
-      return _ref238.apply(this, arguments);
+    return function toggleRole(_x62, _x63) {
+      return _ref239.apply(this, arguments);
     };
   }();
   var removeMember = function () {
-    var _ref239 = _asyncToGenerator(_regenerator().m(function _callee100(id) {
+    var _ref240 = _asyncToGenerator(_regenerator().m(function _callee101(id) {
       var m, still;
-      return _regenerator().w(function (_context100) {
-        while (1) switch (_context100.n) {
+      return _regenerator().w(function (_context101) {
+        while (1) switch (_context101.n) {
           case 0:
             m = members.find(function (x) {
               return x.id === id;
             });
             if (!(m && m.role === "admin" && adminCount(m.teamId) <= 1)) {
-              _context100.n = 1;
+              _context101.n = 1;
               break;
             }
             throw new Error("A equipa tem de ter pelo menos um administrador.");
           case 1:
-            _context100.n = 2;
+            _context101.n = 2;
             return api.del("team_members?id=eq.".concat(id), token);
           case 2:
-            _context100.n = 3;
+            _context101.n = 3;
             return api.get("team_members?id=eq.".concat(id, "&select=id"), token);
           case 3:
-            still = _context100.v;
+            still = _context101.v;
             if (!still.length) {
-              _context100.n = 4;
+              _context101.n = 4;
               break;
             }
             throw new Error("Não foi possível remover (sem permissão?)");
@@ -20641,43 +20759,43 @@ function App() {
             });
             showToast("".concat(m ? m.name : "Membro", " removido da equipa"), T.navy);
           case 5:
-            return _context100.a(2);
+            return _context101.a(2);
         }
-      }, _callee100);
+      }, _callee101);
     }));
-    return function removeMember(_x61) {
-      return _ref239.apply(this, arguments);
+    return function removeMember(_x64) {
+      return _ref240.apply(this, arguments);
     };
   }();
   var absLock = React.useRef(new Set());
   var guarded = function () {
-    var _ref240 = _asyncToGenerator(_regenerator().m(function _callee101(key, fn) {
-      return _regenerator().w(function (_context101) {
-        while (1) switch (_context101.p = _context101.n) {
+    var _ref241 = _asyncToGenerator(_regenerator().m(function _callee102(key, fn) {
+      return _regenerator().w(function (_context102) {
+        while (1) switch (_context102.p = _context102.n) {
           case 0:
             if (!absLock.current.has(key)) {
-              _context101.n = 1;
+              _context102.n = 1;
               break;
             }
-            return _context101.a(2, false);
+            return _context102.a(2, false);
           case 1:
             absLock.current.add(key);
-            _context101.p = 2;
-            _context101.n = 3;
+            _context102.p = 2;
+            _context102.n = 3;
             return fn();
           case 3:
-            return _context101.a(2, _context101.v);
+            return _context102.a(2, _context102.v);
           case 4:
-            _context101.p = 4;
+            _context102.p = 4;
             absLock.current.delete(key);
-            return _context101.f(4);
+            return _context102.f(4);
           case 5:
-            return _context101.a(2);
+            return _context102.a(2);
         }
-      }, _callee101, null, [[2,, 4, 5]]);
+      }, _callee102, null, [[2,, 4, 5]]);
     }));
-    return function guarded(_x62, _x63) {
-      return _ref240.apply(this, arguments);
+    return function guarded(_x65, _x66) {
+      return _ref241.apply(this, arguments);
     };
   }();
   var setMemberUnavail = function setMemberUnavail(memberId, a) {
@@ -20714,13 +20832,13 @@ function App() {
     });
   };
   var callOpen = function () {
-    var _ref241 = _asyncToGenerator(_regenerator().m(function _callee102(memberId, v) {
-      var _t126;
-      return _regenerator().w(function (_context102) {
-        while (1) switch (_context102.n) {
+    var _ref242 = _asyncToGenerator(_regenerator().m(function _callee103(memberId, v) {
+      var _t128;
+      return _regenerator().w(function (_context103) {
+        while (1) switch (_context103.n) {
           case 0:
-            _t126 = absRow;
-            _context102.n = 1;
+            _t128 = absRow;
+            _context103.n = 1;
             return rpcCall('absence_open', {
               p_member_id: memberId,
               p_kind: v.kind,
@@ -20729,97 +20847,97 @@ function App() {
               p_start: v.start
             }, token);
           case 1:
-            return _context102.a(2, _t126(_context102.v));
+            return _context103.a(2, _t128(_context103.v));
         }
-      }, _callee102);
+      }, _callee103);
     }));
-    return function callOpen(_x64, _x65) {
-      return _ref241.apply(this, arguments);
+    return function callOpen(_x67, _x68) {
+      return _ref242.apply(this, arguments);
     };
   }();
   var callClose = function () {
-    var _ref242 = _asyncToGenerator(_regenerator().m(function _callee103(a, end) {
-      var _t127;
-      return _regenerator().w(function (_context103) {
-        while (1) switch (_context103.n) {
+    var _ref243 = _asyncToGenerator(_regenerator().m(function _callee104(a, end) {
+      var _t129;
+      return _regenerator().w(function (_context104) {
+        while (1) switch (_context104.n) {
           case 0:
-            _t127 = absRow;
-            _context103.n = 1;
+            _t129 = absRow;
+            _context104.n = 1;
             return rpcCall('absence_close', {
               p_absence_id: a.id,
               p_end: end && end >= a.start ? end : a.start
             }, token);
           case 1:
-            return _context103.a(2, _t127(_context103.v));
+            return _context104.a(2, _t129(_context104.v));
         }
-      }, _callee103);
+      }, _callee104);
     }));
-    return function callClose(_x66, _x67) {
-      return _ref242.apply(this, arguments);
+    return function callClose(_x69, _x70) {
+      return _ref243.apply(this, arguments);
     };
   }();
   var absOpen = function absOpen(memberId, v) {
-    return guarded("m:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee104() {
-      var m, a, _t128;
-      return _regenerator().w(function (_context104) {
-        while (1) switch (_context104.p = _context104.n) {
+    return guarded("m:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee105() {
+      var m, a, _t130;
+      return _regenerator().w(function (_context105) {
+        while (1) switch (_context105.p = _context105.n) {
           case 0:
             m = members.find(function (x) {
               return x.id === memberId;
             });
-            _context104.p = 1;
+            _context105.p = 1;
             needNote(v);
-            _context104.n = 2;
+            _context105.n = 2;
             return callOpen(memberId, v);
           case 2:
-            a = _context104.v;
+            a = _context105.v;
             absPut(a);
             setMemberUnavail(memberId, a);
             showToast("".concat(m ? m.name : roleWord(team === null || team === void 0 ? void 0 : team.sport), " marcado como indispon\xEDvel"), T.navy);
-            return _context104.a(2, true);
+            return _context105.a(2, true);
           case 3:
-            _context104.p = 3;
-            _t128 = _context104.v;
-            writeFailed("guardar a lesão/ausência", _t128);
-            return _context104.a(2, false);
+            _context105.p = 3;
+            _t130 = _context105.v;
+            writeFailed("guardar a lesão/ausência", _t130);
+            return _context105.a(2, false);
         }
-      }, _callee104, null, [[1, 3]]);
+      }, _callee105, null, [[1, 3]]);
     })));
   };
   var absClose = function absClose(a) {
-    return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee105() {
-      var _r2, _t129;
-      return _regenerator().w(function (_context105) {
-        while (1) switch (_context105.p = _context105.n) {
-          case 0:
-            _context105.p = 0;
-            _context105.n = 1;
-            return callClose(a, todayLocal());
-          case 1:
-            _r2 = _context105.v;
-            absPut(_r2);
-            if (_r2.memberId) setMemberUnavail(_r2.memberId, null);
-            showToast("".concat(a.memberName, ": ").concat(ABS_KINDS[a.kind].one, " fechada"), T.navy);
-            return _context105.a(2, true);
-          case 2:
-            _context105.p = 2;
-            _t129 = _context105.v;
-            writeFailed("fechar o registo", _t129);
-            return _context105.a(2, false);
-        }
-      }, _callee105, null, [[0, 2]]);
-    })));
-  };
-  var absUpdate = function absUpdate(a, v) {
     return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee106() {
-      var _r3, _t130, _t131;
+      var _r2, _t131;
       return _regenerator().w(function (_context106) {
         while (1) switch (_context106.p = _context106.n) {
           case 0:
             _context106.p = 0;
-            needNote(v);
-            _t130 = absRow;
             _context106.n = 1;
+            return callClose(a, todayLocal());
+          case 1:
+            _r2 = _context106.v;
+            absPut(_r2);
+            if (_r2.memberId) setMemberUnavail(_r2.memberId, null);
+            showToast("".concat(a.memberName, ": ").concat(ABS_KINDS[a.kind].one, " fechada"), T.navy);
+            return _context106.a(2, true);
+          case 2:
+            _context106.p = 2;
+            _t131 = _context106.v;
+            writeFailed("fechar o registo", _t131);
+            return _context106.a(2, false);
+        }
+      }, _callee106, null, [[0, 2]]);
+    })));
+  };
+  var absUpdate = function absUpdate(a, v) {
+    return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee107() {
+      var _r3, _t132, _t133;
+      return _regenerator().w(function (_context107) {
+        while (1) switch (_context107.p = _context107.n) {
+          case 0:
+            _context107.p = 0;
+            needNote(v);
+            _t132 = absRow;
+            _context107.n = 1;
             return rpcCall('absence_update', {
               p_absence_id: a.id,
               p_kind: v.kind,
@@ -20829,34 +20947,34 @@ function App() {
               p_end: a.end ? v.end || a.end : null
             }, token);
           case 1:
-            _r3 = _t130(_context106.v);
+            _r3 = _t132(_context107.v);
             absPut(_r3);
             if (!_r3.end && _r3.memberId) setMemberUnavail(_r3.memberId, _r3);
-            return _context106.a(2, true);
+            return _context107.a(2, true);
           case 2:
-            _context106.p = 2;
-            _t131 = _context106.v;
-            writeFailed("guardar o registo", _t131);
-            return _context106.a(2, false);
+            _context107.p = 2;
+            _t133 = _context107.v;
+            writeFailed("guardar o registo", _t133);
+            return _context107.a(2, false);
         }
-      }, _callee106, null, [[0, 2]]);
+      }, _callee107, null, [[0, 2]]);
     })));
   };
   var absDelete = function absDelete(a) {
-    return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee107() {
-      var res, _t132;
-      return _regenerator().w(function (_context107) {
-        while (1) switch (_context107.p = _context107.n) {
+    return guarded("a:".concat(a.id), _asyncToGenerator(_regenerator().m(function _callee108() {
+      var res, _t134;
+      return _regenerator().w(function (_context108) {
+        while (1) switch (_context108.p = _context108.n) {
           case 0:
-            _context107.p = 0;
-            _context107.n = 1;
+            _context108.p = 0;
+            _context108.n = 1;
             return rpcCall('absence_delete', {
               p_absence_id: a.id
             }, token);
           case 1:
-            res = _context107.v;
+            res = _context108.v;
             if (!(res !== a.id)) {
-              _context107.n = 2;
+              _context108.n = 2;
               break;
             }
             throw new Error("sem permissão, ou o registo já não existe");
@@ -20868,125 +20986,125 @@ function App() {
             });
             if (!a.end && a.memberId) setMemberUnavail(a.memberId, null);
             showToast("Registo apagado", T.navy);
-            return _context107.a(2, true);
+            return _context108.a(2, true);
           case 3:
-            _context107.p = 3;
-            _t132 = _context107.v;
-            writeFailed("apagar o registo", _t132);
-            return _context107.a(2, false);
+            _context108.p = 3;
+            _t134 = _context108.v;
+            writeFailed("apagar o registo", _t134);
+            return _context108.a(2, false);
         }
-      }, _callee107, null, [[0, 3]]);
+      }, _callee108, null, [[0, 3]]);
     })));
   };
   var absAddPast = function absAddPast(memberId, v) {
-    return guarded("m:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee108() {
-      var opened, closed, res, _t133, _t134;
-      return _regenerator().w(function (_context108) {
-        while (1) switch (_context108.p = _context108.n) {
-          case 0:
-            opened = null;
-            _context108.p = 1;
-            needNote(v);
-            if (!(!v.end || v.end < v.start)) {
-              _context108.n = 2;
-              break;
-            }
-            throw new Error("a data de fim não pode ser anterior ao início");
-          case 2:
-            _context108.n = 3;
-            return callOpen(memberId, v);
-          case 3:
-            opened = _context108.v;
-            _context108.n = 4;
-            return callClose(opened, v.end);
-          case 4:
-            closed = _context108.v;
-            absPut(closed);
-            setMemberUnavail(memberId, null);
-            showToast("Registo adicionado", T.navy);
-            return _context108.a(2, true);
-          case 5:
-            _context108.p = 5;
-            _t133 = _context108.v;
-            if (!opened) {
-              _context108.n = 10;
-              break;
-            }
-            _context108.p = 6;
-            _context108.n = 7;
-            return rpcCall('absence_delete', {
-              p_absence_id: opened.id
-            }, token);
-          case 7:
-            res = _context108.v;
-            if (!(res !== opened.id)) {
-              _context108.n = 8;
-              break;
-            }
-            throw new Error("não confirmado");
-          case 8:
-            _context108.n = 10;
-            break;
-          case 9:
-            _context108.p = 9;
-            _t134 = _context108.v;
-            absPut(opened);
-            setMemberUnavail(memberId, opened);
-            writeFailed("adicionar o registo (ficou em curso, fecha-o ou apaga-o à mão)", _t133);
-            return _context108.a(2, false);
-          case 10:
-            writeFailed("adicionar o registo", _t133);
-            return _context108.a(2, false);
-        }
-      }, _callee108, null, [[6, 9], [1, 5]]);
-    })));
-  };
-  var absLegacy = function absLegacy(m, v, closeAfter) {
-    return guarded("m:".concat(m.id), _asyncToGenerator(_regenerator().m(function _callee109() {
-      var opened, closed, _t135, _t136;
+    return guarded("m:".concat(memberId), _asyncToGenerator(_regenerator().m(function _callee109() {
+      var opened, closed, res, _t135, _t136;
       return _regenerator().w(function (_context109) {
         while (1) switch (_context109.p = _context109.n) {
           case 0:
             opened = null;
             _context109.p = 1;
             needNote(v);
-            _t135 = (absences || []).find(function (x) {
-              return x.memberId === m.id && !x.end;
-            });
-            if (_t135) {
-              _context109.n = 3;
+            if (!(!v.end || v.end < v.start)) {
+              _context109.n = 2;
               break;
             }
-            _context109.n = 2;
+            throw new Error("a data de fim não pode ser anterior ao início");
+          case 2:
+            _context109.n = 3;
+            return callOpen(memberId, v);
+          case 3:
+            opened = _context109.v;
+            _context109.n = 4;
+            return callClose(opened, v.end);
+          case 4:
+            closed = _context109.v;
+            absPut(closed);
+            setMemberUnavail(memberId, null);
+            showToast("Registo adicionado", T.navy);
+            return _context109.a(2, true);
+          case 5:
+            _context109.p = 5;
+            _t135 = _context109.v;
+            if (!opened) {
+              _context109.n = 10;
+              break;
+            }
+            _context109.p = 6;
+            _context109.n = 7;
+            return rpcCall('absence_delete', {
+              p_absence_id: opened.id
+            }, token);
+          case 7:
+            res = _context109.v;
+            if (!(res !== opened.id)) {
+              _context109.n = 8;
+              break;
+            }
+            throw new Error("não confirmado");
+          case 8:
+            _context109.n = 10;
+            break;
+          case 9:
+            _context109.p = 9;
+            _t136 = _context109.v;
+            absPut(opened);
+            setMemberUnavail(memberId, opened);
+            writeFailed("adicionar o registo (ficou em curso, fecha-o ou apaga-o à mão)", _t135);
+            return _context109.a(2, false);
+          case 10:
+            writeFailed("adicionar o registo", _t135);
+            return _context109.a(2, false);
+        }
+      }, _callee109, null, [[6, 9], [1, 5]]);
+    })));
+  };
+  var absLegacy = function absLegacy(m, v, closeAfter) {
+    return guarded("m:".concat(m.id), _asyncToGenerator(_regenerator().m(function _callee110() {
+      var opened, closed, _t137, _t138;
+      return _regenerator().w(function (_context110) {
+        while (1) switch (_context110.p = _context110.n) {
+          case 0:
+            opened = null;
+            _context110.p = 1;
+            needNote(v);
+            _t137 = (absences || []).find(function (x) {
+              return x.memberId === m.id && !x.end;
+            });
+            if (_t137) {
+              _context110.n = 3;
+              break;
+            }
+            _context110.n = 2;
             return callOpen(m.id, _objectSpread(_objectSpread({}, v), {}, {
               start: m.unavailableSince || v.start
             }));
           case 2:
-            _t135 = _context109.v;
+            _t137 = _context110.v;
           case 3:
-            opened = _t135;
+            opened = _t137;
             absPut(opened);
             setMemberUnavail(m.id, opened);
             if (!closeAfter) {
-              _context109.n = 5;
+              _context110.n = 5;
               break;
             }
-            _context109.n = 4;
+            _context110.n = 4;
             return callClose(opened, todayLocal());
           case 4:
-            closed = _context109.v;
+            closed = _context110.v;
             absPut(closed);
             setMemberUnavail(m.id, null);
             showToast("".concat(m.name, ": ").concat(ABS_KINDS[closed.kind].one, " fechada"), T.navy);
           case 5:
-            return _context109.a(2, true);
+            return _context110.a(2, true);
           case 6:
-            _context109.p = 6;
-            _t136 = _context109.v;
-            writeFailed(closeAfter && opened ? "fechar o registo (a nota ficou guardada, tenta fechar outra vez)" : "guardar o registo", _t136);
-            return _context109.a(2, false);
+            _context110.p = 6;
+            _t138 = _context110.v;
+            writeFailed(closeAfter && opened ? "fechar o registo (a nota ficou guardada, tenta fechar outra vez)" : "guardar o registo", _t138);
+            return _context110.a(2, false);
         }
-      }, _callee109, null, [[1, 6]]);
+      }, _callee110, null, [[1, 6]]);
     })));
   };
   var absHandlers = {
@@ -20998,22 +21116,22 @@ function App() {
     legacy: absLegacy
   };
   var editMember = function editMember(id, data) {
-    return guarded("mem:".concat(id), _asyncToGenerator(_regenerator().m(function _callee110() {
-      var m, _find2, profs, prof, tmr, saved, free, same, diff, _t137;
-      return _regenerator().w(function (_context110) {
-        while (1) switch (_context110.p = _context110.n) {
+    return guarded("mem:".concat(id), _asyncToGenerator(_regenerator().m(function _callee111() {
+      var m, _find2, profs, prof, tmr, saved, free, same, diff, _t139;
+      return _regenerator().w(function (_context111) {
+        while (1) switch (_context111.p = _context111.n) {
           case 0:
             m = members.find(function (m) {
               return m.id === id;
             });
-            _context110.p = 1;
+            _context111.p = 1;
             if (m) {
-              _context110.n = 2;
+              _context111.n = 2;
               break;
             }
             throw new Error("membro não encontrado");
           case 2:
-            _context110.n = 3;
+            _context111.n = 3;
             return rpcCall('update_team_member_profile', {
               p_member_id: m.userId,
               p_team_id: m.teamId,
@@ -21024,21 +21142,21 @@ function App() {
               p_avatar_url: data.avatarUrl !== undefined ? data.avatarUrl || null : undefined
             }, token);
           case 3:
-            _context110.n = 4;
+            _context111.n = 4;
             return rpcCall('get_team_profiles', {
               p_team_id: m.teamId
             }, token);
           case 4:
-            profs = _context110.v;
+            profs = _context111.v;
             prof = (Array.isArray(profs) ? profs : []).find(function (x) {
               return x.id === m.userId;
             });
-            _context110.n = 5;
+            _context111.n = 5;
             return api.get("team_members?id=eq.".concat(id, "&select=position"), token);
           case 5:
-            tmr = _context110.v;
+            tmr = _context111.v;
             if (!(!prof || !Array.isArray(tmr) || !tmr.length)) {
-              _context110.n = 6;
+              _context111.n = 6;
               break;
             }
             throw new Error("não foi possível confirmar o que ficou gravado");
@@ -21069,30 +21187,30 @@ function App() {
             same = function same(a, b) {
               return String(a == null ? "" : a).trim() === String(b == null ? "" : b).trim();
             };
-            diff = [["nome", data.name, saved.name], ["telefone", data.phone, saved.phone], ["aniversário", data.birthday, saved.birthday], ["posição", data.position, saved.position]].filter(function (_ref250) {
-              var _ref251 = _slicedToArray(_ref250, 3),
-                sent = _ref251[1],
-                got = _ref251[2];
+            diff = [["nome", data.name, saved.name], ["telefone", data.phone, saved.phone], ["aniversário", data.birthday, saved.birthday], ["posição", data.position, saved.position]].filter(function (_ref251) {
+              var _ref252 = _slicedToArray(_ref251, 3),
+                sent = _ref252[1],
+                got = _ref252[2];
               return !same(sent, got);
-            }).map(function (_ref252) {
-              var _ref253 = _slicedToArray(_ref252, 1),
-                n = _ref253[0];
+            }).map(function (_ref253) {
+              var _ref254 = _slicedToArray(_ref253, 1),
+                n = _ref254[0];
               return n;
             });
             if (!diff.length) {
-              _context110.n = 7;
+              _context111.n = 7;
               break;
             }
             throw new Error("a base de dados n\xE3o guardou: ".concat(diff.join(", ")));
           case 7:
-            return _context110.a(2, true);
+            return _context111.a(2, true);
           case 8:
-            _context110.p = 8;
-            _t137 = _context110.v;
-            writeFailed("guardar o perfil do membro", _t137);
-            return _context110.a(2, false);
+            _context111.p = 8;
+            _t139 = _context111.v;
+            writeFailed("guardar o perfil do membro", _t139);
+            return _context111.a(2, false);
         }
-      }, _callee110, null, [[1, 8]]);
+      }, _callee111, null, [[1, 8]]);
     })));
   };
   var _useState563 = useState(null),
@@ -21100,28 +21218,28 @@ function App() {
     teamError = _useState564[0],
     setTeamError = _useState564[1];
   var createTeam = function () {
-    var _ref254 = _asyncToGenerator(_regenerator().m(function _callee111(d) {
-      var criada, nome, issue, tid, invCode, sr, se, tr, newTeam, msg, _t138;
-      return _regenerator().w(function (_context111) {
-        while (1) switch (_context111.p = _context111.n) {
+    var _ref255 = _asyncToGenerator(_regenerator().m(function _callee112(d) {
+      var criada, nome, issue, tid, invCode, sr, se, tr, newTeam, msg, _t140;
+      return _regenerator().w(function (_context112) {
+        while (1) switch (_context112.p = _context112.n) {
           case 0:
             setTeamError(null);
             criada = false;
-            _context111.p = 1;
+            _context112.p = 1;
             nome = normTeamName(d.name);
             issue = teamNameIssue(nome);
             if (!issue) {
-              _context111.n = 2;
+              _context112.n = 2;
               break;
             }
             throw new Error(issue);
           case 2:
-            _context111.n = 3;
+            _context112.n = 3;
             return checkTeamName(nome, null, token);
           case 3:
             tid = crypto.randomUUID();
             invCode = Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-            _context111.n = 4;
+            _context112.n = 4;
             return api.post('teams', _objectSpread(_objectSpread({
               id: tid,
               name: nome,
@@ -21141,7 +21259,7 @@ function App() {
             }), token);
           case 4:
             criada = true;
-            _context111.n = 5;
+            _context112.n = 5;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/setup_new_team"), {
               method: 'POST',
               headers: {
@@ -21155,21 +21273,21 @@ function App() {
               })
             });
           case 5:
-            sr = _context111.v;
+            sr = _context112.v;
             if (sr.ok) {
-              _context111.n = 7;
+              _context112.n = 7;
               break;
             }
-            _context111.n = 6;
+            _context112.n = 6;
             return sr.json();
           case 6:
-            se = _context111.v;
+            se = _context112.v;
             throw new Error(se.message || se.hint || 'Erro ao configurar equipa');
           case 7:
-            _context111.n = 8;
+            _context112.n = 8;
             return api.get("teams?id=eq.".concat(tid), token);
           case 8:
-            tr = _context111.v;
+            tr = _context112.v;
             newTeam = aTeam(tr[0] || {
               id: tid,
               name: d.name,
@@ -21181,46 +21299,46 @@ function App() {
             setTeams(function (p) {
               return [].concat(_toConsumableArray(p), [newTeam]);
             });
-            _context111.n = 9;
+            _context112.n = 9;
             return switchTeam(tid);
           case 9:
-            _context111.n = 12;
+            _context112.n = 12;
             break;
           case 10:
-            _context111.p = 10;
-            _t138 = _context111.v;
+            _context112.p = 10;
+            _t140 = _context112.v;
             if (criada) {
-              _context111.n = 11;
+              _context112.n = 11;
               break;
             }
-            throw new Error(teamErrPt(_t138));
+            throw new Error(teamErrPt(_t140));
           case 11:
-            msg = errPt(_t138);
+            msg = errPt(_t140);
             setTeamError(msg);
             showToast("\u26A0\uFE0F ".concat(msg), T.brand);
           case 12:
-            return _context111.a(2);
+            return _context112.a(2);
         }
-      }, _callee111, null, [[1, 10]]);
+      }, _callee112, null, [[1, 10]]);
     }));
-    return function createTeam(_x68) {
-      return _ref254.apply(this, arguments);
+    return function createTeam(_x71) {
+      return _ref255.apply(this, arguments);
     };
   }();
   var editTeam = function () {
-    var _ref255 = _asyncToGenerator(_regenerator().m(function _callee112(id, patch) {
-      var nome, issue, res, _t139;
-      return _regenerator().w(function (_context112) {
-        while (1) switch (_context112.p = _context112.n) {
+    var _ref256 = _asyncToGenerator(_regenerator().m(function _callee113(id, patch) {
+      var nome, issue, res, _t141;
+      return _regenerator().w(function (_context113) {
+        while (1) switch (_context113.p = _context113.n) {
           case 0:
             if (!(patch && patch.name !== undefined)) {
-              _context112.n = 2;
+              _context113.n = 2;
               break;
             }
             nome = normTeamName(patch.name);
             issue = teamNameIssue(nome);
             if (!issue) {
-              _context112.n = 1;
+              _context113.n = 1;
               break;
             }
             throw new Error(issue);
@@ -21228,29 +21346,29 @@ function App() {
             patch = _objectSpread(_objectSpread({}, patch), {}, {
               name: nome
             });
-            _context112.n = 2;
+            _context113.n = 2;
             return checkTeamName(nome, id, token);
           case 2:
-            _context112.p = 2;
-            _context112.n = 3;
+            _context113.p = 2;
+            _context113.n = 3;
             return api.patch("teams?id=eq.".concat(id), patch, token);
           case 3:
-            res = _context112.v;
-            _context112.n = 6;
+            res = _context113.v;
+            _context113.n = 6;
             break;
           case 4:
-            _context112.p = 4;
-            _t139 = _context112.v;
-            if (!(patch && patch.name !== undefined && isTeamNameDup(_t139))) {
-              _context112.n = 5;
+            _context113.p = 4;
+            _t141 = _context113.v;
+            if (!(patch && patch.name !== undefined && isTeamNameDup(_t141))) {
+              _context113.n = 5;
               break;
             }
             throw new Error(TEAM_NAME_TAKEN);
           case 5:
-            throw _t139;
+            throw _t141;
           case 6:
             if (!(!Array.isArray(res) || !res.length)) {
-              _context112.n = 7;
+              _context113.n = 7;
               break;
             }
             throw new Error("Não foi possível guardar (sem permissão?)");
@@ -21261,34 +21379,34 @@ function App() {
               });
             });
           case 8:
-            return _context112.a(2);
+            return _context113.a(2);
         }
-      }, _callee112, null, [[2, 4]]);
+      }, _callee113, null, [[2, 4]]);
     }));
-    return function editTeam(_x69, _x70) {
-      return _ref255.apply(this, arguments);
+    return function editTeam(_x72, _x73) {
+      return _ref256.apply(this, arguments);
     };
   }();
   var deleteTeam = function () {
-    var _ref256 = _asyncToGenerator(_regenerator().m(function _callee113(teamId) {
-      var still, remaining, _t140;
-      return _regenerator().w(function (_context113) {
-        while (1) switch (_context113.p = _context113.n) {
+    var _ref257 = _asyncToGenerator(_regenerator().m(function _callee114(teamId) {
+      var still, remaining, _t142;
+      return _regenerator().w(function (_context114) {
+        while (1) switch (_context114.p = _context114.n) {
           case 0:
-            _context113.n = 1;
+            _context114.n = 1;
             return api.del("teams?id=eq.".concat(teamId), token);
           case 1:
-            _context113.n = 2;
+            _context114.n = 2;
             return api.get("teams?id=eq.".concat(teamId, "&select=id"), token);
           case 2:
-            still = _context113.v;
+            still = _context114.v;
             if (!still.length) {
-              _context113.n = 3;
+              _context114.n = 3;
               break;
             }
             throw new Error("Não foi possível apagar (sem permissão?)");
           case 3:
-            _context113.p = 3;
+            _context114.p = 3;
             remaining = teams.filter(function (t) {
               return t.id !== teamId;
             });
@@ -21296,13 +21414,13 @@ function App() {
             setSub(null);
             setTab("home");
             if (!(remaining.length > 0)) {
-              _context113.n = 5;
+              _context114.n = 5;
               break;
             }
-            _context113.n = 4;
+            _context114.n = 4;
             return switchTeam(remaining[0].id);
           case 4:
-            _context113.n = 6;
+            _context114.n = 6;
             break;
           case 5:
             setTeamId(null);
@@ -21314,19 +21432,19 @@ function App() {
             setPresences({});
             setAbsences([]);
           case 6:
-            _context113.n = 8;
+            _context114.n = 8;
             break;
           case 7:
-            _context113.p = 7;
-            _t140 = _context113.v;
-            console.error('deleteTeam error:', _t140);
+            _context114.p = 7;
+            _t142 = _context114.v;
+            console.error('deleteTeam error:', _t142);
           case 8:
-            return _context113.a(2);
+            return _context114.a(2);
         }
-      }, _callee113, null, [[3, 7]]);
+      }, _callee114, null, [[3, 7]]);
     }));
-    return function deleteTeam(_x71) {
-      return _ref256.apply(this, arguments);
+    return function deleteTeam(_x74) {
+      return _ref257.apply(this, arguments);
     };
   }();
   var _useState565 = useState(null),
@@ -21350,32 +21468,32 @@ function App() {
   var claimsFlight = React.useRef(false);
   var claimsAgain = React.useRef(false);
   var _refreshClaims = function () {
-    var _ref257 = _asyncToGenerator(_regenerator().m(function _callee115() {
-      var warns, mine, list, fresh, ids, rows, counts, countFailed, _t142, _t143, _t144;
-      return _regenerator().w(function (_context115) {
-        while (1) switch (_context115.p = _context115.n) {
+    var _ref258 = _asyncToGenerator(_regenerator().m(function _callee116() {
+      var warns, mine, list, fresh, ids, rows, counts, countFailed, _t144, _t145, _t146;
+      return _regenerator().w(function (_context116) {
+        while (1) switch (_context116.p = _context116.n) {
           case 0:
             if (!(!token || !myUserId || RO.on)) {
-              _context115.n = 1;
+              _context116.n = 1;
               break;
             }
-            return _context115.a(2);
+            return _context116.a(2);
           case 1:
             if (!claimsFlight.current) {
-              _context115.n = 2;
+              _context116.n = 2;
               break;
             }
             claimsAgain.current = true;
-            return _context115.a(2);
+            return _context116.a(2);
           case 2:
             claimsFlight.current = true;
             warns = [];
-            _context115.p = 3;
-            _context115.p = 4;
-            _context115.n = 5;
+            _context116.p = 3;
+            _context116.p = 4;
+            _context116.n = 5;
             return rpcCall('my_claims', {}, token);
           case 5:
-            mine = _context115.v;
+            mine = _context116.v;
             list = Array.isArray(mine) ? mine : [];
             setMyClaims(list);
             fresh = list.find(function (c) {
@@ -21384,112 +21502,112 @@ function App() {
               }) && !handledApprovedRef.current.has(c.id);
             });
             if (!fresh) {
-              _context115.n = 7;
+              _context116.n = 7;
               break;
             }
             handledApprovedRef.current.add(fresh.id);
-            _context115.n = 6;
+            _context116.n = 6;
             return initApp(token, myUserId);
           case 6:
             showToast("O admin aprovou: \xE9s o perfil ".concat(fresh.member_name || "").trim(), T.navy);
           case 7:
-            _context115.n = 9;
+            _context116.n = 9;
             break;
           case 8:
-            _context115.p = 8;
-            _t142 = _context115.v;
-            console.warn("my_claims failed:", _t142 && _t142.message);
+            _context116.p = 8;
+            _t144 = _context116.v;
+            console.warn("my_claims failed:", _t144 && _t144.message);
             warns.push("Não foi possível carregar os teus pedidos de perfil.");
           case 9:
-            _context115.p = 9;
+            _context116.p = 9;
             ids = new Set(teamsRef.current.filter(function (t) {
               return t.createdBy === myUserId;
             }).map(function (t) {
               return t.id;
             }));
-            _context115.p = 10;
-            _context115.n = 11;
+            _context116.p = 10;
+            _context116.n = 11;
             return api.get("team_members?user_id=eq.".concat(myUserId, "&role=eq.admin&select=team_id"), token);
           case 11:
-            rows = _context115.v;
+            rows = _context116.v;
             (Array.isArray(rows) ? rows : []).forEach(function (r) {
               return ids.add(r.team_id);
             });
-            _context115.n = 13;
+            _context116.n = 13;
             break;
           case 12:
-            _context115.p = 12;
-            _t143 = _context115.v;
-            console.warn("admin teams read failed:", _t143 && _t143.message);
+            _context116.p = 12;
+            _t145 = _context116.v;
+            console.warn("admin teams read failed:", _t145 && _t145.message);
             warns.push("Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer.");
           case 13:
             counts = {};
             countFailed = false;
-            _context115.n = 14;
+            _context116.n = 14;
             return Promise.all(_toConsumableArray(ids).filter(function (id) {
               return teamsRef.current.some(function (t) {
                 return t.id === id;
               });
             }).map(function () {
-              var _ref258 = _asyncToGenerator(_regenerator().m(function _callee114(id) {
-                var _r4, _t141;
-                return _regenerator().w(function (_context114) {
-                  while (1) switch (_context114.p = _context114.n) {
+              var _ref259 = _asyncToGenerator(_regenerator().m(function _callee115(id) {
+                var _r4, _t143;
+                return _regenerator().w(function (_context115) {
+                  while (1) switch (_context115.p = _context115.n) {
                     case 0:
-                      _context114.p = 0;
-                      _context114.n = 1;
+                      _context115.p = 0;
+                      _context115.n = 1;
                       return rpcCall('list_team_claims', {
                         p_team_id: id
                       }, token);
                     case 1:
-                      _r4 = _context114.v;
+                      _r4 = _context115.v;
                       claimNamesRemember(_r4, "member_name", "member_avatar");
                       counts[id] = (Array.isArray(_r4) ? _r4 : []).filter(function (c) {
                         return c.status === "pendente" && (!c.question || !!c.answer);
                       }).length;
-                      _context114.n = 3;
+                      _context115.n = 3;
                       break;
                     case 2:
-                      _context114.p = 2;
-                      _t141 = _context114.v;
-                      console.warn("list_team_claims failed:", _t141 && _t141.message);
+                      _context115.p = 2;
+                      _t143 = _context115.v;
+                      console.warn("list_team_claims failed:", _t143 && _t143.message);
                       countFailed = true;
                     case 3:
-                      return _context114.a(2);
+                      return _context115.a(2);
                   }
-                }, _callee114, null, [[0, 2]]);
+                }, _callee115, null, [[0, 2]]);
               }));
-              return function (_x72) {
-                return _ref258.apply(this, arguments);
+              return function (_x75) {
+                return _ref259.apply(this, arguments);
               };
             }()));
           case 14:
             if (countFailed) warns.push("Não foi possível contar os pedidos de perfil pendentes.");
             setClaimCounts(counts);
-            _context115.n = 16;
+            _context116.n = 16;
             break;
           case 15:
-            _context115.p = 15;
-            _t144 = _context115.v;
-            console.warn("claim counts failed:", _t144 && _t144.message);
+            _context116.p = 15;
+            _t146 = _context116.v;
+            console.warn("claim counts failed:", _t146 && _t146.message);
             warns.push("Não foi possível contar os pedidos de perfil pendentes.");
           case 16:
             setClaimsWarn(warns.length ? _toConsumableArray(new Set(warns)).join(" ") : false);
           case 17:
-            _context115.p = 17;
+            _context116.p = 17;
             claimsFlight.current = false;
             if (claimsAgain.current) {
               claimsAgain.current = false;
               _refreshClaims();
             }
-            return _context115.f(17);
+            return _context116.f(17);
           case 18:
-            return _context115.a(2);
+            return _context116.a(2);
         }
-      }, _callee115, null, [[10, 12], [9, 15], [4, 8], [3,, 17, 18]]);
+      }, _callee116, null, [[10, 12], [9, 15], [4, 8], [3,, 17, 18]]);
     }));
     return function refreshClaims() {
-      return _ref257.apply(this, arguments);
+      return _ref258.apply(this, arguments);
     };
   }();
   useEffect(function () {
@@ -21507,198 +21625,198 @@ function App() {
     if (tab === "geral" && appReady && token && myUserId && !RO.on) _refreshClaims();
   }, [tab]);
   var listClaimable = function () {
-    var _ref259 = _asyncToGenerator(_regenerator().m(function _callee116(code) {
-      var _r5, _t145;
-      return _regenerator().w(function (_context116) {
-        while (1) switch (_context116.p = _context116.n) {
+    var _ref260 = _asyncToGenerator(_regenerator().m(function _callee117(code) {
+      var _r5, _t147;
+      return _regenerator().w(function (_context117) {
+        while (1) switch (_context117.p = _context117.n) {
           case 0:
-            _context116.p = 0;
-            _context116.n = 1;
+            _context117.p = 0;
+            _context117.n = 1;
             return rpcCall('list_claimable_members', {
               p_code: String(code || "").trim().toUpperCase()
             }, token);
           case 1:
-            _r5 = _context116.v;
-            return _context116.a(2, Array.isArray(_r5) ? _r5 : []);
+            _r5 = _context117.v;
+            return _context117.a(2, Array.isArray(_r5) ? _r5 : []);
           case 2:
-            _context116.p = 2;
-            _t145 = _context116.v;
-            console.warn("list_claimable_members failed:", _t145 && _t145.message);
-            throw _t145;
+            _context117.p = 2;
+            _t147 = _context117.v;
+            console.warn("list_claimable_members failed:", _t147 && _t147.message);
+            throw _t147;
           case 3:
-            return _context116.a(2);
+            return _context117.a(2);
         }
-      }, _callee116, null, [[0, 2]]);
+      }, _callee117, null, [[0, 2]]);
     }));
-    return function listClaimable(_x73) {
-      return _ref259.apply(this, arguments);
+    return function listClaimable(_x76) {
+      return _ref260.apply(this, arguments);
     };
   }();
   var requestClaim = function () {
-    var _ref260 = _asyncToGenerator(_regenerator().m(function _callee117(code, memberId, note) {
-      return _regenerator().w(function (_context117) {
-        while (1) switch (_context117.n) {
+    var _ref261 = _asyncToGenerator(_regenerator().m(function _callee118(code, memberId, note) {
+      return _regenerator().w(function (_context118) {
+        while (1) switch (_context118.n) {
           case 0:
-            _context117.n = 1;
+            _context118.n = 1;
             return rpcCall('request_claim', {
               p_code: String(code || "").trim().toUpperCase(),
               p_member_id: memberId,
               p_note: note ? note : null
             }, token);
           case 1:
-            _context117.n = 2;
+            _context118.n = 2;
             return _refreshClaims();
           case 2:
-            return _context117.a(2);
+            return _context118.a(2);
         }
-      }, _callee117);
+      }, _callee118);
     }));
-    return function requestClaim(_x74, _x75, _x76) {
-      return _ref260.apply(this, arguments);
+    return function requestClaim(_x77, _x78, _x79) {
+      return _ref261.apply(this, arguments);
     };
   }();
   var editClaimNote = function () {
-    var _ref261 = _asyncToGenerator(_regenerator().m(function _callee118(id, note) {
-      return _regenerator().w(function (_context118) {
-        while (1) switch (_context118.n) {
+    var _ref262 = _asyncToGenerator(_regenerator().m(function _callee119(id, note) {
+      return _regenerator().w(function (_context119) {
+        while (1) switch (_context119.n) {
           case 0:
-            _context118.n = 1;
+            _context119.n = 1;
             return rpcCall('update_claim_note', {
               p_claim_id: id,
               p_note: note ? note : null
             }, token);
           case 1:
-            _context118.n = 2;
-            return _refreshClaims();
-          case 2:
-            showToast("Mensagem atualizada", T.navy);
-          case 3:
-            return _context118.a(2);
-        }
-      }, _callee118);
-    }));
-    return function editClaimNote(_x77, _x78) {
-      return _ref261.apply(this, arguments);
-    };
-  }();
-  var answerClaim = function () {
-    var _ref262 = _asyncToGenerator(_regenerator().m(function _callee119(id, text) {
-      return _regenerator().w(function (_context119) {
-        while (1) switch (_context119.n) {
-          case 0:
-            _context119.n = 1;
-            return rpcCall('answer_claim_question', {
-              p_claim_id: id,
-              p_answer: text
-            }, token);
-          case 1:
             _context119.n = 2;
             return _refreshClaims();
           case 2:
-            showToast(text ? "Resposta enviada" : "Resposta apagada", T.navy);
+            showToast("Mensagem atualizada", T.navy);
           case 3:
             return _context119.a(2);
         }
       }, _callee119);
     }));
-    return function answerClaim(_x79, _x80) {
+    return function editClaimNote(_x80, _x81) {
       return _ref262.apply(this, arguments);
+    };
+  }();
+  var answerClaim = function () {
+    var _ref263 = _asyncToGenerator(_regenerator().m(function _callee120(id, text) {
+      return _regenerator().w(function (_context120) {
+        while (1) switch (_context120.n) {
+          case 0:
+            _context120.n = 1;
+            return rpcCall('answer_claim_question', {
+              p_claim_id: id,
+              p_answer: text
+            }, token);
+          case 1:
+            _context120.n = 2;
+            return _refreshClaims();
+          case 2:
+            showToast(text ? "Resposta enviada" : "Resposta apagada", T.navy);
+          case 3:
+            return _context120.a(2);
+        }
+      }, _callee120);
+    }));
+    return function answerClaim(_x82, _x83) {
+      return _ref263.apply(this, arguments);
     };
   }();
   var myQuestionCount = Array.isArray(myClaims) ? myClaims.filter(function (c) {
     return c.status === "pendente" && c.question && !c.answer;
   }).length : 0;
   var cancelClaim = function () {
-    var _ref263 = _asyncToGenerator(_regenerator().m(function _callee120(id) {
-      return _regenerator().w(function (_context120) {
-        while (1) switch (_context120.n) {
-          case 0:
-            _context120.n = 1;
-            return rpcCall('cancel_claim', {
-              p_claim_id: id
-            }, token);
-          case 1:
-            _context120.n = 2;
-            return _refreshClaims();
-          case 2:
-            showToast("Pedido cancelado", T.navy);
-          case 3:
-            return _context120.a(2);
-        }
-      }, _callee120);
-    }));
-    return function cancelClaim(_x81) {
-      return _ref263.apply(this, arguments);
-    };
-  }();
-  var claimsChanged = function () {
-    var _ref264 = _asyncToGenerator(_regenerator().m(function _callee121() {
+    var _ref264 = _asyncToGenerator(_regenerator().m(function _callee121(id) {
       return _regenerator().w(function (_context121) {
         while (1) switch (_context121.n) {
           case 0:
             _context121.n = 1;
-            return refresh();
+            return rpcCall('cancel_claim', {
+              p_claim_id: id
+            }, token);
           case 1:
             _context121.n = 2;
             return _refreshClaims();
           case 2:
+            showToast("Pedido cancelado", T.navy);
+          case 3:
             return _context121.a(2);
         }
       }, _callee121);
     }));
-    return function claimsChanged() {
+    return function cancelClaim(_x84) {
       return _ref264.apply(this, arguments);
     };
   }();
-  var joinTeam = function () {
-    var _ref265 = _asyncToGenerator(_regenerator().m(function _callee122(t) {
-      var _e$message, _t146;
+  var claimsChanged = function () {
+    var _ref265 = _asyncToGenerator(_regenerator().m(function _callee122() {
       return _regenerator().w(function (_context122) {
-        while (1) switch (_context122.p = _context122.n) {
+        while (1) switch (_context122.n) {
           case 0:
-            _context122.p = 0;
             _context122.n = 1;
+            return refresh();
+          case 1:
+            _context122.n = 2;
+            return _refreshClaims();
+          case 2:
+            return _context122.a(2);
+        }
+      }, _callee122);
+    }));
+    return function claimsChanged() {
+      return _ref265.apply(this, arguments);
+    };
+  }();
+  var joinTeam = function () {
+    var _ref266 = _asyncToGenerator(_regenerator().m(function _callee123(t) {
+      var _e$message, _t148;
+      return _regenerator().w(function (_context123) {
+        while (1) switch (_context123.p = _context123.n) {
+          case 0:
+            _context123.p = 0;
+            _context123.n = 1;
             return api.insert('team_members', {
               team_id: t.id,
               user_id: myUserId,
               role: 'player'
             }, token);
           case 1:
-            _context122.n = 3;
+            _context123.n = 3;
             break;
           case 2:
-            _context122.p = 2;
-            _t146 = _context122.v;
-            if ((_e$message = _t146.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
-              _context122.n = 3;
+            _context123.p = 2;
+            _t148 = _context123.v;
+            if ((_e$message = _t148.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
+              _context123.n = 3;
               break;
             }
-            alert("Erro ao entrar na equipa: ".concat(errPt(_t146, "tenta novamente")));
-            return _context122.a(2);
+            alert("Erro ao entrar na equipa: ".concat(errPt(_t148, "tenta novamente")));
+            return _context123.a(2);
           case 3:
             setTeams(function (prev) {
               return prev.some(function (x) {
                 return x.id === t.id;
               }) ? prev : [].concat(_toConsumableArray(prev), [t]);
             });
-            _context122.n = 4;
+            _context123.n = 4;
             return switchTeam(t.id);
           case 4:
-            return _context122.a(2);
+            return _context123.a(2);
         }
-      }, _callee122, null, [[0, 2]]);
+      }, _callee123, null, [[0, 2]]);
     }));
-    return function joinTeam(_x82) {
-      return _ref265.apply(this, arguments);
+    return function joinTeam(_x85) {
+      return _ref266.apply(this, arguments);
     };
   }();
   var findTeamByCode = function () {
-    var _ref266 = _asyncToGenerator(_regenerator().m(function _callee123(code) {
-      var r, d, t, _t147;
-      return _regenerator().w(function (_context123) {
-        while (1) switch (_context123.p = _context123.n) {
+    var _ref267 = _asyncToGenerator(_regenerator().m(function _callee124(code) {
+      var r, d, t, _t149;
+      return _regenerator().w(function (_context124) {
+        while (1) switch (_context124.p = _context124.n) {
           case 0:
-            _context123.n = 1;
+            _context124.n = 1;
             return fetch("".concat(SB_URL, "/rest/v1/rpc/find_team_by_code"), {
               method: 'POST',
               headers: {
@@ -21711,35 +21829,35 @@ function App() {
               })
             });
           case 1:
-            r = _context123.v;
+            r = _context124.v;
             if (r.ok) {
-              _context123.n = 2;
+              _context124.n = 2;
               break;
             }
             throw new Error("N\xE3o foi poss\xEDvel procurar a equipa (erro ".concat(r.status, ")."));
           case 2:
             d = null;
-            _context123.p = 3;
-            _context123.n = 4;
+            _context124.p = 3;
+            _context124.n = 4;
             return r.json();
           case 4:
-            d = _context123.v;
-            _context123.n = 6;
+            d = _context124.v;
+            _context124.n = 6;
             break;
           case 5:
-            _context123.p = 5;
-            _t147 = _context123.v;
+            _context124.p = 5;
+            _t149 = _context124.v;
             d = null;
           case 6:
             t = Array.isArray(d) ? d[0] : d;
-            return _context123.a(2, t !== null && t !== void 0 && t.id ? aTeam(_objectSpread(_objectSpread({}, t), {}, {
+            return _context124.a(2, t !== null && t !== void 0 && t.id ? aTeam(_objectSpread(_objectSpread({}, t), {}, {
               invite_code: t.invite_code
             })) : null);
         }
-      }, _callee123, null, [[3, 5]]);
+      }, _callee124, null, [[3, 5]]);
     }));
-    return function findTeamByCode(_x83) {
-      return _ref266.apply(this, arguments);
+    return function findTeamByCode(_x86) {
+      return _ref267.apply(this, arguments);
     };
   }();
   var _useState571 = useState(function () {
@@ -21764,19 +21882,19 @@ function App() {
     }
   }, [appReady, pendingInvite, teams]);
   var subscribeToPush = function () {
-    var _ref267 = _asyncToGenerator(_regenerator().m(function _callee124(tok, uid) {
-      var reg, _sub, existing, subJson, res, _subJson$keys, _subJson$keys2, _t148, _t149, _t150, _t151;
-      return _regenerator().w(function (_context124) {
-        while (1) switch (_context124.p = _context124.n) {
+    var _ref268 = _asyncToGenerator(_regenerator().m(function _callee125(tok, uid) {
+      var reg, _sub, existing, subJson, res, _subJson$keys, _subJson$keys2, _t150, _t151, _t152, _t153;
+      return _regenerator().w(function (_context125) {
+        while (1) switch (_context125.p = _context125.n) {
           case 0:
             if (!RO.on) {
-              _context124.n = 1;
+              _context125.n = 1;
               break;
             }
-            return _context124.a(2);
+            return _context125.a(2);
           case 1:
-            _context124.p = 1;
-            _context124.n = 2;
+            _context125.p = 1;
+            _context125.n = 2;
             return Promise.race([navigator.serviceWorker.ready, new Promise(function (_, rej) {
               return setTimeout(function () {
                 return rej(Object.assign(new Error("service worker sem ready"), {
@@ -21785,38 +21903,38 @@ function App() {
               }, 8000);
             })]);
           case 2:
-            reg = _context124.v;
-            _context124.p = 3;
-            _context124.n = 4;
+            reg = _context125.v;
+            _context125.p = 3;
+            _context125.n = 4;
             return reg.pushManager.getSubscription();
           case 4:
-            existing = _context124.v;
-            _t148 = existing;
-            if (_t148) {
-              _context124.n = 6;
+            existing = _context125.v;
+            _t150 = existing;
+            if (_t150) {
+              _context125.n = 6;
               break;
             }
-            _context124.n = 5;
+            _context125.n = 5;
             return reg.pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: VAPID_PUBLIC
             });
           case 5:
-            _t148 = _context124.v;
+            _t150 = _context125.v;
           case 6:
-            _sub = _t148;
-            _context124.n = 8;
+            _sub = _t150;
+            _context125.n = 8;
             break;
           case 7:
-            _context124.p = 7;
-            _t149 = _context124.v;
-            throw Object.assign(_t149, {
-              pushCode: _t149 && _t149.pushCode || "subscrever"
+            _context125.p = 7;
+            _t151 = _context125.v;
+            throw Object.assign(_t151, {
+              pushCode: _t151 && _t151.pushCode || "subscrever"
             });
           case 8:
             subJson = _sub.toJSON();
-            _context124.p = 9;
-            _context124.n = 10;
+            _context125.p = 9;
+            _context125.n = 10;
             return fetch("".concat(SB_URL, "/rest/v1/push_subscriptions?on_conflict=user_id,endpoint"), {
               method: "POST",
               headers: {
@@ -21833,18 +21951,18 @@ function App() {
               })
             });
           case 10:
-            res = _context124.v;
-            _context124.n = 12;
+            res = _context125.v;
+            _context125.n = 12;
             break;
           case 11:
-            _context124.p = 11;
-            _t150 = _context124.v;
-            throw Object.assign(_t150, {
+            _context125.p = 11;
+            _t152 = _context125.v;
+            throw Object.assign(_t152, {
               pushCode: "gravar"
             });
           case 12:
             if (!(!res.ok && res.status !== 409)) {
-              _context124.n = 13;
+              _context125.n = 13;
               break;
             }
             throw Object.assign(new Error("erro ".concat(res.status)), {
@@ -21852,93 +21970,93 @@ function App() {
             });
           case 13:
             setPushIssue(null);
-            _context124.n = 15;
+            _context125.n = 15;
             break;
           case 14:
-            _context124.p = 14;
-            _t151 = _context124.v;
-            console.warn("Push subscribe failed:", _t151 && _t151.message);
+            _context125.p = 14;
+            _t153 = _context125.v;
+            console.warn("Push subscribe failed:", _t153 && _t153.message);
             setPushIssue({
-              code: _t151 && _t151.pushCode || "subscrever",
-              detail: _t151 && _t151.pushCode === "gravar" && /^erro \d+$/.test(String(_t151.message)) ? _t151.message : ""
+              code: _t153 && _t153.pushCode || "subscrever",
+              detail: _t153 && _t153.pushCode === "gravar" && /^erro \d+$/.test(String(_t153.message)) ? _t153.message : ""
             });
           case 15:
-            return _context124.a(2);
+            return _context125.a(2);
         }
-      }, _callee124, null, [[9, 11], [3, 7], [1, 14]]);
+      }, _callee125, null, [[9, 11], [3, 7], [1, 14]]);
     }));
-    return function subscribeToPush(_x84, _x85) {
-      return _ref267.apply(this, arguments);
+    return function subscribeToPush(_x87, _x88) {
+      return _ref268.apply(this, arguments);
     };
   }();
   var checkPush = function () {
-    var _ref268 = _asyncToGenerator(_regenerator().m(function _callee125(tok, uid, ask) {
+    var _ref269 = _asyncToGenerator(_regenerator().m(function _callee126(tok, uid, ask) {
       var perm;
-      return _regenerator().w(function (_context125) {
-        while (1) switch (_context125.n) {
+      return _regenerator().w(function (_context126) {
+        while (1) switch (_context126.n) {
           case 0:
             if (!RO.on) {
-              _context125.n = 1;
+              _context126.n = 1;
               break;
             }
-            return _context125.a(2);
+            return _context126.a(2);
           case 1:
             if (!(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window))) {
-              _context125.n = 2;
+              _context126.n = 2;
               break;
             }
             setPushIssue({
               code: isIOSDevice() && !isStandaloneApp() ? "ios-instalar" : "sem-suporte"
             });
-            return _context125.a(2);
+            return _context126.a(2);
           case 2:
             if (!(Notification.permission === "denied")) {
-              _context125.n = 3;
+              _context126.n = 3;
               break;
             }
             setPushIssue({
               code: "bloqueado"
             });
-            return _context125.a(2);
+            return _context126.a(2);
           case 3:
             if (!(Notification.permission === "default")) {
-              _context125.n = 7;
+              _context126.n = 7;
               break;
             }
             if (ask) {
-              _context125.n = 4;
+              _context126.n = 4;
               break;
             }
-            return _context125.a(2);
+            return _context126.a(2);
           case 4:
-            _context125.n = 5;
+            _context126.n = 5;
             return Notification.requestPermission();
           case 5:
-            perm = _context125.v;
+            perm = _context126.v;
             if (!(perm === "denied")) {
-              _context125.n = 6;
+              _context126.n = 6;
               break;
             }
             setPushIssue({
               code: "bloqueado"
             });
-            return _context125.a(2);
+            return _context126.a(2);
           case 6:
             if (!(perm !== "granted")) {
-              _context125.n = 7;
+              _context126.n = 7;
               break;
             }
-            return _context125.a(2);
+            return _context126.a(2);
           case 7:
-            _context125.n = 8;
+            _context126.n = 8;
             return subscribeToPush(tok, uid);
           case 8:
-            return _context125.a(2);
+            return _context126.a(2);
         }
-      }, _callee125);
+      }, _callee126);
     }));
-    return function checkPush(_x86, _x87, _x88) {
-      return _ref268.apply(this, arguments);
+    return function checkPush(_x89, _x90, _x91) {
+      return _ref269.apply(this, arguments);
     };
   }();
   useEffect(function () {
@@ -21967,28 +22085,28 @@ function App() {
     }, 3000);
   };
   var sendPushToTeam = function () {
-    var _ref269 = _asyncToGenerator(_regenerator().m(function _callee126(teamId, members, title, body) {
-      var userIds, res, det, _t152, _t153;
-      return _regenerator().w(function (_context126) {
-        while (1) switch (_context126.p = _context126.n) {
+    var _ref270 = _asyncToGenerator(_regenerator().m(function _callee127(teamId, members, title, body) {
+      var userIds, res, det, _t154, _t155;
+      return _regenerator().w(function (_context127) {
+        while (1) switch (_context127.p = _context127.n) {
           case 0:
             if (!RO.on) {
-              _context126.n = 1;
+              _context127.n = 1;
               break;
             }
-            return _context126.a(2);
+            return _context127.a(2);
           case 1:
             userIds = members.map(function (m) {
               return m.userId;
             }).filter(Boolean);
             if (userIds.length) {
-              _context126.n = 2;
+              _context127.n = 2;
               break;
             }
-            return _context126.a(2);
+            return _context127.a(2);
           case 2:
-            _context126.p = 2;
-            _context126.n = 3;
+            _context127.p = 2;
+            _context127.n = 3;
             return fetch("".concat(SB_URL, "/functions/v1/send-team-push"), {
               method: "POST",
               headers: {
@@ -22004,47 +22122,47 @@ function App() {
               })
             });
           case 3:
-            res = _context126.v;
+            res = _context127.v;
             if (res.ok) {
-              _context126.n = 8;
+              _context127.n = 8;
               break;
             }
             det = "";
-            _context126.p = 4;
-            _context126.n = 5;
+            _context127.p = 4;
+            _context127.n = 5;
             return res.text();
           case 5:
-            det = _context126.v.slice(0, 80);
-            _context126.n = 7;
+            det = _context127.v.slice(0, 80);
+            _context127.n = 7;
             break;
           case 6:
-            _context126.p = 6;
-            _t152 = _context126.v;
+            _context127.p = 6;
+            _t154 = _context127.v;
           case 7:
             throw new Error("HTTP ".concat(res.status).concat(det ? " " + det : ""));
           case 8:
-            _context126.n = 10;
+            _context127.n = 10;
             break;
           case 9:
-            _context126.p = 9;
-            _t153 = _context126.v;
-            notePushFail(_t153 && _t153.message);
+            _context127.p = 9;
+            _t155 = _context127.v;
+            notePushFail(_t155 && _t155.message);
           case 10:
-            return _context126.a(2);
+            return _context127.a(2);
         }
-      }, _callee126, null, [[4, 6], [2, 9]]);
+      }, _callee127, null, [[4, 6], [2, 9]]);
     }));
-    return function sendPushToTeam(_x89, _x90, _x91, _x92) {
-      return _ref269.apply(this, arguments);
+    return function sendPushToTeam(_x92, _x93, _x94, _x95) {
+      return _ref270.apply(this, arguments);
     };
   }();
   var addFineWithToast = function () {
-    var _ref270 = _asyncToGenerator(_regenerator().m(function _callee127(d) {
+    var _ref271 = _asyncToGenerator(_regenerator().m(function _callee128(d) {
       var m;
-      return _regenerator().w(function (_context127) {
-        while (1) switch (_context127.n) {
+      return _regenerator().w(function (_context128) {
+        while (1) switch (_context128.n) {
           case 0:
-            _context127.n = 1;
+            _context128.n = 1;
             return addFine(d);
           case 1:
             m = members.find(function (x) {
@@ -22059,43 +22177,43 @@ function App() {
               }) || team)), " \u2014 ").concat(d.reason || "Multa atribuída")).catch(function () {});
             }
           case 2:
-            return _context127.a(2);
+            return _context128.a(2);
         }
-      }, _callee127);
+      }, _callee128);
     }));
-    return function addFineWithToast(_x93) {
-      return _ref270.apply(this, arguments);
+    return function addFineWithToast(_x96) {
+      return _ref271.apply(this, arguments);
     };
   }();
   var addCardWithAlert = function () {
-    var _ref271 = _asyncToGenerator(_regenerator().m(function _callee128(d) {
+    var _ref272 = _asyncToGenerator(_regenerator().m(function _callee129(d) {
       var c, m, name, y, managers;
-      return _regenerator().w(function (_context128) {
-        while (1) switch (_context128.n) {
+      return _regenerator().w(function (_context129) {
+        while (1) switch (_context129.n) {
           case 0:
-            _context128.n = 1;
+            _context129.n = 1;
             return addCard(d);
           case 1:
-            c = _context128.v;
+            c = _context129.v;
             m = members.find(function (x) {
               return String(x.id) === String(d.memberId);
             });
             name = (m === null || m === void 0 ? void 0 : m.name) || roleWord(team === null || team === void 0 ? void 0 : team.sport, false, true);
             showToast("".concat(d.kind === 'amarelo' ? "🟨" : "🟥", " Cart\xE3o ").concat(d.kind, " lan\xE7ado a ").concat(name), d.kind === 'amarelo' ? "#B38F00" : T.brand);
             if (!(c.kind !== 'amarelo')) {
-              _context128.n = 2;
+              _context129.n = 2;
               break;
             }
-            return _context128.a(2);
+            return _context129.a(2);
           case 2:
             y = cards.filter(function (x) {
               return x.teamId === d.teamId && String(x.memberId) === String(d.memberId) && x.kind === 'amarelo' && !x.consumed;
             }).length + 1;
             if (!(y < 4)) {
-              _context128.n = 3;
+              _context129.n = 3;
               break;
             }
-            return _context128.a(2);
+            return _context129.a(2);
           case 3:
             managers = members.filter(function (x) {
               return x.teamId === d.teamId && ["admin", "treinador", "diretor"].includes(x.role);
@@ -22108,12 +22226,12 @@ function App() {
               sendPushToTeam(d.teamId, managers, "\uD83D\uDFE5 ".concat(name, " atingiu 5 amarelos"), "Cumpre 1 jogo de castigo.").catch(function () {});
             }
           case 4:
-            return _context128.a(2);
+            return _context129.a(2);
         }
-      }, _callee128);
+      }, _callee129);
     }));
-    return function addCardWithAlert(_x94) {
-      return _ref271.apply(this, arguments);
+    return function addCardWithAlert(_x97) {
+      return _ref272.apply(this, arguments);
     };
   }();
   useEffect(function () {
@@ -22169,42 +22287,42 @@ function App() {
   var statusAt = React.useRef(0),
     statusSeq = React.useRef(0);
   var loadStatus = useCallback(function () {
-    var _ref272 = _asyncToGenerator(_regenerator().m(function _callee129(force) {
-      var now, my, next, _t154, _t155;
-      return _regenerator().w(function (_context129) {
-        while (1) switch (_context129.p = _context129.n) {
+    var _ref273 = _asyncToGenerator(_regenerator().m(function _callee130(force) {
+      var now, my, next, _t156, _t157;
+      return _regenerator().w(function (_context130) {
+        while (1) switch (_context130.p = _context130.n) {
           case 0:
             now = Date.now();
             if (!(!force && now - statusAt.current < STATUS_EVERY)) {
-              _context129.n = 1;
+              _context130.n = 1;
               break;
             }
-            return _context129.a(2);
+            return _context130.a(2);
           case 1:
             statusAt.current = now;
             my = ++statusSeq.current;
             next = null;
-            _context129.p = 2;
-            _t154 = parseAppStatus;
-            _context129.n = 3;
+            _context130.p = 2;
+            _t156 = parseAppStatus;
+            _context130.n = 3;
             return readAppStatus(tokenRef.current);
           case 3:
-            next = _t154(_context129.v);
-            _context129.n = 5;
+            next = _t156(_context130.v);
+            _context130.n = 5;
             break;
           case 4:
-            _context129.p = 4;
-            _t155 = _context129.v;
+            _context130.p = 4;
+            _t157 = _context130.v;
             next = null;
           case 5:
             if (my === statusSeq.current) setAppStatus(next);
           case 6:
-            return _context129.a(2);
+            return _context130.a(2);
         }
-      }, _callee129, null, [[2, 4]]);
+      }, _callee130, null, [[2, 4]]);
     }));
-    return function (_x95) {
-      return _ref272.apply(this, arguments);
+    return function (_x98) {
+      return _ref273.apply(this, arguments);
     };
   }(), []);
   useEffect(function () {
@@ -22217,45 +22335,61 @@ function App() {
       return document.removeEventListener("visibilitychange", vis);
     };
   }, []);
+  var diaRef = React.useRef(localDateStr(new Date()));
+  useEffect(function () {
+    var viraDia = function viraDia() {
+      var k = localDateStr(new Date());
+      if (k !== diaRef.current) {
+        diaRef.current = k;
+        if (window.__multeamRefresh) window.__multeamRefresh();
+      }
+    };
+    var id = setInterval(viraDia, 30000);
+    document.addEventListener("visibilitychange", viraDia);
+    return function () {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", viraDia);
+    };
+  }, []);
   var uidRef = React.useRef(null);
   uidRef.current = myUserId;
   var logoutRef = React.useRef(null);
   logoutRef.current = handleLogout;
   var restoreSession = function () {
-    var _ref273 = _asyncToGenerator(_regenerator().m(function _callee130(silent) {
+    var _ref274 = _asyncToGenerator(_regenerator().m(function _callee131(silent) {
       var r, okInit;
-      return _regenerator().w(function (_context130) {
-        while (1) switch (_context130.n) {
+      return _regenerator().w(function (_context131) {
+        while (1) switch (_context131.n) {
           case 0:
             if (!silent) setSessState("restoring");
             setSessBusy(true);
-            _context130.n = 1;
+            _context131.n = 1;
             return sessRenew(false);
           case 1:
-            r = _context130.v;
+            r = _context131.v;
             setSessBusy(false);
             if (!(r.status === "ok")) {
-              _context130.n = 4;
+              _context131.n = 4;
               break;
             }
             setToken(r.s.at);
             setMyUserId(r.s.uid);
-            _context130.n = 2;
+            _context131.n = 2;
             return initApp(r.s.at, r.s.uid);
           case 2:
-            okInit = _context130.v;
+            okInit = _context131.v;
             if (!okInit) {
-              _context130.n = 3;
+              _context131.n = 3;
               break;
             }
             setSessState("none");
-            return _context130.a(2);
+            return _context131.a(2);
           case 3:
             setToken(null);
             setMyUserId(null);
             setAuthError(null);
             setSessState("offline");
-            _context130.n = 5;
+            _context131.n = 5;
             break;
           case 4:
             if (r.status === "transient") setSessState("offline");else {
@@ -22263,12 +22397,12 @@ function App() {
               if (r.status === "invalid") setAuthError("A sessão terminou. Entra outra vez.");
             }
           case 5:
-            return _context130.a(2);
+            return _context131.a(2);
         }
-      }, _callee130);
+      }, _callee131);
     }));
-    return function restoreSession(_x96) {
-      return _ref273.apply(this, arguments);
+    return function restoreSession(_x99) {
+      return _ref274.apply(this, arguments);
     };
   }();
   useEffect(function () {
@@ -22296,20 +22430,20 @@ function App() {
       t = setTimeout(_tick, Math.min(Math.max(2000, ss.exp - ss.m - Date.now()), 2147000000));
     };
     var _tick = function () {
-      var _ref274 = _asyncToGenerator(_regenerator().m(function _callee131() {
+      var _ref275 = _asyncToGenerator(_regenerator().m(function _callee132() {
         var r;
-        return _regenerator().w(function (_context131) {
-          while (1) switch (_context131.n) {
+        return _regenerator().w(function (_context132) {
+          while (1) switch (_context132.n) {
             case 0:
-              _context131.n = 1;
+              _context132.n = 1;
               return sessRenew(false);
             case 1:
-              r = _context131.v;
+              r = _context132.v;
               if (!dead) {
-                _context131.n = 2;
+                _context132.n = 2;
                 break;
               }
-              return _context131.a(2);
+              return _context132.a(2);
             case 2:
               if (r.status === "ok") {
                 if (r.s.at !== tokenRef.current) setToken(r.s.at);else schedule();
@@ -22320,12 +22454,12 @@ function App() {
                 setAuthError("A sessão terminou. Entra outra vez.");
               }
             case 3:
-              return _context131.a(2);
+              return _context132.a(2);
           }
-        }, _callee131);
+        }, _callee132);
       }));
       return function tick() {
-        return _ref274.apply(this, arguments);
+        return _ref275.apply(this, arguments);
       };
     }();
     var wake = function wake() {
@@ -22806,22 +22940,22 @@ function App() {
     onListClaimable: listClaimable,
     onRequestClaim: requestClaim,
     onJoin: (function () {
-      var _ref275 = _asyncToGenerator(_regenerator().m(function _callee132(t) {
-        return _regenerator().w(function (_context132) {
-          while (1) switch (_context132.n) {
+      var _ref276 = _asyncToGenerator(_regenerator().m(function _callee133(t) {
+        return _regenerator().w(function (_context133) {
+          while (1) switch (_context133.n) {
             case 0:
-              _context132.n = 1;
+              _context133.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context132.a(2);
+              return _context133.a(2);
           }
-        }, _callee132);
+        }, _callee133);
       }));
-      return function (_x97) {
-        return _ref275.apply(this, arguments);
+      return function (_x100) {
+        return _ref276.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
@@ -22833,14 +22967,14 @@ function App() {
   }), modal === "profile" && React.createElement(EditProfileModal, {
     user: profile || {},
     onSave: (function () {
-      var _ref276 = _asyncToGenerator(_regenerator().m(function _callee133(u) {
-        var _t156, _t157;
-        return _regenerator().w(function (_context133) {
-          while (1) switch (_context133.p = _context133.n) {
+      var _ref277 = _asyncToGenerator(_regenerator().m(function _callee134(u) {
+        var _t158, _t159;
+        return _regenerator().w(function (_context134) {
+          while (1) switch (_context134.p = _context134.n) {
             case 0:
-              _context133.p = 0;
-              _t156 = needRows;
-              _context133.n = 1;
+              _context134.p = 0;
+              _t158 = needRows;
+              _context134.n = 1;
               return api.patch("profiles?id=eq.".concat(myUserId), {
                 name: u.name,
                 phone: u.phone || null,
@@ -22849,25 +22983,25 @@ function App() {
                 position: u.position || null
               }, token);
             case 1:
-              _t156(_context133.v);
-              _context133.n = 3;
+              _t158(_context134.v);
+              _context134.n = 3;
               break;
             case 2:
-              _context133.p = 2;
-              _t157 = _context133.v;
-              writeFailed("guardar o perfil", _t157);
-              return _context133.a(2);
+              _context134.p = 2;
+              _t159 = _context134.v;
+              writeFailed("guardar o perfil", _t159);
+              return _context134.a(2);
             case 3:
               setProfile(function (p) {
                 return _objectSpread(_objectSpread({}, p), u);
               });
             case 4:
-              return _context133.a(2);
+              return _context134.a(2);
           }
-        }, _callee133, null, [[0, 2]]);
+        }, _callee134, null, [[0, 2]]);
       }));
-      return function (_x98) {
-        return _ref276.apply(this, arguments);
+      return function (_x101) {
+        return _ref277.apply(this, arguments);
       };
     }()),
     onClose: function onClose() {
@@ -22969,22 +23103,22 @@ function App() {
     onListClaimable: listClaimable,
     onRequestClaim: requestClaim,
     onJoin: (function () {
-      var _ref277 = _asyncToGenerator(_regenerator().m(function _callee134(t) {
-        return _regenerator().w(function (_context134) {
-          while (1) switch (_context134.n) {
+      var _ref278 = _asyncToGenerator(_regenerator().m(function _callee135(t) {
+        return _regenerator().w(function (_context135) {
+          while (1) switch (_context135.n) {
             case 0:
-              _context134.n = 1;
+              _context135.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context134.a(2);
+              return _context135.a(2);
           }
-        }, _callee134);
+        }, _callee135);
       }));
-      return function (_x99) {
-        return _ref277.apply(this, arguments);
+      return function (_x102) {
+        return _ref278.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
@@ -23014,7 +23148,7 @@ function App() {
     onAddType: addTraining,
     onDelete: delTraining,
     onEdit: editTraining,
-    onLogSession: logSession,
+    onLogSession: logSessionOcc,
     onBack: function onBack() {
       return setTab("home");
     },
@@ -23432,15 +23566,15 @@ function App() {
     }) : profile || {},
     team: team,
     onSave: (function () {
-      var _ref278 = _asyncToGenerator(_regenerator().m(function _callee135(u) {
+      var _ref279 = _asyncToGenerator(_regenerator().m(function _callee136(u) {
         var _members$find5;
-        var _t158, _t159;
-        return _regenerator().w(function (_context135) {
-          while (1) switch (_context135.p = _context135.n) {
+        var _t160, _t161;
+        return _regenerator().w(function (_context136) {
+          while (1) switch (_context136.p = _context136.n) {
             case 0:
-              _context135.p = 0;
-              _t158 = needRows;
-              _context135.n = 1;
+              _context136.p = 0;
+              _t160 = needRows;
+              _context136.n = 1;
               return api.patch("profiles?id=eq.".concat(myUserId), freeSport ? {
                 name: u.name,
                 phone: u.phone || null,
@@ -23454,31 +23588,31 @@ function App() {
                 position: u.position || null
               }, token);
             case 1:
-              _t158(_context135.v);
-              _context135.n = 3;
+              _t160(_context136.v);
+              _context136.n = 3;
               break;
             case 2:
-              _context135.p = 2;
-              _t159 = _context135.v;
-              writeFailed("guardar o perfil", _t159);
-              return _context135.a(2);
+              _context136.p = 2;
+              _t161 = _context136.v;
+              writeFailed("guardar o perfil", _t161);
+              return _context136.a(2);
             case 3:
               setProfile(function (p) {
                 return freeSport ? _objectSpread(_objectSpread(_objectSpread({}, p), u), {}, {
                   position: p.position
                 }) : _objectSpread(_objectSpread({}, p), u);
               });
-              _context135.n = 4;
+              _context136.n = 4;
               return editMember((_members$find5 = members.find(function (m) {
                 return m.userId === myUserId && m.teamId === teamId;
               })) === null || _members$find5 === void 0 ? void 0 : _members$find5.id, u);
             case 4:
-              return _context135.a(2);
+              return _context136.a(2);
           }
-        }, _callee135, null, [[0, 2]]);
+        }, _callee136, null, [[0, 2]]);
       }));
-      return function (_x100) {
-        return _ref278.apply(this, arguments);
+      return function (_x103) {
+        return _ref279.apply(this, arguments);
       };
     }()),
     onClose: function onClose() {
@@ -23491,22 +23625,22 @@ function App() {
     onListClaimable: listClaimable,
     onRequestClaim: requestClaim,
     onJoin: (function () {
-      var _ref279 = _asyncToGenerator(_regenerator().m(function _callee136(t) {
-        return _regenerator().w(function (_context136) {
-          while (1) switch (_context136.n) {
+      var _ref280 = _asyncToGenerator(_regenerator().m(function _callee137(t) {
+        return _regenerator().w(function (_context137) {
+          while (1) switch (_context137.n) {
             case 0:
-              _context136.n = 1;
+              _context137.n = 1;
               return joinTeam(t);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
             case 2:
-              return _context136.a(2);
+              return _context137.a(2);
           }
-        }, _callee136);
+        }, _callee137);
       }));
-      return function (_x101) {
-        return _ref279.apply(this, arguments);
+      return function (_x104) {
+        return _ref280.apply(this, arguments);
       };
     }()),
     initialCode: pendingInvite || "",
