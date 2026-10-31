@@ -8691,18 +8691,33 @@ var HomeTab = function HomeTab(_ref95) {
           fontSize: 12,
           color: T.sub
         }
-      }, m.initials), React.createElement("p", {
+      }, m.initials), React.createElement("div", {
+        style: {
+          flex: 1,
+          minWidth: 0
+        }
+      }, React.createElement("p", {
         style: {
           margin: 0,
-          flex: 1,
           fontWeight: 600,
-          fontSize: 15
+          fontSize: 15,
+          overflowWrap: "anywhere"
         }
-      }, m.name), React.createElement("p", {
+      }, m.name), m.paid > 0 && React.createElement("p", {
+        "data-rank-pago": true,
+        style: {
+          margin: "2px 0 0",
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.sub
+        }
+      }, money(m.paid))), React.createElement("p", {
         style: {
           margin: 0,
           fontWeight: 800,
           fontSize: 15,
+          flexShrink: 0,
+          whiteSpace: "nowrap",
           color: m.unpaid > 0 ? T.brand : T.sub
         }
       }, m.unpaid > 0 ? money(m.unpaid) : "✓"));

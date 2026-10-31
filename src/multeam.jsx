@@ -2413,8 +2413,11 @@ const HomeTab = ({ appStatus, noticeUserId, team, fines, members, expenses, trai
               <div key={m.id} style={{ background:T.card, borderRadius:14, padding:"12px 16px", marginTop:6, display:"flex", alignItems:"center", gap:12 }}>
                 <span style={{ fontSize:16, width:28, textAlign:"center", color:T.sub, fontWeight:700 }}>{i+4}</span>
                 <div style={{ width:36, height:36, borderRadius:18, background:T.bg, border:`2px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, fontSize:12, color:T.sub }}>{m.initials}</div>
-                <p style={{ margin:0, flex:1, fontWeight:600, fontSize:15 }}>{m.name}</p>
-                <p style={{ margin:0, fontWeight:800, fontSize:15, color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?money(m.unpaid):"✓"}</p>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ margin:0, fontWeight:600, fontSize:15, overflowWrap:"anywhere" }}>{m.name}</p>
+                  {m.paid>0 && <p data-rank-pago style={{ margin:"2px 0 0", fontSize:12, fontWeight:600, color:T.sub }}>{money(m.paid)}</p>}
+                </div>
+                <p style={{ margin:0, fontWeight:800, fontSize:15, flexShrink:0, whiteSpace:"nowrap", color:m.unpaid>0?T.brand:T.sub }}>{m.unpaid>0?money(m.unpaid):"✓"}</p>
               </div>
             ))}
           </div>
