@@ -177,7 +177,7 @@ const sessServerLogout = tok => { if (!tok) return; try { fetch(`${SB_URL}/auth/
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
-const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', emojiRaw:t.emoji||'', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, tactic:t.tactic||'', createdBy:t.created_by });
+const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', emojiRaw:t.emoji||'', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, tactic:t.tactic||'', forceRsvp:t.force_rsvp===true, createdBy:t.created_by });
 const aMember = (m, sport) => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:isFreeSport(sport)?(m.position||''):(m.position||m.profiles?.position||'Jogador'), phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
   const localDate = f.created_at ? (() => { const d = new Date(f.created_at); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '';
@@ -510,6 +510,24 @@ const nextPresenceEvent = (trainings, teamId, now = new Date()) => {
     if (!best || key < best.key) best = { t, day, diff, key };
   });
   return best;
+};
+// Treinos/jogos da equipa que começam nas próximas `horas` horas (recorrentes: a ocorrência de hoje/próxima), do mais próximo para o mais distante.
+const eventsWithin = (trainings, teamId, now = new Date(), horas = 48) => {
+  const out = [];
+  (trainings || []).forEach(t => {
+    if (t.teamId !== teamId) return;
+    const date = t.type === "recorrente" ? nextOccurrence(t.days, t.time, now) : t.date;
+    const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(date || "");
+    if (!m) return;
+    const hh = parseInt((t.time || "").slice(0, 2), 10), mm = parseInt((t.time || "").slice(3, 5), 10) || 0;
+    const start = new Date(+m[1], +m[2] - 1, +m[3], isNaN(hh) ? 12 : hh, isNaN(hh) ? 0 : mm);
+    const ms = start - now;
+    if (ms < 0 || ms > horas * 3600000) return;
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = new Date(+m[1], +m[2] - 1, +m[3]);
+    out.push({ t, day, diff: Math.round((day - today) / 864e5), start });
+  });
+  return out.sort((a, b) => a.start - b.start);
 };
 const presenceTitle = ev => {
   const when = ev.diff === 0 ? "hoje" : ev.diff === 1 ? "amanhã" : ev.day.toLocaleDateString("pt-PT", { weekday:"long" });
@@ -2206,6 +2224,40 @@ const TabelaMultasModal = ({ team, fineTypes, fines, members, onClose }) => {
   );
 };
 
+// Ecrã inteiro "Vais ao treino?" (só com a opção da equipa ligada). Não bloqueia: "Ainda não sei" fecha sempre e uma falha mostra o erro.
+const RsvpGate = ({ ev, team, onAnswer, onLater }) => {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const answer = async status => {
+    if (busy) return;
+    setBusy(true); setErr("");
+    let ok = false;
+    try { ok = await onAnswer(ev.t.id, status); } catch(e) { ok = false; }
+    if (ok === false) setErr("Não foi possível guardar a resposta. Tenta outra vez ou carrega em «Ainda não sei».");
+    setBusy(false);
+  };
+  const btn = (label, color, bg, onClick, data) => (
+    <button data-rsvp={data} disabled={busy} onClick={onClick} style={{ width:"100%", minHeight:56, padding:"14px", borderRadius:16, border:`2px solid ${color}`, background:bg, color:bg==="transparent"?color:"#fff", fontSize:17, fontWeight:800, cursor:busy?"default":"pointer", fontFamily:"inherit", marginTop:12 }}>{label}</button>
+  );
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Vais ao treino?" data-rsvp-gate style={{ position:"fixed", inset:0, zIndex:3000, background:T.bg, overflowY:"auto", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"24px 20px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <div style={{ width:"100%", maxWidth:420 }}>
+        <p style={{ margin:"0 0 4px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{team.name}</p>
+        <h1 style={{ margin:"0 0 14px", fontSize:28, fontWeight:900, lineHeight:1.15 }}>Vais ao {ev.t.type === "jogo" ? "jogo" : "treino"}?</h1>
+        <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"13px 14px" }}>
+          <p style={{ margin:0, fontWeight:700, fontSize:16, overflowWrap:"anywhere" }}>{presenceTitle(ev)}{ev.t.type === "jogo" && ev.t.opponent ? ` · vs ${ev.t.opponent}` : ""}</p>
+          <p data-event-date style={{ margin:"2px 0 0", fontSize:14, fontWeight:600, color:T.sub }}>📅 {eventDateShort(ev.day)}</p>
+          {ev.t.location && <p style={{ margin:"2px 0 0", fontSize:14, color:T.sub, overflowWrap:"anywhere" }}>📍 {ev.t.location}</p>}
+          <TacticLine t={ev.t} team={team} />
+        </div>
+        {err && <p role="alert" data-rsvp-erro style={{ margin:"12px 0 0", fontSize:14, fontWeight:700, color:"#B42318", background:"#FFE5E5", borderRadius:10, padding:"10px 12px" }}>{err}</p>}
+        {btn("✓ Presente", T.green, T.green, () => answer("present"), "present")}
+        {btn("✗ Ausente", "#C94F00", "#C94F00", () => answer("absent"), "absent")}
+        {btn("Ainda não sei", T.sub, "transparent", onLater, "later")}
+      </div>
+    </div>
+  );
+};
 // Aviso único, só para admins: novidade da Tática. "Já visto" por utilizador em localStorage (chave própria; o "Terminar sessão" só apaga a sessão).
 const TACTIC_NOTICE_KEY = "multeam.novidade.tatica.";
 const TacticNotice = ({ userId }) => {
@@ -4014,7 +4066,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
 
 const TeamDataSection = ({ team, onSave }) => {
   const opt = (list, cur) => (cur && !list.includes(cur)) ? [cur, ...list] : list;
-  const init = () => ({ name:team.name||"", emoji:team.emoji||"⚽", color:team.color||"#1D3557", season:team.season||"", sport:team.sport||"", currency:team.currency||"", country:team.country||"", city:team.city||"", postal:team.postal||"", tactic:team.tactic||"" });
+  const init = () => ({ name:team.name||"", emoji:team.emoji||"⚽", color:team.color||"#1D3557", season:team.season||"", sport:team.sport||"", currency:team.currency||"", country:team.country||"", city:team.city||"", postal:team.postal||"", tactic:team.tactic||"", force_rsvp:team.forceRsvp===true });
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState(init);
   const [busy, setBusy] = useState(false);
@@ -4031,7 +4083,7 @@ const TeamDataSection = ({ team, onSave }) => {
   const open = () => { setCurAsk(null); setF(init()); const sp = sportSplit(team.sport); setSportSel(sp.sel); setSportOther(sp.text); setErr(""); setEditing(true); };
   const save = async () => {
     if (!canSave) return;
-    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:normPlace(f.city), postal:normPlace(f.postal), tactic:normTactic(f.tactic), sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
+    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:normPlace(f.city), postal:normPlace(f.postal), tactic:normTactic(f.tactic), force_rsvp:!!f.force_rsvp, sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
     const patch = {};
     Object.keys(next).forEach(k => { if (next[k] !== cur[k] && !((k === "city" || k === "postal") && next[k] === normPlace(cur[k]))) patch[k] = next[k]; }); // cidade/postal antigos só diferem em espaços: não se reescrevem
     if (patch.tactic !== undefined) patch.tactic = patch.tactic || null; // apagar = voltar a "Por definir" (null)
@@ -4060,6 +4112,7 @@ const TeamDataSection = ({ team, onSave }) => {
             <TacticBig tactic={team.tactic} />
           </div>
           <Val label="Nome" v={`${team.emoji||""} ${team.name||""}`.trim()} />
+          <Val label="Obrigar a responder ao treino" v={team.forceRsvp ? "Ligado" : "Desligado"} />
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0" }}>
             <span style={{ fontSize:13, color:T.sub }}>Cor</span>
             <span style={{ width:20, height:20, borderRadius:10, background:team.color, display:"inline-block" }} />
@@ -4100,6 +4153,12 @@ const TeamDataSection = ({ team, onSave }) => {
             {sportIssue && <p role="alert" data-sport-error style={{ margin:"-6px 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{sportIssue}</p>}
           </>}
           <TacticField key={sportSel} sport={sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER)} value={f.tactic} onChange={v=>set("tactic",v)} emptyLabel="Por definir" color={f.color} />
+          <FL>Obrigar a responder ao treino</FL>
+          <button role="switch" aria-checked={!!f.force_rsvp} data-rsvp-switch onClick={()=>set("force_rsvp", !f.force_rsvp)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, width:"100%", minHeight:44, padding:"8px 14px", borderRadius:12, border:`2px solid ${f.force_rsvp ? f.color : T.border}`, background:f.force_rsvp ? `${f.color}15` : T.inputBg, color:T.text, fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:6 }}>
+            <span>{f.force_rsvp ? "Ligado" : "Desligado"}</span>
+            <span style={{ fontSize:12, color:T.sub, fontWeight:700 }}>{f.force_rsvp ? "Tocar para desligar" : "Tocar para ligar"}</span>
+          </button>
+          <p style={{ margin:"0 0 14px", fontSize:12, color:T.sub }}>Ligado: ao abrir a app, quem ainda não respondeu ao próximo treino ou jogo (daqui a 48 horas ou menos) vê um ecrã a perguntar «Vais?».</p>
           <FL>Moeda</FL>
           <FSel value={f.currency} onChange={e=>{ set("currency",e.target.value); setCurAsk(null); }}>
             {opt(CURRENCIES, f.currency).map(x=><option key={x} value={x}>{x}</option>)}
@@ -6079,6 +6138,7 @@ export default function App() {
   const tokenRef = React.useRef(null); tokenRef.current = token;
   // Estado de manutenção: lido ao abrir, no ↺ e ao voltar ao primeiro plano, no máximo 1 vez por minuto; qualquer falha = verde
   const [appStatus, setAppStatus] = useState(null);
+  const [rsvpFechado, setRsvpFechado] = useState(false); // «Ainda não sei»: o ecrã fecha até à próxima abertura da app
   const statusAt = React.useRef(0), statusSeq = React.useRef(0);
   const loadStatus = useCallback(async (force) => {
     const now = Date.now();
@@ -6255,12 +6315,18 @@ export default function App() {
     return wrap(<MoneyCtx.Provider value={teamCur(mt)}><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</MoneyCtx.Provider>);
   }
 
+  // «Vais ao treino?» em ecrã inteiro: só com a opção da equipa ligada, fora do modo leitura, para o treino/jogo mais próximo (≤ 48 h) sem resposta
+  const meuMembro = !roMode && team ? members.find(m => m.teamId === team.id && m.userId === myUserId) : null;
+  const rsvpEv = (team && team.forceRsvp === true && meuMembro && !meuMembro.unavailable && !rsvpFechado)
+    ? (eventsWithin(trainings, team.id, new Date(), 48).find(ev => !(presences[ev.t.id] && presences[ev.t.id][meuMembro.id])) || null) : null;
+
   return (
     <MoneyCtx.Provider value={teamCur(team)}><div style={{ background:T.bg, minHeight:"100vh", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", maxWidth:480, margin:"0 auto" }}>
       {roBanner}
       {loadWarnBox}
       {refreshing && <div style={{ position:"fixed", top:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, zIndex:999, display:"flex", justifyContent:"center", paddingTop:8 }}><div style={{ background:T.navy, borderRadius:20, padding:"6px 16px", display:"flex", alignItems:"center", gap:8, fontSize:13, color:"#fff", fontWeight:700, boxShadow:"0 2px 12px rgba(0,0,0,0.2)" }}><span style={{ display:"inline-block", animation:"spin 0.8s linear infinite" }}>⟳</span> A atualizar...</div></div>}
       {toastBox}
+      {rsvpEv && <RsvpGate ev={rsvpEv} team={team} onAnswer={(tid, st) => setPresence(tid, meuMembro.id, st)} onLater={() => setRsvpFechado(true)} />}
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}dd)`, color:"#fff", padding:"52px 16px 14px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
