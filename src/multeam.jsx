@@ -446,18 +446,35 @@ const weatherEmoji = c => {
   return "";
 };
 const localDateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-// Próxima ocorrência (data local YYYY-MM-DD) de um treino recorrente, dentro de 7 dias; senão "".
+// Ocorrência (data local YYYY-MM-DD) de um treino recorrente: a de hoje se hoje for um dos dias (mantém-se até à meia-noite,
+// mesmo depois da hora do treino); senão a próxima, dentro de 7 dias; "" só se não houver dias. A hora já não conta.
 const nextOccurrence = (days, time, now = new Date()) => {
   if (!days || !days.length) return "";
-  const hh = parseInt((time || "").slice(0, 2), 10);
   for (let i = 0; i < 7; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
     if (!days.includes(d.getDay())) continue;
-    // hoje mas a hora já passou → não é a próxima
-    if (i === 0 && !isNaN(hh) && now.getHours() > hh) continue;
     return localDateStr(d);
   }
   return "";
+};
+// Respostas de presença → { [idDoTreino]: { [idDoMembro]: estado } }. Treino único: a resposta do par. Recorrente: só as da ocorrência
+// de hoje/próxima (occurrence_date); linhas antigas sem data contam para essa ocorrência se o membro não tiver linha com data.
+const presenceView = (rows, trainings, now = new Date()) => {
+  const byId = {}; (trainings || []).forEach(t => { byId[t.id] = t; });
+  const occ = {}; const view = {};
+  const put = (tid, mid, st) => { if (!view[tid]) view[tid] = {}; view[tid][mid] = st; };
+  const occOf = t => (t.id in occ) ? occ[t.id] : (occ[t.id] = nextOccurrence(t.days, t.time, now));
+  const list = Array.isArray(rows) ? rows : [];
+  list.forEach(p => { // 1.º: treinos únicos e linhas antigas sem data dos recorrentes
+    const t = byId[p.training_id];
+    if (!t || t.type !== "recorrente") put(p.training_id, p.member_id, p.status);
+    else if (!p.occurrence_date) put(p.training_id, p.member_id, p.status);
+  });
+  list.forEach(p => { // 2.º: as linhas com a data da ocorrência de hoje/próxima mandam
+    const t = byId[p.training_id];
+    if (t && t.type === "recorrente" && p.occurrence_date && String(p.occurrence_date).slice(0, 10) === occOf(t)) put(p.training_id, p.member_id, p.status);
+  });
+  return view;
 };
 // hourly: { "YYYY-MM-DDTHH:00": {temp, code} } → { [idDoTreino]: {temp, code, emoji} }
 const matchForecast = (hourly, trainings, now = new Date()) => {
@@ -5120,12 +5137,8 @@ export default function App() {
     if (profFailed && mRaw.some(m => m.user_id)) failedParts.push('perfis');
     // Merge profiles into members
     const mData = mRaw.map(m => ({ ...m, profiles: profilesMap[m.user_id] || null }));
-    // Build presences map {trainingId: {memberId: status}}
-    const presMap = {};
-    pData.forEach(p => {
-      if (!presMap[p.training_id]) presMap[p.training_id] = {};
-      presMap[p.training_id][p.member_id] = p.status;
-    });
+    // Build presences map {trainingId: {memberId: status}} (recorrentes: só a ocorrência de hoje/próxima)
+    const presMap = presenceView(pData, tData.map(aTraining));
     return { members:mData.map(aMember), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:Array.isArray(aData)?aData.map(aAbsence):null, cards:(Array.isArray(cData)?cData:[]).map(aCard), warn:failedParts };
   };
 
@@ -5149,8 +5162,7 @@ export default function App() {
     const mRaw = lst("members", true), fData = lst("fines", true), eData = lst("expenses", true), tData = lst("trainings", true);
     const ftData = lst("fine_types"), pData = lst("presences"), cData = lst("cards"), aData = lst("absences"), profs = lst("profiles");
     const profilesMap = {}; profs.forEach(p => { if (p && p.id != null) profilesMap[p.id] = p; });
-    const presMap = {};
-    pData.forEach(p => { if (!presMap[p.training_id]) presMap[p.training_id] = {}; presMap[p.training_id][p.member_id] = p.status; });
+    const presMap = presenceView(pData, tData.map(aTraining));
     return { team:aTeam(r.team), members:mRaw.map(m => aMember({ ...m, profiles: profilesMap[m.user_id] || null }, r.team.sport)), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:aData.map(aAbsence), cards:cData.map(aCard) };
   };
   const applyAdminData = td => {
@@ -5533,20 +5545,49 @@ export default function App() {
       return true;
     } catch(e){ writeFailed("guardar o treino", e); throw e; } // o modal mostra o erro e fica aberto
   });
+  // "Registar sessão" de um recorrente: copia só as respostas da ocorrência dessa data (occurrence_date)
+  const logSessionOcc = async (recurring, date, fallback) => {
+    let map = {};
+    try {
+      const rows = await api.get(`presences?training_id=eq.${recurring.id}&occurrence_date=eq.${date}&select=member_id,status`, token);
+      (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.member_id != null && r.status) map[r.member_id] = r.status; });
+    } catch(e) { writeFailed("ler as presenças dessa data", e); return; }
+    return logSession(recurring, date, map);
+  };
   const setPresence = (tid,mid,status) => guarded(`pres:${tid}:${mid}`, async () => {
     try {
+      const tr = trainings.find(x => x.id === tid);
+      const occ = tr && tr.type === "recorrente" ? nextOccurrence(tr.days, tr.time, new Date()) : "";
+      const par = `presences?training_id=eq.${tid}&member_id=eq.${mid}`;
       if(!status){
-        await api.del(`presences?training_id=eq.${tid}&member_id=eq.${mid}`,token);
-        await confirmGone(`presences?training_id=eq.${tid}&member_id=eq.${mid}&select=training_id`);
+        if (occ) { // recorrente: apaga a resposta desta ocorrência e a linha antiga sem data (senão voltava a aparecer)
+          await api.del(`${par}&occurrence_date=eq.${occ}`,token);
+          await api.del(`${par}&occurrence_date=is.null`,token);
+          await confirmGone(`${par}&occurrence_date=eq.${occ}&select=training_id`);
+          await confirmGone(`${par}&occurrence_date=is.null&select=training_id`);
+        } else {
+          await api.del(par,token);
+          await confirmGone(`${par}&select=training_id`);
+        }
         setPresences(p=>{const t={...(p[tid]||{})};delete t[mid];return{...p,[tid]:t};});
       } else {
         // já tem resposta: muda-se com PATCH (o upsert sem on_conflict resolve pelo id e bateria na UNIQUE do par = 409); sem resposta, ou se o PATCH não encontrar a linha (apagada noutro telemóvel), grava-se como antes
         let mudou = false;
-        if (presences[tid] && presences[tid][mid]) {
-          const rows = await api.patch(`presences?training_id=eq.${tid}&member_id=eq.${mid}`, { status }, token);
-          mudou = Array.isArray(rows) && rows.length > 0;
+        const jaTem = !!(presences[tid] && presences[tid][mid]);
+        if (occ) { // recorrente: a resposta é desta ocorrência; uma linha antiga sem data é adotada (ganha a data)
+          if (jaTem) {
+            let rows = await api.patch(`${par}&occurrence_date=eq.${occ}`, { status }, token);
+            mudou = Array.isArray(rows) && rows.length > 0;
+            if (!mudou) { rows = await api.patch(`${par}&occurrence_date=is.null`, { status, occurrence_date:occ }, token); mudou = Array.isArray(rows) && rows.length > 0; }
+          }
+          if (!mudou) needRows(await api.upsert('presences?on_conflict=training_id,member_id,occurrence_date',{training_id:tid,member_id:mid,status,occurrence_date:occ},token));
+        } else {
+          if (jaTem) {
+            const rows = await api.patch(par, { status }, token);
+            mudou = Array.isArray(rows) && rows.length > 0;
+          }
+          if (!mudou) needRows(await api.upsert('presences',{training_id:tid,member_id:mid,status},token));
         }
-        if (!mudou) needRows(await api.upsert('presences',{training_id:tid,member_id:mid,status},token));
         setPresences(p=>({...p,[tid]:{...(p[tid]||{}),[mid]:status}}));
       }
       return true;
@@ -6054,6 +6095,14 @@ export default function App() {
     document.addEventListener("visibilitychange", vis);
     return () => document.removeEventListener("visibilitychange", vis);
   }, []);
+  // À meia-noite a ocorrência dos treinos recorrentes muda: recarrega os dados para as respostas passarem à nova ocorrência
+  const diaRef = React.useRef(localDateStr(new Date()));
+  useEffect(() => {
+    const viraDia = () => { const k = localDateStr(new Date()); if (k !== diaRef.current) { diaRef.current = k; if (window.__multeamRefresh) window.__multeamRefresh(); } };
+    const id = setInterval(viraDia, 30000);
+    document.addEventListener("visibilitychange", viraDia);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", viraDia); };
+  }, []);
   const uidRef = React.useRef(null); uidRef.current = myUserId;
   const logoutRef = React.useRef(null); logoutRef.current = handleLogout;
   const restoreSession = async (silent) => {
@@ -6197,7 +6246,7 @@ export default function App() {
       {roBanner}
       {loadWarnBox}
       {toastBox}
-      <TreinosPage tacticAdmin={isAdmin} team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSession} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
+      <TreinosPage tacticAdmin={isAdmin} team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSessionOcc} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
     </div></MoneyCtx.Provider>
   );
   if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
