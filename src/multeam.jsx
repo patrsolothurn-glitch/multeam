@@ -3762,10 +3762,10 @@ const PrivacySection = () => {
   );
 };
 
-const GeneralTab = ({ activeTeam, user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts, pushIssue, onRetryPush, claimsWarn, onRetryClaims }) => {
+const GeneralTab = ({ adminTeamIds, activeTeam, user, myUserId, teams, members, onEditProfile, onManageTeam, onCreateTeam, onJoinTeam, onLeaveTeam, onLogout, onAdminOpen, isAppAdmin, token, readOnly, myClaims, onEditClaimNote, onCancelClaim, onAnswerClaim, claimCounts, pushIssue, onRetryPush, claimsWarn, onRetryClaims }) => {
   // modo leitura (super admin): só a equipa aberta, sem ser membro
   const myTeams = readOnly ? teams : teams.filter(t => 
-    members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId
+    members.some(m=>m.teamId===t.id&&m.userId===myUserId) || t.createdBy===myUserId || !!(adminTeamIds && adminTeamIds.has(t.id)) // admin de uma equipa que não é a ativa: aparece (e tem Gerir) mesmo sem os membros carregados
   );
   const myAge = age(user.birthday);
   const [tapCount, setTapCount] = useState(0);
@@ -3885,7 +3885,7 @@ const GeneralTab = ({ activeTeam, user, myUserId, teams, members, onEditProfile,
       <Sec label={`Equipas (${myTeams.length})`} />
       {myTeams.map(t => {
         const me = members.find(m=>m.teamId===t.id&&m.userId===myUserId);
-        const admin = !readOnly && (me?.role==="admin" || t.createdBy===myUserId);
+        const admin = !readOnly && (me?.role==="admin" || t.createdBy===myUserId || !!(adminTeamIds && adminTeamIds.has(t.id)));
         return (
           <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8 }}>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -5160,6 +5160,28 @@ export default function App() {
   const canManageTrainings = !roMode && (isAdmin || myRole==="treinador" || myRole==="diretor");
 
   // Load team data from DB
+  // Membros de uma equipa que não é a ativa (só os membros + perfis; não muda a equipa ativa). Usado ao abrir "Gerir" noutra equipa.
+  const loadMembersOf = async (tok, tid, sport) => {
+    const mRaw = await api.get(`team_members?team_id=eq.${tid}&select=*`, tok);
+    let profilesMap = {}, profFailed = false;
+    try {
+      const profs = await fetch(`${SB_URL}/rest/v1/rpc/get_team_profiles`, {
+        method:'POST', headers:{'apikey':SB_KEY,'Authorization':`Bearer ${tok}`,'Content-Type':'application/json'},
+        body: JSON.stringify({ p_team_id: tid })
+      }).then(r=>{ if (!r.ok) { profFailed = true; return []; } return r.json(); }).catch(()=>{ profFailed = true; return []; });
+      (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
+    } catch(e) { profFailed = true; }
+    if (profFailed && Object.keys(profilesMap).length === 0) {
+      try {
+        const uids = mRaw.map(m=>m.user_id).filter(Boolean);
+        if (uids.length > 0) {
+          const profs = await api.get(`profiles?id=in.(${uids.join(',')})`, tok).catch(()=>[]);
+          (Array.isArray(profs)?profs:[]).forEach(p => { profilesMap[p.id] = p; });
+        }
+      } catch(e) { /* sem perfis: ficam como "Utilizador" */ }
+    }
+    return (Array.isArray(mRaw) ? mRaw : []).map(m => aMember({ ...m, profiles: profilesMap[m.user_id] || null }, sport));
+  };
   const loadTeam = async (tok, tid) => {
     const failedParts = []; // presenças/cartões/ausências que não carregaram (em vez de listas vazias em silêncio)
     const soft = (name, empty, perm) => e => { if (!(perm && /permission|policy|42501|not authorized|403/i.test(String(e && e.message)))) failedParts.push(name); return empty; };
@@ -5901,6 +5923,7 @@ export default function App() {
   // ── Assumir perfil (rpc do Supabase; a funcionalidade nunca bloqueia a entrada nem a app) ──
   const [myClaims, setMyClaims] = useState(null);
   const [claimCounts, setClaimCounts] = useState({});
+  const [adminTeamIds, setAdminTeamIds] = useState(null); // equipas em que sou admin (criador ou papel admin), para o botão Gerir também nas que não são a ativa
   const [claimsWarn, setClaimsWarn] = useState(false); // não foi possível ver em que equipas és admin (emblema dos pedidos)
   const teamsRef = React.useRef(teams); teamsRef.current = teams;
   const handledApprovedRef = React.useRef(new Set());
@@ -5924,6 +5947,7 @@ export default function App() {
     try {
       const ids = new Set(teamsRef.current.filter(t => t.createdBy === myUserId).map(t => t.id));
       try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) { console.warn("admin teams read failed:", e && e.message); warns.push("Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer."); }
+      setAdminTeamIds(new Set(ids));
       const counts = {}; let countFailed = false;
       await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
         try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente" && (!c.question || !!c.answer)).length; } catch(e) { console.warn("list_team_claims failed:", e && e.message); countFailed = true; }
@@ -6155,6 +6179,17 @@ export default function App() {
     document.addEventListener("visibilitychange", vis);
     return () => document.removeEventListener("visibilitychange", vis);
   }, []);
+  // "Gerir" numa equipa que não é a ativa: carrega os membros dessa equipa (sem mudar a equipa ativa) para a contagem, o papel de admin e o bloco "Dados da equipa" ficarem certos
+  useEffect(() => {
+    if (!token || roMode || !sub || sub.type !== "manage" || sub.data === teamId) return;
+    const id = sub.data; const alvo = (teams || []).find(t => t.id === id);
+    if (!alvo) return;
+    let vivo = true;
+    loadMembersOf(token, id, alvo.sport).then(lista => {
+      if (vivo) setMembers(p => [...p.filter(m => m.teamId !== id), ...lista]);
+    }).catch(e => { if (vivo) writeFailed("carregar os membros da equipa", e); });
+    return () => { vivo = false; };
+  }, [sub && sub.type, sub && sub.data, teamId, token, roMode]);
   // À meia-noite a ocorrência dos treinos recorrentes muda: recarrega os dados para as respostas passarem à nova ocorrência
   const diaRef = React.useRef(localDateStr(new Date()));
   useEffect(() => {
@@ -6260,7 +6295,7 @@ export default function App() {
         <p style={{ margin:0, fontSize:11, opacity:0.6, fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Multeam</p>
         <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Super admin</h2>
       </div>
-      {tab==="geral" && <GeneralTab user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} pushIssue={pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={claimsWarn} onRetryClaims={()=>refreshClaims()} />}
+      {tab==="geral" && <GeneralTab adminTeamIds={adminTeamIds} user={{ ...(profile||{}) }} myUserId={myUserId} teams={teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={()=>{}} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={profile?.isAppAdmin} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} pushIssue={pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} onStatusSaved={()=>loadStatus(true)} />}
       {tab!=="geral" && tab!=="appadmin" && (
         <div style={{ textAlign:"center", padding:"60px 24px 120px", color:T.sub }}>
@@ -6344,7 +6379,7 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab activeTeam={team} user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
+      {tab==="geral" && <GeneralTab adminTeamIds={adminTeamIds} activeTeam={team} user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} onStatusSaved={()=>loadStatus(true)} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
