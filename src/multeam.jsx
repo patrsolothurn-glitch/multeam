@@ -5540,7 +5540,13 @@ export default function App() {
         await confirmGone(`presences?training_id=eq.${tid}&member_id=eq.${mid}&select=training_id`);
         setPresences(p=>{const t={...(p[tid]||{})};delete t[mid];return{...p,[tid]:t};});
       } else {
-        needRows(await api.upsert('presences',{training_id:tid,member_id:mid,status},token));
+        // já tem resposta: muda-se com PATCH (o upsert sem on_conflict resolve pelo id e bateria na UNIQUE do par = 409); sem resposta, ou se o PATCH não encontrar a linha (apagada noutro telemóvel), grava-se como antes
+        let mudou = false;
+        if (presences[tid] && presences[tid][mid]) {
+          const rows = await api.patch(`presences?training_id=eq.${tid}&member_id=eq.${mid}`, { status }, token);
+          mudou = Array.isArray(rows) && rows.length > 0;
+        }
+        if (!mudou) needRows(await api.upsert('presences',{training_id:tid,member_id:mid,status},token));
         setPresences(p=>({...p,[tid]:{...(p[tid]||{}),[mid]:status}}));
       }
       return true;

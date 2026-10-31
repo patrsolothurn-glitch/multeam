@@ -20329,7 +20329,7 @@ function App() {
   };
   var setPresence = function setPresence(tid, mid, status) {
     return guarded("pres:".concat(tid, ":").concat(mid), _asyncToGenerator(_regenerator().m(function _callee96() {
-      var _t121, _t122;
+      var mudou, rows, _t121, _t122;
       return _regenerator().w(function (_context96) {
         while (1) switch (_context96.p = _context96.n) {
           case 0:
@@ -20349,30 +20349,48 @@ function App() {
               delete t[mid];
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, t));
             });
-            _context96.n = 5;
+            _context96.n = 8;
             break;
           case 3:
-            _t121 = needRows;
+            mudou = false;
+            if (!(presences[tid] && presences[tid][mid])) {
+              _context96.n = 5;
+              break;
+            }
             _context96.n = 4;
+            return api.patch("presences?training_id=eq.".concat(tid, "&member_id=eq.").concat(mid), {
+              status: status
+            }, token);
+          case 4:
+            rows = _context96.v;
+            mudou = Array.isArray(rows) && rows.length > 0;
+          case 5:
+            if (mudou) {
+              _context96.n = 7;
+              break;
+            }
+            _t121 = needRows;
+            _context96.n = 6;
             return api.upsert('presences', {
               training_id: tid,
               member_id: mid,
               status: status
             }, token);
-          case 4:
+          case 6:
             _t121(_context96.v);
+          case 7:
             setPresences(function (p) {
               return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, tid, _objectSpread(_objectSpread({}, p[tid] || {}), {}, _defineProperty({}, mid, status))));
             });
-          case 5:
+          case 8:
             return _context96.a(2, true);
-          case 6:
-            _context96.p = 6;
+          case 9:
+            _context96.p = 9;
             _t122 = _context96.v;
             writeFailed("guardar a presença", _t122);
             return _context96.a(2, false);
         }
-      }, _callee96, null, [[0, 6]]);
+      }, _callee96, null, [[0, 9]]);
     })));
   };
   var addMember = function () {
