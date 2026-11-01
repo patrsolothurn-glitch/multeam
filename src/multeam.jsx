@@ -3550,6 +3550,11 @@ const notesMove = (list, id, dir) => {
 };
 const noteDate = iso => { const d = new Date(iso); if (!iso || isNaN(d)) return "—"; return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`; };
 const noteChip = (txt, bg, fg, attr) => <span {...attr} style={{ display:"inline-block", background:bg, color:fg, borderRadius:8, padding:"2px 8px", fontSize:12, fontWeight:800, whiteSpace:"nowrap" }}>{txt}</span>;
+// estado aberto/fechado de cada grupo de prioridade, lembrado no aparelho (localStorage com try/catch; se falhar, vale o defeito: aberto com até 3 notas, fechado com mais)
+const NOTAS_GRUPOS_KEY = "multeam.notas.grupos";
+const notasGruposLer = () => { try { const j = JSON.parse(window.localStorage.getItem(NOTAS_GRUPOS_KEY) || "{}"); return j && typeof j === "object" && !Array.isArray(j) ? j : {}; } catch(e) { return {}; } };
+const notasGruposGuardar = o => { try { window.localStorage.setItem(NOTAS_GRUPOS_KEY, JSON.stringify(o)); } catch(e) { /* sem armazenamento: vale o defeito */ } };
+const NOTE_PRIO_ICON = { alta:"🔴", media:"🟡", baixa:"🟢" };
 const AdminNotesSection = ({ token }) => {
   const ro = RO.on;
   const [st, setSt] = useState({ status:"loading", notes:[], error:"" });
@@ -3558,6 +3563,11 @@ const AdminNotesSection = ({ token }) => {
   const [apagar, setApagar] = useState(null); // id à espera de confirmação
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState({ id:null, text:"" }); // erro/aviso (id = nota a que se refere; null = formulário)
+  const [gAb, setGAb] = useState(notasGruposLer); // { alta|media|baixa: true|false } só dos grupos que o utilizador abriu/fechou
+  const [abertas, setAbertas] = useState(() => new Set()); // notas com detalhes e botões à vista
+  const grupoAberto = (p, n) => typeof gAb[p] === "boolean" ? gAb[p] : n <= 3;
+  const setGrupo = (p, v) => setGAb(g => { const nv = { ...g, [p]:v }; notasGruposGuardar(nv); return nv; });
+  const alternaNota = id => setAbertas(a => { const nv = new Set(a); if (nv.has(id)) nv.delete(id); else nv.add(id); return nv; });
   const load = async () => {
     setSt(s => ({ status:"loading", notes:s.notes, error:"" }));
     try { setSt({ status:"ok", notes:parseNotes(await api.get("admin_notes?select=*", token)), error:"" }); }
@@ -3597,9 +3607,13 @@ const AdminNotesSection = ({ token }) => {
         setSt(s => ({ ...s, notes:s.notes.map(n => n.id === form.id ? novo : n) }));
       }
     });
-    if (ok) setForm(null);
+    if (ok) {
+      if (form.status !== "feito") { if (form.id != null) setAbertas(a => new Set(a).add(form.id)); setGrupo(form.priority, true); }
+      setForm(null);
+    }
   };
-  const mudarEstado = (n, status) => run(n.id, async () => {
+  const mudarEstado = async (n, status) => { const ok = await mudarEstadoRun(n, status); if (ok && status !== "feito") setGrupo(n.priority, true); return ok; };
+  const mudarEstadoRun = (n, status) => run(n.id, async () => {
     const corpo = status === "feito" ? { status, done_at:agora(), updated_at:agora() } : { status, done_at:null, updated_at:agora() };
     const r = await api.patch(`admin_notes?id=eq.${encodeURIComponent(n.id)}`, corpo, token);
     const novo = parseNotes(r)[0] || { ...n, status, done_at:corpo.done_at || "", updated_at:corpo.updated_at };
@@ -3616,38 +3630,47 @@ const AdminNotesSection = ({ token }) => {
       finally { setSt(s => ({ ...s, notes:s.notes.map(x => { const m = mud.find(y => y.id === x.id); return m ? { ...x, position:m.position } : x; }) })); load(); }
     });
   };
-  const btn = (extra) => ({ minHeight:44, minWidth:44, padding:"0 12px", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", ...extra });
+  // a cor da borda entra na propriedade "border" (nunca misturar border com borderColor: o React avisa ao mudar entre renders)
+  const btn = (extra) => { const { borderColor, ...resto } = extra || {}; return { minHeight:44, minWidth:44, padding:"0 12px", borderRadius:10, border:`1.5px solid ${borderColor || T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", ...resto }; };
   const prio = p => NOTE_PRIOS.find(x => x[0] === p) || NOTE_PRIOS[1];
   const est = s => NOTE_ESTADOS.find(x => x[0] === s) || NOTE_ESTADOS[0];
   const Cartao = ({ n, arquivo }) => {
     const [, pl, pbg, pfg] = prio(n.priority), [, el, ebg, efg] = est(n.status);
     const grp = main.filter(x => x.priority === n.priority), i = grp.findIndex(x => x.id === n.id);
+    const aberta = abertas.has(n.id);
     return (
-      <div data-nota={n.id} data-nota-estado={n.status} data-nota-prioridade={n.priority} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
-          {noteChip(`Prioridade ${pl.toLowerCase()}`, pbg, pfg, { "data-nota-chip-prio":true })}
-          {noteChip(el, ebg, efg, { "data-nota-chip-estado":true })}
+      <div key={n.id} data-nota={n.id} data-nota-estado={n.status} data-nota-prioridade={n.priority} data-nota-aberta={aberta ? "sim" : "nao"} style={{ background:T.card, borderRadius:14, padding:"4px 14px", marginBottom:6 }}>
+        <div role="button" tabIndex={0} aria-expanded={aberta} data-nota-linha onClick={() => alternaNota(n.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternaNota(n.id); } }}
+          style={{ display:"flex", alignItems:"center", gap:8, minHeight:44, cursor:"pointer" }}>
+          <span data-nota-titulo style={{ flex:"1 1 auto", minWidth:0, fontSize:15, fontWeight:800, overflowWrap:"anywhere" }}>{n.title}</span>
+          {arquivo ? <span data-nota-feito-em style={{ flex:"0 0 auto", fontSize:12, color:T.sub }}>Feito em {noteDate(n.done_at)}</span> : noteChip(el, ebg, efg, { "data-nota-chip-estado":true })}
         </div>
-        <p data-nota-titulo style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, overflowWrap:"anywhere" }}>{n.title}</p>
-        {n.details && <p data-nota-detalhes style={{ margin:"0 0 6px", fontSize:13, color:T.sub, whiteSpace:"pre-wrap", overflowWrap:"anywhere" }}>{n.details}</p>}
-        {arquivo && <p data-nota-feito-em style={{ margin:"0 0 6px", fontSize:12, color:T.sub }}>Feito em {noteDate(n.done_at)}</p>}
-        {msg.id === n.id && msg.text && <p role="alert" data-nota-erro style={{ margin:"0 0 6px", fontSize:13, fontWeight:700, color:"#B42318" }}>{msg.text}</p>}
-        {apagar === n.id ? (
-          <div data-nota-confirmar style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
-            <span style={{ fontSize:13, fontWeight:700, flex:"1 1 100%" }}>Apagar esta nota?</span>
-            <button data-nota-apagar-sim disabled={busy} onClick={() => confirmarApagar(n.id)} style={btn({ background:"#B42318", borderColor:"#B42318", color:"#fff" })}>Apagar</button>
-            <button data-nota-apagar-nao onClick={() => setApagar(null)} style={btn()}>Cancelar</button>
-          </div>
-        ) : !ro && (
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {!arquivo && <button data-nota-sobe aria-label="Subir" disabled={busy || i <= 0} onClick={() => mover(n, -1)} style={btn({ opacity:i <= 0 ? 0.4 : 1 })}>↑</button>}
-            {!arquivo && <button data-nota-desce aria-label="Descer" disabled={busy || i < 0 || i >= grp.length - 1} onClick={() => mover(n, 1)} style={btn({ opacity:(i < 0 || i >= grp.length - 1) ? 0.4 : 1 })}>↓</button>}
-            {!arquivo && <button data-nota-editar onClick={() => abrirEditar(n)} style={btn()}>Editar</button>}
-            {!arquivo && n.status === "por_fazer" && <button data-nota-em-curso disabled={busy} onClick={() => mudarEstado(n, "em_curso")} style={btn()}>Em curso</button>}
-            {!arquivo && n.status === "em_curso" && <button data-nota-por-fazer disabled={busy} onClick={() => mudarEstado(n, "por_fazer")} style={btn()}>Por fazer</button>}
-            {!arquivo && <button data-nota-feito disabled={busy} onClick={() => mudarEstado(n, "feito")} style={btn({ borderColor:"#1E8E3E", color:"#1E8E3E" })}>✓ Feito</button>}
-            {arquivo && <button data-nota-reabrir disabled={busy} onClick={() => mudarEstado(n, "por_fazer")} style={btn()}>Reabrir</button>}
-            <button data-nota-apagar onClick={() => { setApagar(n.id); setMsg({ id:null, text:"" }); }} style={btn({ color:"#B42318", borderColor:"#B42318" })}>Apagar</button>
+        {aberta && (
+          <div data-nota-corpo style={{ padding:"2px 0 10px" }}>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+              {noteChip(`Prioridade ${pl.toLowerCase()}`, pbg, pfg, { "data-nota-chip-prio":true })}
+              {arquivo && noteChip(el, ebg, efg, { "data-nota-chip-estado":true })}
+            </div>
+            {n.details && <p data-nota-detalhes style={{ margin:"0 0 6px", fontSize:13, color:T.sub, whiteSpace:"pre-wrap", overflowWrap:"anywhere" }}>{n.details}</p>}
+            {msg.id === n.id && msg.text && <p role="alert" data-nota-erro style={{ margin:"0 0 6px", fontSize:13, fontWeight:700, color:"#B42318" }}>{msg.text}</p>}
+            {apagar === n.id ? (
+              <div data-nota-confirmar style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                <span style={{ fontSize:13, fontWeight:700, flex:"1 1 100%" }}>Apagar esta nota?</span>
+                <button data-nota-apagar-sim disabled={busy} onClick={() => confirmarApagar(n.id)} style={btn({ background:"#B42318", borderColor:"#B42318", color:"#fff" })}>Apagar</button>
+                <button data-nota-apagar-nao onClick={() => setApagar(null)} style={btn()}>Cancelar</button>
+              </div>
+            ) : !ro && (
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {!arquivo && <button data-nota-sobe aria-label="Subir" disabled={busy || i <= 0} onClick={() => mover(n, -1)} style={btn({ opacity:i <= 0 ? 0.4 : 1 })}>↑</button>}
+                {!arquivo && <button data-nota-desce aria-label="Descer" disabled={busy || i < 0 || i >= grp.length - 1} onClick={() => mover(n, 1)} style={btn({ opacity:(i < 0 || i >= grp.length - 1) ? 0.4 : 1 })}>↓</button>}
+                {!arquivo && <button data-nota-editar onClick={() => abrirEditar(n)} style={btn()}>Editar</button>}
+                {!arquivo && n.status === "por_fazer" && <button data-nota-em-curso disabled={busy} onClick={() => mudarEstado(n, "em_curso")} style={btn()}>Em curso</button>}
+                {!arquivo && n.status === "em_curso" && <button data-nota-por-fazer disabled={busy} onClick={() => mudarEstado(n, "por_fazer")} style={btn()}>Por fazer</button>}
+                {!arquivo && <button data-nota-feito disabled={busy} onClick={() => mudarEstado(n, "feito")} style={btn({ borderColor:"#1E8E3E", color:"#1E8E3E" })}>✓ Feito</button>}
+                {arquivo && <button data-nota-reabrir disabled={busy} onClick={() => mudarEstado(n, "por_fazer")} style={btn()}>Reabrir</button>}
+                <button data-nota-apagar onClick={() => { setApagar(n.id); setMsg({ id:null, text:"" }); }} style={btn({ color:"#B42318", borderColor:"#B42318" })}>Apagar</button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -3686,8 +3709,19 @@ const AdminNotesSection = ({ token }) => {
             </div>
           </div>
         )}
-        {vista === "lista" && (main.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Sem notas por fazer.</p> : main.map(n => <Cartao key={n.id} n={n} arquivo={false} />))}
-        {vista === "arquivo" && (arq.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Arquivo vazio.</p> : arq.map(n => <Cartao key={n.id} n={n} arquivo={true} />))}
+        {vista === "lista" && (main.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Sem notas por fazer.</p> : NOTE_PRIOS.map(([k, l]) => {
+          const itens = main.filter(n => n.priority === k); if (!itens.length) return null;
+          const aberto = grupoAberto(k, itens.length);
+          return (
+            <div key={k} data-nota-grupo={k} data-nota-grupo-aberto={aberto ? "sim" : "nao"} style={{ marginBottom:8 }}>
+              <button data-nota-grupo-cab aria-expanded={aberto} onClick={() => setGrupo(k, !aberto)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", minHeight:44, padding:"0 14px", marginBottom:aberto ? 6 : 0, borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", color:"#1a1a1f", fontWeight:800, fontSize:14, fontFamily:"inherit", cursor:"pointer" }}>
+                <span data-nota-grupo-titulo>{`${NOTE_PRIO_ICON[k]} ${l} (${itens.length})`}</span><span aria-hidden="true">{aberto ? "▾" : "▸"}</span>
+              </button>
+              {aberto && itens.map(n => Cartao({ n, arquivo:false }))}
+            </div>
+          );
+        }))}
+        {vista === "arquivo" && (arq.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Arquivo vazio.</p> : arq.map(n => Cartao({ n, arquivo:true })))}
       </>)}
     </div>
   );
