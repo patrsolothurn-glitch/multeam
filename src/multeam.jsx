@@ -3417,6 +3417,8 @@ const calmWindows = (horas, limite) => {
   return out.sort((a, b) => (b.ate - b.de) - (a.ate - a.de) || a.de - b.de).slice(0, 3).sort((a, b) => a.de - b.de);
 };
 // Semáforo por média semanal de ações nessa hora (semanas = dias do período / 7): verde ≤ 1 por semana, amarelo entre 1 e 3, vermelho ≥ 3 (comparação exata, sem decimais)
+// texto de uma hora: tudo em hora da Suíça; Portugal = menos 1 hora (a 0h daqui são 23h de Portugal do dia anterior)
+const heatHoraTxt = (nome, h, v) => `${nome} ${h}h aqui (${(h + 23) % 24}h em Portugal${h === 0 ? ", dia anterior" : ""}) · ${v} ${v === 1 ? "ação" : "ações"}`;
 const heatNivel = (v, dias) => v * 7 <= dias ? "verde" : v * 7 >= 3 * dias ? "vermelho" : "amarelo";
 const HEAT_CORES = {
   verde:    { bg:"#1E8E3E", fg:"#fff",    sim:"✓", frase:"podes atualizar" },
@@ -3474,6 +3476,7 @@ const AdminHeatmapSection = ({ token }) => {
             </select>
           </label>
         </div>
+        <p data-heat-nota style={{ margin:"0 0 6px", fontSize:13, fontWeight:700, color:T.sub }}>Horas da Suíça (Portugal = menos 1 hora)</p>
         <div data-heat-mapa style={{ background:T.card, borderRadius:14, padding:"10px 8px", maxWidth:620, marginLeft:"auto", marginRight:"auto" }}>
           {[[0, 12], [12, 24]].map(([h0, h1], bi) => (
             <div key={bi} data-heat-bloco={bi + 1} style={{ marginBottom:bi === 0 ? 12 : 0 }}>
@@ -3486,7 +3489,7 @@ const AdminHeatmapSection = ({ token }) => {
                     <span data-heat-dia-nome style={{ fontSize:"clamp(9px, 2.8vw, 12px)", fontWeight:700, color:T.sub }}>{nome.slice(0, 3)}</span>
                     {Array.from({ length:12 }, (_, k) => {
                       const h = h0 + k, v = grid[di][h], nv = heatNivel(v, st.days), c = HEAT_CORES[nv], on = sel && sel.d === di && sel.h === h;
-                      const txt = `${nome} ${h}h: ${v} ${v === 1 ? "ação" : "ações"}`;
+                      const txt = heatHoraTxt(nome, h, v);
                       return <div key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={v} data-heat-cor={nv} title={txt} aria-label={`${txt} · ${c.frase}`} onClick={() => setSel({ d:di, h })} style={{ aspectRatio:"1 / 1", minWidth:0, background:c.bg, color:c.fg, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(9px, 3vw, 16px)", fontWeight:900, lineHeight:1, cursor:"pointer", boxSizing:"border-box", boxShadow:on ? "0 0 0 2px #1a1a1f" : "none" }}>{c.sim}</div>;
                     })}
                   </React.Fragment>
@@ -3495,9 +3498,9 @@ const AdminHeatmapSection = ({ token }) => {
             </div>
           ))}
         </div>
-        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? `${HEAT_DIAS[sel.d]} ${sel.h}h: ${grid[sel.d][sel.h]} ${grid[sel.d][sel.h] === 1 ? "ação" : "ações"} · ${HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase}` : "Toca numa hora para ver o número."}</p>
+        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? `${heatHoraTxt(HEAT_DIAS[sel.d], sel.h, grid[sel.d][sel.h])} · ${HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase}` : "Toca numa hora para ver o número."}</p>
         <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginTop:10 }}>
-          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Janelas calmas (7h–24h)</p>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Janelas calmas (7h–24h, hora da Suíça)</p>
           {HEAT_DIAS.map((nome, di) => {
             const j = calmWindows(grid[di], limite);
             return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map((w, k) => <span key={k}>{k > 0 ? " · " : ""}<span data-heat-ponto aria-hidden="true" style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:HEAT_CORES.verde.bg, marginRight:4 }} />{`${w.de}h–${w.ate}h`}</span>) : "sem janela calma"}</p>;
@@ -3512,7 +3515,6 @@ const AdminHeatmapSection = ({ token }) => {
           ))}
         </div>
         <p data-heat-calma style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Calma = no máximo 1 ação por semana nessa hora.</p>
-        <p data-heat-nota style={{ margin:"2px 0 0", fontSize:12, color:T.sub }}>Horas da Suíça</p>
       </>)}
     </div>
   );

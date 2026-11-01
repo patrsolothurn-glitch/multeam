@@ -12168,6 +12168,9 @@ var calmWindows = function calmWindows(horas, limite) {
     return a.de - b.de;
   });
 };
+var heatHoraTxt = function heatHoraTxt(nome, h, v) {
+  return "".concat(nome, " ").concat(h, "h aqui (").concat((h + 23) % 24, "h em Portugal").concat(h === 0 ? ", dia anterior" : "", ") \xB7 ").concat(v, " ").concat(v === 1 ? "ação" : "ações");
+};
 var heatNivel = function heatNivel(v, dias) {
   return v * 7 <= dias ? "verde" : v * 7 >= 3 * dias ? "vermelho" : "amarelo";
 };
@@ -12428,7 +12431,15 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref135) {
       key: c.key,
       value: c.key
     }, c.label);
-  })))), React.createElement("div", {
+  })))), React.createElement("p", {
+    "data-heat-nota": true,
+    style: {
+      margin: "0 0 6px",
+      fontSize: 13,
+      fontWeight: 700,
+      color: T.sub
+    }
+  }, "Horas da Su\xED\xE7a (Portugal = menos 1 hora)"), React.createElement("div", {
     "data-heat-mapa": true,
     style: {
       background: T.card,
@@ -12497,7 +12508,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref135) {
           nv = heatNivel(v, st.days),
           c = HEAT_CORES[nv],
           on = sel && sel.d === di && sel.h === h;
-        var txt = "".concat(nome, " ").concat(h, "h: ").concat(v, " ").concat(v === 1 ? "ação" : "ações");
+        var txt = heatHoraTxt(nome, h, v);
         return React.createElement("div", {
           key: h,
           "data-heat-cel": "".concat(di + 1, "-").concat(h),
@@ -12538,7 +12549,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref135) {
       fontWeight: 700,
       minHeight: 18
     }
-  }, sel ? "".concat(HEAT_DIAS[sel.d], " ").concat(sel.h, "h: ").concat(grid[sel.d][sel.h], " ").concat(grid[sel.d][sel.h] === 1 ? "ação" : "ações", " \xB7 ").concat(HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase) : "Toca numa hora para ver o número."), React.createElement("div", {
+  }, sel ? "".concat(heatHoraTxt(HEAT_DIAS[sel.d], sel.h, grid[sel.d][sel.h]), " \xB7 ").concat(HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase) : "Toca numa hora para ver o número."), React.createElement("div", {
     style: {
       background: T.card,
       borderRadius: 14,
@@ -12554,7 +12565,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref135) {
       textTransform: "uppercase",
       letterSpacing: 0.5
     }
-  }, "Janelas calmas (7h\u201324h)"), HEAT_DIAS.map(function (nome, di) {
+  }, "Janelas calmas (7h\u201324h, hora da Su\xED\xE7a)"), HEAT_DIAS.map(function (nome, di) {
     var j = calmWindows(grid[di], limite);
     return React.createElement("p", {
       key: nome,
@@ -12628,14 +12639,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref135) {
       fontSize: 12,
       color: T.sub
     }
-  }, "Calma = no m\xE1ximo 1 a\xE7\xE3o por semana nessa hora."), React.createElement("p", {
-    "data-heat-nota": true,
-    style: {
-      margin: "2px 0 0",
-      fontSize: 12,
-      color: T.sub
-    }
-  }, "Horas da Su\xED\xE7a")));
+  }, "Calma = no m\xE1ximo 1 a\xE7\xE3o por semana nessa hora.")));
 };
 var AdminStatusSection = function AdminStatusSection(_ref141) {
   var token = _ref141.token,
