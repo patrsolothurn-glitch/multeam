@@ -3416,9 +3416,12 @@ const calmWindows = (horas, limite) => {
   }
   return out.sort((a, b) => (b.ate - b.de) - (a.ate - a.de) || a.de - b.de).slice(0, 3).sort((a, b) => a.de - b.de);
 };
-const heatCor = (v, max) => {
-  const t = max > 0 ? Math.min(1, v / max) : 0, a = [236, 242, 250], b = [20, 33, 84];
-  return { bg:`rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(",")})`, fg:t > 0.5 ? "#fff" : "#1a1a1f" };
+// Semáforo por média semanal de ações nessa hora (semanas = dias do período / 7): verde ≤ 1 por semana, amarelo entre 1 e 3, vermelho ≥ 3 (comparação exata, sem decimais)
+const heatNivel = (v, dias) => v * 7 <= dias ? "verde" : v * 7 >= 3 * dias ? "vermelho" : "amarelo";
+const HEAT_CORES = {
+  verde:    { bg:"#1E8E3E", fg:"#fff",    sim:"✓", frase:"podes atualizar" },
+  amarelo:  { bg:"#F5C518", fg:"#1a1a1f", sim:"",  frase:"só se for preciso" },
+  vermelho: { bg:"#D32F2F", fg:"#fff",    sim:"✕", frase:"evitar" },
 };
 const AdminHeatmapSection = ({ token }) => {
   const [days, setDays] = useState(60);
@@ -3438,7 +3441,7 @@ const AdminHeatmapSection = ({ token }) => {
   const paisOk = pais === "*" || paises.some(p => p.key === pais) ? pais : "*";
   const cidadeOk = cidade === "*" || cidades.some(c => c.key === cidade) ? cidade : "*";
   const grid = heatGrid(rows, paisOk, cidadeOk);
-  const max = Math.max(0, ...grid.map(l => Math.max(0, ...l))), limite = heatLimite(st.days);
+  const limite = heatLimite(st.days);
   const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
   return (
     <div data-heat-painel>
@@ -3471,29 +3474,42 @@ const AdminHeatmapSection = ({ token }) => {
             </select>
           </label>
         </div>
-        <div data-heat-scroll style={{ overflowX:"auto", background:T.card, borderRadius:14, padding:"8px 6px" }}>
-          <table data-heat-mapa style={{ borderCollapse:"separate", borderSpacing:2, margin:"0 auto" }}>
-            <thead><tr><th aria-hidden="true" />{Array.from({ length:24 }, (_, h) => <th key={h} style={{ fontSize:10, fontWeight:700, color:T.sub, minWidth:22, padding:0 }}>{h}</th>)}</tr></thead>
-            <tbody>
-              {HEAT_DIAS.map((nome, di) => (
-                <tr key={nome}>
-                  <th scope="row" style={{ fontSize:11, fontWeight:700, color:T.sub, textAlign:"left", paddingRight:4, whiteSpace:"nowrap" }}>{nome.slice(0, 3)}</th>
-                  {grid[di].map((v, h) => {
-                    const c = heatCor(v, max), on = sel && sel.d === di && sel.h === h;
-                    return <td key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={v} title={`${nome} ${h}h: ${v} ${v === 1 ? "ação" : "ações"}`} aria-label={`${nome} ${h}h: ${v} ${v === 1 ? "ação" : "ações"}`} onClick={() => setSel({ d:di, h })} style={{ background:c.bg, color:c.fg, minWidth:22, height:26, borderRadius:4, textAlign:"center", fontSize:10, fontWeight:700, cursor:"pointer", outline:on ? "2px solid #FF6B00" : "none" }}>{on ? v : ""}</td>;
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div data-heat-mapa style={{ background:T.card, borderRadius:14, padding:"10px 8px", maxWidth:620, marginLeft:"auto", marginRight:"auto" }}>
+          {[[0, 12], [12, 24]].map(([h0, h1], bi) => (
+            <div key={bi} data-heat-bloco={bi + 1} style={{ marginBottom:bi === 0 ? 12 : 0 }}>
+              <p data-heat-bloco-titulo style={{ margin:"0 0 4px", fontSize:12, fontWeight:800, color:T.sub }}>{h0}h–{h1}h</p>
+              <div style={{ display:"grid", gridTemplateColumns:"clamp(26px, 8vw, 38px) repeat(12, minmax(0, 1fr))", gap:2, alignItems:"center" }}>
+                <span aria-hidden="true" />
+                {Array.from({ length:12 }, (_, k) => <span key={k} data-heat-hora style={{ fontSize:"clamp(8px, 2.4vw, 11px)", fontWeight:700, color:T.sub, textAlign:"center", minWidth:0 }}>{h0 + k}</span>)}
+                {HEAT_DIAS.map((nome, di) => (
+                  <React.Fragment key={nome}>
+                    <span data-heat-dia-nome style={{ fontSize:"clamp(9px, 2.8vw, 12px)", fontWeight:700, color:T.sub }}>{nome.slice(0, 3)}</span>
+                    {Array.from({ length:12 }, (_, k) => {
+                      const h = h0 + k, v = grid[di][h], nv = heatNivel(v, st.days), c = HEAT_CORES[nv], on = sel && sel.d === di && sel.h === h;
+                      const txt = `${nome} ${h}h: ${v} ${v === 1 ? "ação" : "ações"}`;
+                      return <div key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={v} data-heat-cor={nv} title={txt} aria-label={`${txt} · ${c.frase}`} onClick={() => setSel({ d:di, h })} style={{ aspectRatio:"1 / 1", minWidth:0, background:c.bg, color:c.fg, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(9px, 3vw, 16px)", fontWeight:900, lineHeight:1, cursor:"pointer", boxSizing:"border-box", boxShadow:on ? "0 0 0 2px #1a1a1f" : "none" }}>{c.sim}</div>;
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
-        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? `${HEAT_DIAS[sel.d]} ${sel.h}h: ${grid[sel.d][sel.h]} ${grid[sel.d][sel.h] === 1 ? "ação" : "ações"}` : "Toca numa hora para ver o número."}</p>
+        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? `${HEAT_DIAS[sel.d]} ${sel.h}h: ${grid[sel.d][sel.h]} ${grid[sel.d][sel.h] === 1 ? "ação" : "ações"} · ${HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase}` : "Toca numa hora para ver o número."}</p>
         <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginTop:10 }}>
           <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Janelas calmas (7h–24h)</p>
           {HEAT_DIAS.map((nome, di) => {
             const j = calmWindows(grid[di], limite);
-            return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map(w => `${w.de}h–${w.ate}h`).join(" · ") : "sem janela calma"}</p>;
+            return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map((w, k) => <span key={k}>{k > 0 ? " · " : ""}<span data-heat-ponto aria-hidden="true" style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:HEAT_CORES.verde.bg, marginRight:4 }} />{`${w.de}h–${w.ate}h`}</span>) : "sem janela calma"}</p>;
           })}
+        </div>
+        <div data-heat-legenda style={{ marginTop:10 }}>
+          {[["verde", "Verde", "no máximo 1 ação por semana"], ["amarelo", "Amarelo", "mais de 1 e menos de 3 por semana"], ["vermelho", "Vermelho", "3 ou mais por semana"]].map(([k, nome, regra]) => (
+            <div key={k} data-heat-legenda-item={k} style={{ display:"flex", alignItems:"center", gap:8, margin:"4px 0", fontSize:13 }}>
+              <span aria-hidden="true" style={{ flex:"0 0 22px", width:22, height:22, borderRadius:4, background:HEAT_CORES[k].bg, color:HEAT_CORES[k].fg, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:13 }}>{HEAT_CORES[k].sim}</span>
+              <span style={{ minWidth:0, overflowWrap:"anywhere" }}><b>{nome}</b>: {regra} → {HEAT_CORES[k].frase}</span>
+            </div>
+          ))}
         </div>
         <p data-heat-calma style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Calma = no máximo 1 ação por semana nessa hora.</p>
         <p data-heat-nota style={{ margin:"2px 0 0", fontSize:12, color:T.sub }}>Horas da Suíça</p>
