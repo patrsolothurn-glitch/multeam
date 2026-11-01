@@ -13265,7 +13265,16 @@ var AdminNotesSection = function AdminNotesSection(_ref141) {
         minHeight: 44,
         cursor: "pointer"
       }
-    }, React.createElement("span", {
+    }, !arquivo && i >= 0 && React.createElement("span", {
+      "data-nota-num": true,
+      style: {
+        flex: "0 0 auto",
+        minWidth: 22,
+        fontSize: 14,
+        fontWeight: 900,
+        color: T.sub
+      }
+    }, i + 1, "."), React.createElement("span", {
       "data-nota-titulo": true,
       style: {
         flex: "1 1 auto",
