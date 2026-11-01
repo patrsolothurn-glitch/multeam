@@ -958,6 +958,12 @@ var aTeam = function aTeam(t) {
     createdBy: t.created_by
   };
 };
+var semDadosPrivados = function semDadosPrivados(p) {
+  return p && _typeof(p) === "object" ? _objectSpread(_objectSpread({}, p), {}, {
+    phone: null,
+    birthday: null
+  }) : p;
+};
 var aMember = function aMember(m, sport) {
   var _m$profiles, _m$profiles2, _m$profiles3, _m$profiles4, _m$profiles5, _m$profiles6;
   return {
@@ -2876,18 +2882,18 @@ var AddFineModal = function AddFineModal(_ref34) {
             case 6:
               setProfWarn(profFailed && uids.length > 0);
               setTm(sortMembers((Array.isArray(mRaw) ? mRaw : []).map(function (m) {
-                var _profMap$m$user_id, _profMap$m$user_id2, _profMap$m$user_id3, _profMap$m$user_id4, _profMap$m$user_id5, _profMap$m$user_id6;
+                var _profMap$m$user_id, _profMap$m$user_id2, _profMap$m$user_id3, _profMap$m$user_id4;
                 return {
                   id: String(m.id),
                   teamId: m.team_id,
                   userId: m.user_id,
                   role: m.role,
                   name: ((_profMap$m$user_id = profMap[m.user_id]) === null || _profMap$m$user_id === void 0 ? void 0 : _profMap$m$user_id.name) || 'Utilizador',
-                  phone: ((_profMap$m$user_id2 = profMap[m.user_id]) === null || _profMap$m$user_id2 === void 0 ? void 0 : _profMap$m$user_id2.phone) || '',
-                  birthday: ((_profMap$m$user_id3 = profMap[m.user_id]) === null || _profMap$m$user_id3 === void 0 ? void 0 : _profMap$m$user_id3.birthday) || '',
-                  position: isFreeSport(team.sport) ? m.position || '' : m.position || ((_profMap$m$user_id4 = profMap[m.user_id]) === null || _profMap$m$user_id4 === void 0 ? void 0 : _profMap$m$user_id4.position) || 'Jogador',
-                  avatarUrl: ((_profMap$m$user_id5 = profMap[m.user_id]) === null || _profMap$m$user_id5 === void 0 ? void 0 : _profMap$m$user_id5.avatar_url) || null,
-                  initials: (((_profMap$m$user_id6 = profMap[m.user_id]) === null || _profMap$m$user_id6 === void 0 ? void 0 : _profMap$m$user_id6.name) || 'U').split(' ').map(function (w) {
+                  phone: '',
+                  birthday: '',
+                  position: isFreeSport(team.sport) ? m.position || '' : m.position || ((_profMap$m$user_id2 = profMap[m.user_id]) === null || _profMap$m$user_id2 === void 0 ? void 0 : _profMap$m$user_id2.position) || 'Jogador',
+                  avatarUrl: ((_profMap$m$user_id3 = profMap[m.user_id]) === null || _profMap$m$user_id3 === void 0 ? void 0 : _profMap$m$user_id3.avatar_url) || null,
+                  initials: (((_profMap$m$user_id4 = profMap[m.user_id]) === null || _profMap$m$user_id4 === void 0 ? void 0 : _profMap$m$user_id4.name) || 'U').split(' ').map(function (w) {
                     return w[0];
                   }).join('').slice(0, 2).toUpperCase()
                 };
@@ -21297,7 +21303,7 @@ function App() {
               team: aTeam(r.team),
               members: mRaw.map(function (m) {
                 return aMember(_objectSpread(_objectSpread({}, m), {}, {
-                  profiles: profilesMap[m.user_id] || null
+                  profiles: semDadosPrivados(profilesMap[m.user_id]) || null
                 }), r.team.sport);
               }),
               fineTypes: ftData.map(aFineType),
