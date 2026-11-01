@@ -3377,7 +3377,7 @@ const AdminVisitsSection = ({ token }) => {
     </div>
   );
 };
-// Secção "Melhores horas para atualizar" do separador Visitas (só o super admin; rpc get_activity_heatmap, só leitura, horas da Suíça).
+// Secção "Melhores horas para atualizar" do separador Atividade (só o super admin; rpc get_activity_heatmap, só leitura, horas da Suíça).
 // Mapa 7 dias × 24 horas com as ações (multas, presenças, despesas, cartões) de todas as equipas; as combinações em falta contam 0.
 const HEAT_DAYS = [30, 60, 90];
 const HEAT_DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -3440,7 +3440,7 @@ const AdminHeatmapSection = ({ token }) => {
   const max = Math.max(0, ...grid.map(l => Math.max(0, ...l))), limite = heatLimite(grid);
   const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
   return (
-    <div data-heat-painel style={{ marginTop:18 }}>
+    <div data-heat-painel>
       <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Melhores horas para atualizar</p>
       <div style={{ display:"flex", gap:6, marginBottom:10 }}>
         {HEAT_DAYS.map(d => (
@@ -3669,7 +3669,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
   // percentagem por pagar / total (só apresentação): 0% se o total for 0 ou não for número; sem divisão por zero
   const totalN = Number(stats && stats.fines_total), unpaidN = Number(stats && stats.fines_unpaid);
   const unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
-  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"]];
+  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"],["atividade","📈 Atividade"]];
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
@@ -3680,9 +3680,9 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.7)" }}>Monitorização da plataforma</p>
         {updatedAt && <p style={{ margin:"2px 0 0", fontSize:12, color:"rgba(255,255,255,0.7)" }}>Atualizado às {String(updatedAt.getHours()).padStart(2,"0")}:{String(updatedAt.getMinutes()).padStart(2,"0")}</p>}
       </div>
-      <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
+      <div data-admin-tabs style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}`, overflowX:"auto" }}>
         {tabs.map(([id,label]) => (
-          <button key={id} onClick={()=>setSection(id)} style={{ flex:1, padding:"8px 4px", minHeight:44, borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          <button key={id} onClick={()=>setSection(id)} style={{ flex:"1 0 auto", padding:"8px 10px", minHeight:44, borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
       </div>
       <div style={{ padding:"16px" }}>
@@ -3754,7 +3754,8 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         )}
         {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
         {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
-        {section==="visitas" && <><AdminVisitsSection token={token} /><AdminHeatmapSection token={token} /></>}
+        {section==="visitas" && <AdminVisitsSection token={token} />}
+        {section==="atividade" && <AdminHeatmapSection token={token} />}
       </div>
     </div>
   );

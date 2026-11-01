@@ -12282,10 +12282,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref135) {
     boxSizing: "border-box"
   };
   return React.createElement("div", {
-    "data-heat-painel": true,
-    style: {
-      marginTop: 18
-    }
+    "data-heat-painel": true
   }, React.createElement("p", {
     style: {
       margin: "0 0 8px",
@@ -13247,7 +13244,7 @@ var AppAdminTab = function AppAdminTab(_ref140) {
   var totalN = Number(stats && stats.fines_total),
     unpaidN = Number(stats && stats.fines_unpaid);
   var unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
-  var tabs = [["stats", "📊 Stats"], ["teams", "⚽ Equipas"], ["users", "👥 Users"], ["estado", "🚦 Estado"], ["visitas", "👁️ Visitas"]];
+  var tabs = [["stats", "📊 Stats"], ["teams", "⚽ Equipas"], ["users", "👥 Users"], ["estado", "🚦 Estado"], ["visitas", "👁️ Visitas"], ["atividade", "📈 Atividade"]];
   return React.createElement("div", {
     style: {
       background: T.bg,
@@ -13303,12 +13300,14 @@ var AppAdminTab = function AppAdminTab(_ref140) {
       color: "rgba(255,255,255,0.7)"
     }
   }, "Atualizado \xE0s ", String(updatedAt.getHours()).padStart(2, "0"), ":", String(updatedAt.getMinutes()).padStart(2, "0"))), React.createElement("div", {
+    "data-admin-tabs": true,
     style: {
       display: "flex",
       gap: 6,
       padding: "12px 16px",
       background: T.card,
-      borderBottom: "1px solid ".concat(T.border)
+      borderBottom: "1px solid ".concat(T.border),
+      overflowX: "auto"
     }
   }, tabs.map(function (_ref148) {
     var _ref149 = _slicedToArray(_ref148, 2),
@@ -13320,8 +13319,8 @@ var AppAdminTab = function AppAdminTab(_ref140) {
         return setSection(id);
       },
       style: {
-        flex: 1,
-        padding: "8px 4px",
+        flex: "1 0 auto",
+        padding: "8px 10px",
         minHeight: 44,
         borderRadius: 10,
         border: "1.5px solid ".concat(section === id ? T.navy : T.border),
@@ -13596,11 +13595,11 @@ var AppAdminTab = function AppAdminTab(_ref140) {
   }), section === "estado" && React.createElement(AdminStatusSection, {
     token: token,
     onSaved: onStatusSaved
-  }), section === "visitas" && React.createElement(React.Fragment, null, React.createElement(AdminVisitsSection, {
+  }), section === "visitas" && React.createElement(AdminVisitsSection, {
     token: token
-  }), React.createElement(AdminHeatmapSection, {
+  }), section === "atividade" && React.createElement(AdminHeatmapSection, {
     token: token
-  }))));
+  })));
 };
 var LoadWarn = function LoadWarn(_ref152) {
   var id = _ref152.id,
