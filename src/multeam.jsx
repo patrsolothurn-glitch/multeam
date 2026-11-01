@@ -43,7 +43,7 @@ const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KE
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "list_team_claims"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -3306,6 +3306,77 @@ const StatusBanner = ({ status, where }) => {
     </div>
   );
 };
+// Separador "Visitas" do painel (só o super admin): visitas e cliques do /sobre/, agregados (rpc get_site_visits; sem nomes, emails nem IPs)
+const VISIT_DAYS = [7, 30, 90];
+const parseVisits = raw => {
+  if (!Array.isArray(raw)) throw new Error("Resposta inesperada do servidor.");
+  return raw.map(r => (r && typeof r === "object" && typeof r.event === "string") ? { day:String(r.day || "").slice(0, 10), event:r.event, country:r.country ? String(r.country).toUpperCase().slice(0, 2) : "", origin:String(r.origin || "outro"), device:String(r.device_type || ""), total:Math.max(0, Math.round(Number(r.total) || 0)) } : null).filter(Boolean);
+};
+const countryName = c => { if (!c) return "Desconhecido"; try { return (new Intl.DisplayNames(["pt"], { type:"region" }).of(c)) || c; } catch(e) { return c; } };
+const VISIT_ORIGINS = { whatsapp:"WhatsApp", facebook:"Facebook", instagram:"Instagram", google:"Google", direto:"Link direto", outro:"Outro" };
+const VISIT_DEVICES = { telemovel:"Telemóvel", computador:"Computador" };
+const AdminVisitsSection = ({ token }) => {
+  const [days, setDays] = useState(30);
+  const [st, setSt] = useState({ status:"loading", rows:[], error:"" });
+  const load = async d => {
+    setSt({ status:"loading", rows:[], error:"" });
+    try { setSt({ status:"ok", rows:parseVisits(await rpcCall("get_site_visits", { p_days:d }, token)), error:"" }); }
+    catch(e) { setSt({ status:"error", rows:[], error:adminErrPt(e) }); }
+  };
+  useEffect(() => { load(days); }, [days]);
+  const sum = (rows, f) => rows.filter(f).reduce((a, r) => a + r.total, 0);
+  const group = (rows, ev, key, label) => {
+    const m = {}; rows.filter(r => r.event === ev).forEach(r => { const k = r[key] || ""; m[k] = (m[k] || 0) + r.total; });
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => [label(k), v]);
+  };
+  const Lista = ({ titulo, itens }) => (
+    <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
+      <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{titulo}</p>
+      {itens.length === 0 ? <p style={{ margin:0, fontSize:13, color:T.sub }}>Sem dados.</p> : itens.map(([k, v]) => (
+        <div key={k} data-visitas-linha style={{ display:"flex", justifyContent:"space-between", gap:12, padding:"4px 0", fontSize:14 }}><span style={{ overflowWrap:"anywhere" }}>{k}</span><b>{v}</b></div>
+      ))}
+    </div>
+  );
+  return (
+    <div data-visitas-painel>
+      <div style={{ display:"flex", gap:6, marginBottom:12 }}>
+        {VISIT_DAYS.map(d => (
+          <button key={d} onClick={() => setDays(d)} aria-pressed={days === d} style={{ flex:1, minHeight:44, borderRadius:10, border:`1.5px solid ${days === d ? T.navy : T.border}`, background:days === d ? T.navy : "transparent", color:days === d ? "#fff" : T.sub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{d} dias</button>
+        ))}
+      </div>
+      {st.status === "loading" && <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar…</p>}
+      {st.status === "error" && <LoadWarn id="visitas" onRetry={() => load(days)}>Não foi possível ler as visitas: {st.error}</LoadWarn>}
+      {st.status === "ok" && (() => {
+        const rows = st.rows;
+        const visitas = sum(rows, r => r.event === "visita"), criar = sum(rows, r => r.event === "criar"), video = sum(rows, r => r.event === "video");
+        if (!rows.length) return <p data-visitas-vazio style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>Sem visitas nos últimos {days} dias.</p>;
+        const porDia = {}; rows.forEach(r => { if (!r.day) return; if (!porDia[r.day]) porDia[r.day] = { visita:0, criar:0, video:0 }; if (porDia[r.day][r.event] != null) porDia[r.day][r.event] += r.total; });
+        const dias = Object.keys(porDia).sort().reverse();
+        return (<>
+          <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+            {[["Visitas", visitas, "visitas"], ["Criar equipa", criar, "criar"], ["Ver como funciona", video, "video"]].map(([l, v, k]) => (
+              <div key={k} style={{ flex:1, minWidth:0, background:T.card, borderRadius:14, padding:"12px 8px", textAlign:"center" }}>
+                <p style={{ margin:0, fontSize:11, color:T.sub, fontWeight:700, textTransform:"uppercase", overflowWrap:"anywhere" }}>{l}</p>
+                <p data-visitas-total={k} style={{ margin:"2px 0 0", fontSize:24, fontWeight:900 }}>{v}</p>
+              </div>
+            ))}
+          </div>
+          <Lista titulo="Por país (visitas)" itens={group(rows, "visita", "country", countryName)} />
+          <Lista titulo="Por origem (visitas)" itens={group(rows, "visita", "origin", k => VISIT_ORIGINS[k] || k)} />
+          <Lista titulo="Por aparelho (visitas)" itens={group(rows, "visita", "device", k => VISIT_DEVICES[k] || (k || "Desconhecido"))} />
+          <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
+            <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Por dia</p>
+            {dias.map(d => (
+              <div key={d} data-visitas-dia style={{ display:"flex", justifyContent:"space-between", gap:8, padding:"4px 0", fontSize:13 }}>
+                <span>{d.slice(8, 10)}/{d.slice(5, 7)}</span><span>{porDia[d].visita} visitas · {porDia[d].criar} criar · {porDia[d].video} vídeo</span>
+              </div>
+            ))}
+          </div>
+        </>);
+      })()}
+    </div>
+  );
+};
 // Separador "Estado" do painel (só o super admin chega aqui): interruptor verde/laranja + texto (máx. 200)
 const AdminStatusSection = ({ token, onSaved }) => {
   const [st, setSt] = useState({ status:"loading", row:null, error:"" });
@@ -3476,7 +3547,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
   // percentagem por pagar / total (só apresentação): 0% se o total for 0 ou não for número; sem divisão por zero
   const totalN = Number(stats && stats.fines_total), unpaidN = Number(stats && stats.fines_unpaid);
   const unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
-  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"]];
+  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"]];
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
@@ -3561,6 +3632,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         )}
         {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
         {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
+        {section==="visitas" && <AdminVisitsSection token={token} />}
       </div>
     </div>
   );
