@@ -3403,9 +3403,10 @@ const heatGrid = (rows, pais, cidade) => {
   rows.forEach(r => { if ((pais === "*" || locKey(r.pais) === pais) && (cidade === "*" || locKey(r.cidade) === cidade)) g[r.dia - 1][r.hora] += r.acoes; });
   return g;
 };
-// janelas calmas de um dia entre as 7h e as 24h: sequências de horas com no máximo 25% do máximo do mapa, com 2 h ou mais;
+// janelas calmas de um dia entre as 7h e as 24h: sequências de horas calmas com 2 h ou mais; hora calma = no máximo 1 ação por semana
+// em média (ações <= dias do período / 7, arredondado para baixo: 30 dias → 4, 60 → 8, 90 → 12);
 // ficam as 3 mais longas (empate: a mais cedo), por ordem do dia
-const heatLimite = grid => Math.max(0, ...grid.map(l => Math.max(0, ...l))) * 0.25;
+const heatLimite = dias => Math.max(0, Math.floor(Number(dias) / 7) || 0);
 const calmWindows = (horas, limite) => {
   const out = []; let ini = -1;
   for (let h = 7; h <= 24; h++) {
@@ -3421,14 +3422,14 @@ const heatCor = (v, max) => {
 };
 const AdminHeatmapSection = ({ token }) => {
   const [days, setDays] = useState(60);
-  const [st, setSt] = useState({ status:"loading", rows:[], error:"" });
+  const [st, setSt] = useState({ status:"loading", rows:[], error:"", days:60 });
   const [pais, setPais] = useState("*");
   const [cidade, setCidade] = useState("*");
   const [sel, setSel] = useState(null);
   const load = async d => {
-    setSt({ status:"loading", rows:[], error:"" });
-    try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_heatmap", { p_days:d }, token)), error:"" }); }
-    catch(e) { setSt({ status:"error", rows:[], error:adminErrPt(e) }); }
+    setSt({ status:"loading", rows:[], error:"", days:d });
+    try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_heatmap", { p_days:d }, token)), error:"", days:d }); }
+    catch(e) { setSt({ status:"error", rows:[], error:adminErrPt(e), days:d }); }
   };
   useEffect(() => { load(days); }, [days]);
   const rows = st.rows;
@@ -3437,7 +3438,7 @@ const AdminHeatmapSection = ({ token }) => {
   const paisOk = pais === "*" || paises.some(p => p.key === pais) ? pais : "*";
   const cidadeOk = cidade === "*" || cidades.some(c => c.key === cidade) ? cidade : "*";
   const grid = heatGrid(rows, paisOk, cidadeOk);
-  const max = Math.max(0, ...grid.map(l => Math.max(0, ...l))), limite = heatLimite(grid);
+  const max = Math.max(0, ...grid.map(l => Math.max(0, ...l))), limite = heatLimite(st.days);
   const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
   return (
     <div data-heat-painel>
@@ -3494,7 +3495,8 @@ const AdminHeatmapSection = ({ token }) => {
             return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map(w => `${w.de}h–${w.ate}h`).join(" · ") : "sem janela calma"}</p>;
           })}
         </div>
-        <p data-heat-nota style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Horas da Suíça</p>
+        <p data-heat-calma style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Calma = no máximo 1 ação por semana nessa hora.</p>
+        <p data-heat-nota style={{ margin:"2px 0 0", fontSize:12, color:T.sub }}>Horas da Suíça</p>
       </>)}
     </div>
   );
@@ -3680,7 +3682,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.7)" }}>Monitorização da plataforma</p>
         {updatedAt && <p style={{ margin:"2px 0 0", fontSize:12, color:"rgba(255,255,255,0.7)" }}>Atualizado às {String(updatedAt.getHours()).padStart(2,"0")}:{String(updatedAt.getMinutes()).padStart(2,"0")}</p>}
       </div>
-      <div data-admin-tabs style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}`, overflowX:"auto" }}>
+      <div data-admin-tabs style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}`, flexWrap:"wrap" }}>
         {tabs.map(([id,label]) => (
           <button key={id} onClick={()=>setSection(id)} style={{ flex:"1 0 auto", padding:"8px 10px", minHeight:44, borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
