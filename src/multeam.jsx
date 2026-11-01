@@ -3519,6 +3519,179 @@ const AdminHeatmapSection = ({ token }) => {
     </div>
   );
 };
+// Separador "Notas" do painel (só o super admin): lista de coisas por fazer, guardada na tabela admin_notes (REST direto; RLS só para o super admin).
+// Escrita => não entra na RO_RPCS: no modo leitura a secção só mostra as notas e nenhum pedido de escrita sai da app (roCheck).
+const NOTE_PRIOS = [["alta", "Alta", "#B42318", "#fff"], ["media", "Média", "#F5C518", "#1a1a1f"], ["baixa", "Baixa", "#1E8E3E", "#fff"]];
+const NOTE_PRIO_RANK = { alta:0, media:1, baixa:2 };
+const NOTE_ESTADOS = [["por_fazer", "Por fazer", "#5F5F66", "#fff"], ["em_curso", "Em curso", "#1D5FD1", "#fff"], ["feito", "Feito", "#1E8E3E", "#fff"]];
+const NOTE_TITLE_MAX = 200, NOTE_DETAILS_MAX = 4000;
+const parseNotes = raw => {
+  if (!Array.isArray(raw)) throw new Error("Resposta inesperada do servidor.");
+  return raw.map(r => {
+    if (!r || typeof r !== "object" || !r.id || typeof r.title !== "string") return null;
+    return {
+      id:String(r.id), title:r.title, details:typeof r.details === "string" ? r.details : "",
+      status:NOTE_ESTADOS.some(e => e[0] === r.status) ? r.status : "por_fazer",
+      priority:NOTE_PRIO_RANK[r.priority] != null ? r.priority : "media",
+      position:Math.round(Number(r.position)) || 0, created_at:r.created_at || "", updated_at:r.updated_at || "", done_at:r.done_at || "",
+    };
+  }).filter(Boolean);
+};
+// lista principal: Por fazer + Em curso, por prioridade (alta → média → baixa) e, dentro da mesma, por position
+const notesMain = list => list.filter(n => n.status !== "feito").sort((a, b) => NOTE_PRIO_RANK[a.priority] - NOTE_PRIO_RANK[b.priority] || a.position - b.position || String(a.created_at).localeCompare(String(b.created_at)));
+const notesArchive = list => list.filter(n => n.status === "feito").sort((a, b) => String(b.done_at).localeCompare(String(a.done_at)));
+// mover uma nota ↑ (-1) ou ↓ (+1) dentro da sua prioridade: devolve [{id, position}] só das que mudam (posições 1..n do grupo)
+const notesMove = (list, id, dir) => {
+  const main = notesMain(list), n = main.find(x => x.id === id); if (!n) return [];
+  const grp = main.filter(x => x.priority === n.priority), i = grp.findIndex(x => x.id === id), j = i + dir;
+  if (j < 0 || j >= grp.length) return [];
+  const novo = grp.slice(); novo.splice(i, 1); novo.splice(j, 0, n);
+  return novo.map((x, k) => ({ id:x.id, position:k + 1 })).filter(x => grp.find(g => g.id === x.id).position !== x.position);
+};
+const noteDate = iso => { const d = new Date(iso); if (!iso || isNaN(d)) return "—"; return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`; };
+const noteChip = (txt, bg, fg, attr) => <span {...attr} style={{ display:"inline-block", background:bg, color:fg, borderRadius:8, padding:"2px 8px", fontSize:12, fontWeight:800, whiteSpace:"nowrap" }}>{txt}</span>;
+const AdminNotesSection = ({ token }) => {
+  const ro = RO.on;
+  const [st, setSt] = useState({ status:"loading", notes:[], error:"" });
+  const [vista, setVista] = useState("lista");
+  const [form, setForm] = useState(null); // null | { id|null, title, details, priority, status }
+  const [apagar, setApagar] = useState(null); // id à espera de confirmação
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ id:null, text:"" }); // erro/aviso (id = nota a que se refere; null = formulário)
+  const load = async () => {
+    setSt(s => ({ status:"loading", notes:s.notes, error:"" }));
+    try { setSt({ status:"ok", notes:parseNotes(await api.get("admin_notes?select=*", token)), error:"" }); }
+    catch(e) { setSt({ status:"error", notes:[], error:adminErrPt(e) }); }
+  };
+  useEffect(() => { load(); }, []);
+  const notes = st.notes, main = notesMain(notes), arq = notesArchive(notes);
+  const agora = () => new Date().toISOString();
+  const run = async (id, fn) => {
+    if (busy) return false;
+    setBusy(true); setMsg({ id:null, text:"" });
+    try { await fn(); setBusy(false); return true; }
+    catch(e) { setMsg({ id, text:adminErrPt(e) }); setBusy(false); return false; }
+  };
+  const abrirNova = () => { setForm({ id:null, title:"", details:"", priority:"media", status:"por_fazer" }); setMsg({ id:null, text:"" }); };
+  const abrirEditar = n => { setForm({ id:n.id, title:n.title, details:n.details, priority:n.priority, status:n.status }); setMsg({ id:null, text:"" }); };
+  const guardar = async () => {
+    const title = form.title.trim();
+    if (!title) { setMsg({ id:null, text:"O título é obrigatório." }); return; }
+    if (title.length > NOTE_TITLE_MAX || form.details.length > NOTE_DETAILS_MAX) { setMsg({ id:null, text:"Texto demasiado longo." }); return; }
+    const ok = await run(null, async () => {
+      if (form.id == null) {
+        const pos = notes.reduce((m, n) => Math.max(m, n.position), 0) + 1;
+        const corpo = { title, details:form.details, status:form.status, priority:form.priority, position:pos };
+        if (form.status === "feito") corpo.done_at = agora();
+        const r = await api.post("admin_notes", corpo, token);
+        const novo = parseNotes(r)[0];
+        if (!novo) throw new Error("Resposta inesperada do servidor.");
+        setSt(s => ({ ...s, notes:[...s.notes, novo] }));
+      } else {
+        const antigo = notes.find(n => n.id === form.id);
+        const corpo = { title, details:form.details, status:form.status, priority:form.priority, updated_at:agora() };
+        if (form.status === "feito" && antigo && antigo.status !== "feito") corpo.done_at = agora();
+        if (form.status !== "feito" && antigo && antigo.status === "feito") corpo.done_at = null;
+        const r = await api.patch(`admin_notes?id=eq.${encodeURIComponent(form.id)}`, corpo, token);
+        const novo = parseNotes(r)[0] || { ...antigo, ...corpo, done_at:corpo.done_at === undefined ? antigo.done_at : (corpo.done_at || "") };
+        setSt(s => ({ ...s, notes:s.notes.map(n => n.id === form.id ? novo : n) }));
+      }
+    });
+    if (ok) setForm(null);
+  };
+  const mudarEstado = (n, status) => run(n.id, async () => {
+    const corpo = status === "feito" ? { status, done_at:agora(), updated_at:agora() } : { status, done_at:null, updated_at:agora() };
+    const r = await api.patch(`admin_notes?id=eq.${encodeURIComponent(n.id)}`, corpo, token);
+    const novo = parseNotes(r)[0] || { ...n, status, done_at:corpo.done_at || "", updated_at:corpo.updated_at };
+    setSt(s => ({ ...s, notes:s.notes.map(x => x.id === n.id ? novo : x) }));
+  });
+  const confirmarApagar = id => run(id, async () => {
+    await api.del(`admin_notes?id=eq.${encodeURIComponent(id)}`, token);
+    setSt(s => ({ ...s, notes:s.notes.filter(n => n.id !== id) })); setApagar(null);
+  });
+  const mover = (n, dir) => {
+    const mud = notesMove(notes, n.id, dir); if (!mud.length) return;
+    return run(n.id, async () => {
+      try { for (const m of mud) await api.patch(`admin_notes?id=eq.${encodeURIComponent(m.id)}`, { position:m.position }, token); }
+      finally { setSt(s => ({ ...s, notes:s.notes.map(x => { const m = mud.find(y => y.id === x.id); return m ? { ...x, position:m.position } : x; }) })); load(); }
+    });
+  };
+  const btn = (extra) => ({ minHeight:44, minWidth:44, padding:"0 12px", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", ...extra });
+  const prio = p => NOTE_PRIOS.find(x => x[0] === p) || NOTE_PRIOS[1];
+  const est = s => NOTE_ESTADOS.find(x => x[0] === s) || NOTE_ESTADOS[0];
+  const Cartao = ({ n, arquivo }) => {
+    const [, pl, pbg, pfg] = prio(n.priority), [, el, ebg, efg] = est(n.status);
+    const grp = main.filter(x => x.priority === n.priority), i = grp.findIndex(x => x.id === n.id);
+    return (
+      <div data-nota={n.id} data-nota-estado={n.status} data-nota-prioridade={n.priority} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:6 }}>
+          {noteChip(`Prioridade ${pl.toLowerCase()}`, pbg, pfg, { "data-nota-chip-prio":true })}
+          {noteChip(el, ebg, efg, { "data-nota-chip-estado":true })}
+        </div>
+        <p data-nota-titulo style={{ margin:"0 0 4px", fontSize:15, fontWeight:800, overflowWrap:"anywhere" }}>{n.title}</p>
+        {n.details && <p data-nota-detalhes style={{ margin:"0 0 6px", fontSize:13, color:T.sub, whiteSpace:"pre-wrap", overflowWrap:"anywhere" }}>{n.details}</p>}
+        {arquivo && <p data-nota-feito-em style={{ margin:"0 0 6px", fontSize:12, color:T.sub }}>Feito em {noteDate(n.done_at)}</p>}
+        {msg.id === n.id && msg.text && <p role="alert" data-nota-erro style={{ margin:"0 0 6px", fontSize:13, fontWeight:700, color:"#B42318" }}>{msg.text}</p>}
+        {apagar === n.id ? (
+          <div data-nota-confirmar style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            <span style={{ fontSize:13, fontWeight:700, flex:"1 1 100%" }}>Apagar esta nota?</span>
+            <button data-nota-apagar-sim disabled={busy} onClick={() => confirmarApagar(n.id)} style={btn({ background:"#B42318", borderColor:"#B42318", color:"#fff" })}>Apagar</button>
+            <button data-nota-apagar-nao onClick={() => setApagar(null)} style={btn()}>Cancelar</button>
+          </div>
+        ) : !ro && (
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {!arquivo && <button data-nota-sobe aria-label="Subir" disabled={busy || i <= 0} onClick={() => mover(n, -1)} style={btn({ opacity:i <= 0 ? 0.4 : 1 })}>↑</button>}
+            {!arquivo && <button data-nota-desce aria-label="Descer" disabled={busy || i < 0 || i >= grp.length - 1} onClick={() => mover(n, 1)} style={btn({ opacity:(i < 0 || i >= grp.length - 1) ? 0.4 : 1 })}>↓</button>}
+            {!arquivo && <button data-nota-editar onClick={() => abrirEditar(n)} style={btn()}>Editar</button>}
+            {!arquivo && n.status === "por_fazer" && <button data-nota-em-curso disabled={busy} onClick={() => mudarEstado(n, "em_curso")} style={btn()}>Em curso</button>}
+            {!arquivo && n.status === "em_curso" && <button data-nota-por-fazer disabled={busy} onClick={() => mudarEstado(n, "por_fazer")} style={btn()}>Por fazer</button>}
+            {!arquivo && <button data-nota-feito disabled={busy} onClick={() => mudarEstado(n, "feito")} style={btn({ borderColor:"#1E8E3E", color:"#1E8E3E" })}>✓ Feito</button>}
+            {arquivo && <button data-nota-reabrir disabled={busy} onClick={() => mudarEstado(n, "por_fazer")} style={btn()}>Reabrir</button>}
+            <button data-nota-apagar onClick={() => { setApagar(n.id); setMsg({ id:null, text:"" }); }} style={btn({ color:"#B42318", borderColor:"#B42318" })}>Apagar</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+  return (
+    <div data-notas-painel>
+      {ro && <p data-notas-ro role="status" style={{ margin:"0 0 10px", fontSize:13, fontWeight:700, color:T.sub }}>{RO_MSG}</p>}
+      {st.status === "loading" && !notes.length && <p style={{ textAlign:"center", color:T.sub, padding:"20px 0" }}>A carregar…</p>}
+      {st.status === "error" && <LoadWarn id="notas" onRetry={load}>Não foi possível ler as notas: {st.error}</LoadWarn>}
+      {(st.status === "ok" || (st.status === "loading" && notes.length > 0)) && (<>
+        <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+          {[["lista", `Lista (${main.length})`], ["arquivo", `Arquivo (${arq.length})`]].map(([k, l]) => (
+            <button key={k} data-notas-vista={k} onClick={() => setVista(k)} aria-pressed={vista === k} style={{ flex:1, minHeight:44, borderRadius:10, border:`1.5px solid ${vista === k ? T.navy : T.border}`, background:vista === k ? T.navy : "transparent", color:vista === k ? "#fff" : T.sub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{l}</button>
+          ))}
+        </div>
+        {!ro && !form && vista === "lista" && <button data-nota-nova onClick={abrirNova} style={btn({ width:"100%", marginBottom:10, background:T.navy, borderColor:T.navy, color:"#fff" })}>＋ Nova nota</button>}
+        {form && !ro && (
+          <div data-nota-form style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:10 }}>
+            <FL>Título ({form.title.length}/{NOTE_TITLE_MAX})</FL>
+            <input data-nota-f-titulo value={form.title} maxLength={NOTE_TITLE_MAX} onChange={e => setForm(f => ({ ...f, title:e.target.value }))} style={{ width:"100%", boxSizing:"border-box", minHeight:44, padding:"0 12px", borderRadius:10, border:`1.5px solid ${T.border}`, fontSize:15, fontFamily:"inherit", background:T.inputBg, marginBottom:10 }} />
+            <FL>Detalhes (opcional, {form.details.length}/{NOTE_DETAILS_MAX})</FL>
+            <textarea data-nota-f-detalhes value={form.details} maxLength={NOTE_DETAILS_MAX} rows={4} onChange={e => setForm(f => ({ ...f, details:e.target.value }))} style={{ width:"100%", boxSizing:"border-box", padding:"10px 12px", borderRadius:10, border:`1.5px solid ${T.border}`, fontSize:15, fontFamily:"inherit", background:T.inputBg, marginBottom:10 }} />
+            <FL>Prioridade</FL>
+            <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+              {NOTE_PRIOS.map(([k, l, bg, fg]) => <button key={k} data-nota-f-prio={k} aria-pressed={form.priority === k} onClick={() => setForm(f => ({ ...f, priority:k }))} style={btn({ flex:1, background:form.priority === k ? bg : "transparent", color:form.priority === k ? fg : T.sub, borderColor:form.priority === k ? bg : T.border })}>{l}</button>)}
+            </div>
+            <FL>Estado</FL>
+            <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+              {NOTE_ESTADOS.map(([k, l, bg, fg]) => <button key={k} data-nota-f-estado={k} aria-pressed={form.status === k} onClick={() => setForm(f => ({ ...f, status:k }))} style={btn({ flex:1, background:form.status === k ? bg : "transparent", color:form.status === k ? fg : T.sub, borderColor:form.status === k ? bg : T.border })}>{l}</button>)}
+            </div>
+            {msg.id === null && msg.text && <p role="alert" data-nota-f-erro style={{ margin:"0 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{msg.text}</p>}
+            <div style={{ display:"flex", gap:6 }}>
+              <button data-nota-f-guardar disabled={busy} onClick={guardar} style={btn({ flex:1, background:T.navy, borderColor:T.navy, color:"#fff" })}>{busy ? "A guardar…" : "Guardar"}</button>
+              <button data-nota-f-cancelar disabled={busy} onClick={() => { setForm(null); setMsg({ id:null, text:"" }); }} style={btn({ flex:1 })}>Cancelar</button>
+            </div>
+          </div>
+        )}
+        {vista === "lista" && (main.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Sem notas por fazer.</p> : main.map(n => <Cartao key={n.id} n={n} arquivo={false} />))}
+        {vista === "arquivo" && (arq.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Arquivo vazio.</p> : arq.map(n => <Cartao key={n.id} n={n} arquivo={true} />))}
+      </>)}
+    </div>
+  );
+};
 // Separador "Estado" do painel (só o super admin chega aqui): interruptor verde/laranja + texto (máx. 200)
 const AdminStatusSection = ({ token, onSaved }) => {
   const [st, setSt] = useState({ status:"loading", row:null, error:"" });
@@ -3689,7 +3862,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
   // percentagem por pagar / total (só apresentação): 0% se o total for 0 ou não for número; sem divisão por zero
   const totalN = Number(stats && stats.fines_total), unpaidN = Number(stats && stats.fines_unpaid);
   const unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
-  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"],["atividade","📈 Atividade"]];
+  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"],["atividade","📈 Atividade"],["notas","📝 Notas"]];
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
@@ -3776,6 +3949,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
         {section==="visitas" && <AdminVisitsSection token={token} />}
         {section==="atividade" && <AdminHeatmapSection token={token} />}
+        {section==="notas" && <AdminNotesSection token={token} />}
       </div>
     </div>
   );
