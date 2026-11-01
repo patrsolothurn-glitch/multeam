@@ -958,6 +958,14 @@ var aTeam = function aTeam(t) {
     createdBy: t.created_by
   };
 };
+var semSaude = function semSaude(m) {
+  return _objectSpread(_objectSpread({}, m), {}, {
+    unavailable: false,
+    unavailableNote: '',
+    unavailableSince: '',
+    unavailableEmoji: '🤕'
+  });
+};
 var semDadosPrivados = function semDadosPrivados(p) {
   return p && _typeof(p) === "object" ? _objectSpread(_objectSpread({}, p), {}, {
     phone: null,
@@ -18997,7 +19005,7 @@ var MemberDetailScreen = function MemberDetailScreen(_ref217) {
     _useState478 = _slicedToArray(_useState477, 2),
     adding = _useState478[0],
     setAdding = _useState478[1];
-  var showHist = isAdmin && !!absHandlers || !!readOnly;
+  var showHist = isAdmin && !!absHandlers;
   var mine = (absences || []).filter(function (a) {
     return a.memberId === member.id;
   });
@@ -21302,16 +21310,16 @@ function App() {
             return _context83.a(2, {
               team: aTeam(r.team),
               members: mRaw.map(function (m) {
-                return aMember(_objectSpread(_objectSpread({}, m), {}, {
+                return semSaude(aMember(_objectSpread(_objectSpread({}, m), {}, {
                   profiles: semDadosPrivados(profilesMap[m.user_id]) || null
-                }), r.team.sport);
+                }), r.team.sport));
               }),
               fineTypes: ftData.map(aFineType),
               fines: fData.map(aFine),
               expenses: eData.map(aExpense),
               trainings: tData.map(aTraining),
               presences: presMap,
-              absences: aData.map(aAbsence),
+              absences: [],
               cards: cData.map(aCard)
             });
         }

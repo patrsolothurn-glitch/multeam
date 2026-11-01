@@ -179,6 +179,8 @@ const sessServerLogout = tok => { if (!tok) return; try { fetch(`${SB_URL}/auth/
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
 const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', emojiRaw:t.emoji||'', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, tactic:t.tactic||'', forceRsvp:t.force_rsvp===true, createdBy:t.created_by });
 // Modo leitura do super admin e painel: NUNCA telefones nem aniversários (a rpc get_team_as_admin devolve-os nos perfis; aqui deixam de entrar na app)
+// Dados de saúde (lesões, notas e indisponibilidade): também nunca no modo leitura. Os membros entram sem indisponibilidade/nota/emoji de lesão e o histórico de lesões/ausências não entra.
+const semSaude = m => ({ ...m, unavailable:false, unavailableNote:'', unavailableSince:'', unavailableEmoji:'🤕' });
 const semDadosPrivados = p => (p && typeof p === "object") ? { ...p, phone:null, birthday:null } : p;
 const aMember = (m, sport) => ({ id:m.id, teamId:m.team_id, userId:m.user_id, role:m.role, name:m.profiles?.name||'Utilizador', initials:mk(m.profiles?.name||'U'), position:isFreeSport(sport)?(m.position||''):(m.position||m.profiles?.position||'Jogador'), phone:m.profiles?.phone||'', birthday:m.profiles?.birthday||'', avatarUrl:m.profiles?.avatar_url||null, unavailable:!!m.unavailable, unavailableNote:m.unavailable_note||'', unavailableSince:m.unavailable_since||'', unavailableEmoji:m.unavailable_emoji||'🤕' });
 const aFine = f => {
@@ -5081,7 +5083,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
   const money = useMoney();
   const [ptab, setPtab] = useState("multas");
   const [adding, setAdding] = useState(false);
-  const showHist = (isAdmin && !!absHandlers) || !!readOnly; // modo leitura (super admin): histórico visível, sem ações
+  const showHist = isAdmin && !!absHandlers; // histórico de lesões/ausências: só o admin da equipa; nunca no modo leitura (dados de saúde)
   const mine = (absences || []).filter(a => a.memberId === member.id);
   const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort(byDayDesc);
   const unpaid = pf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
@@ -5674,7 +5676,7 @@ export default function App() {
     const ftData = lst("fine_types"), pData = lst("presences"), cData = lst("cards"), aData = lst("absences"), profs = lst("profiles");
     const profilesMap = {}; profs.forEach(p => { if (p && p.id != null) profilesMap[p.id] = p; });
     const presMap = presenceView(pData, tData.map(aTraining));
-    return { team:aTeam(r.team), members:mRaw.map(m => aMember({ ...m, profiles: semDadosPrivados(profilesMap[m.user_id]) || null }, r.team.sport)), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:aData.map(aAbsence), cards:cData.map(aCard) };
+    return { team:aTeam(r.team), members:mRaw.map(m => semSaude(aMember({ ...m, profiles: semDadosPrivados(profilesMap[m.user_id]) || null }, r.team.sport))), fineTypes:ftData.map(aFineType), fines:fData.map(aFine), expenses:eData.map(aExpense), trainings:tData.map(aTraining), presences:presMap, absences:[] /* histórico de lesões/ausências: nunca no modo leitura (aData não é usado) */, cards:cData.map(aCard) };
   };
   const applyAdminData = td => {
     setTeams(p => p.some(x => x.id === td.team.id) ? p.map(x => x.id === td.team.id ? td.team : x) : [...p, td.team]);
