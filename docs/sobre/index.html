@@ -265,6 +265,7 @@
 
   <footer>
     <div class="wrap">Multeam · multas, presenças e caixa para equipas · <a href="https://multeam.ch/">Abrir a app</a> · <a href="mailto:support@multeam.ch?subject=Multeam%20-%20Sobre">Contacto</a></div>
+    <div class="wrap" data-visitas-aviso style="margin-top:4px;font-size:14px">Esta página conta visitas de forma anónima, sem IP nem dados pessoais.</div>
   </footer>
   <script>
     // "Ver como funciona": a ligação #demo faz o scroll sozinha (sem JavaScript); aqui só se acrescenta o play() a partir do toque.
@@ -275,6 +276,71 @@
       link.addEventListener('click', function () {
         try { var p = video.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
       });
+    })();
+  </script>
+  <script>
+    // Contador de visitas anónimo (sem IP nem dados pessoais): dia, país aproximado (fuso e língua), origem, tipo de aparelho e um código aleatório do aparelho.
+    // Ignora robôs e pré-visualizadores de ligações; só conta com a página visível; qualquer falha é ignorada e nada muda na página.
+    (function () {
+      try {
+        var ua = navigator.userAgent || '';
+        if (navigator.webdriver) return;
+        if (/bot|crawl|spider|slurp|preview|headless|lighthouse|facebookexternalhit|facebot|whatsapp|telegram|twitter|linkedin|slack|discord|skype|embedly|pinterest|vkshare|applebot|yandex|baidu|semrush|ahrefs|mj12|dotbot|petalbot|bingpreview|pingdom|uptime|monitor|curl|wget|python|java\/|go-http|axios|okhttp|libwww|httpclient|scrapy/i.test(ua)) return;
+        var URL_ = "https://syakniwyvcfdqsrwsalk.supabase.co/rest/v1/rpc/log_site_visit", KEY = "sb_publishable_MRMHqVQ-key1c5kf7UOLUA_rwyu85BI";
+        var ZONAS = { 'Europe/Zurich':'CH','Europe/Lisbon':'PT','Atlantic/Madeira':'PT','Atlantic/Azores':'PT','Europe/Paris':'FR','Europe/Berlin':'DE','Europe/Madrid':'ES','Atlantic/Canary':'ES','Europe/London':'GB','Europe/Rome':'IT','Europe/Vienna':'AT','Europe/Brussels':'BE','Europe/Amsterdam':'NL','Europe/Luxembourg':'LU','Europe/Dublin':'IE','Europe/Vaduz':'LI','Europe/Monaco':'MC','Africa/Luanda':'AO','Africa/Maputo':'MZ','Atlantic/Cape_Verde':'CV','Africa/Bissau':'GW','Africa/Sao_Tome':'ST','Asia/Dili':'TL','Asia/Macau':'MO','America/Sao_Paulo':'BR','America/Bahia':'BR','America/Fortaleza':'BR','America/Recife':'BR','America/Manaus':'BR','America/Belem':'BR','America/Cuiaba':'BR','America/Campo_Grande':'BR','America/Porto_Velho':'BR','America/Rio_Branco':'BR','America/Noronha':'BR','America/New_York':'US','America/Chicago':'US','America/Denver':'US','America/Los_Angeles':'US','America/Toronto':'CA','America/Vancouver':'CA','America/Montreal':'CA' };
+        function pais() {
+          var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+          if (ZONAS[tz]) return ZONAS[tz];
+          var l = (navigator.language || '').split(/[-_]/)[1] || '';
+          return /^[A-Za-z]{2}$/.test(l) ? l.toUpperCase() : null;
+        }
+        function origem() {
+          var q = ''; try { q = (location.search.match(/[?&](?:src|utm_source)=([^&]+)/i) || [])[1] || ''; } catch (e) {}
+          q = q.toLowerCase();
+          if (q === 'whatsapp' || q === 'facebook' || q === 'instagram' || q === 'google') return q;
+          var h = ''; try { h = document.referrer ? new URL(document.referrer).hostname.toLowerCase() : ''; } catch (e) {}
+          if (!h || /(^|\.)multeam\.ch$/.test(h)) return 'direto';
+          if (/(^|\.)(wa\.me|whatsapp\.com|whatsapp\.net)$/.test(h)) return 'whatsapp';
+          if (/(^|\.)(facebook\.com|fb\.com|fb\.me|messenger\.com)$/.test(h)) return 'facebook';
+          if (/(^|\.)instagram\.com$/.test(h)) return 'instagram';
+          if (/(^|\.)google\.[a-z.]+$/.test(h)) return 'google';
+          return 'outro';
+        }
+        function aparelho() {
+          var t = false; try { t = /Mobi|Android|iPhone|iPad|iPod/i.test(ua) || (window.matchMedia && matchMedia('(pointer:coarse)').matches && screen.width < 900); } catch (e) {}
+          return t ? 'telemovel' : 'computador';
+        }
+        function codigo() {
+          var k = 'multeam_dv', c = '';
+          try { c = localStorage.getItem(k) || ''; } catch (e) {}
+          if (/^[A-Za-z0-9-]{8,64}$/.test(c)) return c;
+          c = '';
+          try {
+            var a = new Uint8Array(16); (window.crypto || window.msCrypto).getRandomValues(a);
+            for (var i = 0; i < a.length; i++) c += (a[i] % 36).toString(36);
+          } catch (e) { for (var j = 0; j < 20; j++) c += Math.floor(Math.random() * 36).toString(36); }
+          try { localStorage.setItem(k, c); } catch (e) {}
+          return c;
+        }
+        function enviar(evento) {
+          try {
+            fetch(URL_, { method: 'POST', keepalive: true, headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ p_device: codigo(), p_event: evento, p_country: pais(), p_origin: origem(), p_device_type: aparelho() }) }).catch(function () {});
+          } catch (e) {}
+        }
+        var contou = false;
+        function visita() { if (contou || document.visibilityState !== 'visible') return; contou = true; enviar('visita'); }
+        if (document.visibilityState === 'visible') visita();
+        else document.addEventListener('visibilitychange', visita);
+        document.addEventListener('click', function (e) {
+          try {
+            var a = e.target && e.target.closest ? e.target.closest('a') : null;
+            if (!a) return;
+            if (a.classList.contains('btn-video')) enviar('video');
+            else if (a.classList.contains('btn') && /Criar a minha equipa/.test(a.textContent || '')) enviar('criar');
+          } catch (err) {}
+        }, true);
+      } catch (e) {}
     })();
   </script>
 </body>
