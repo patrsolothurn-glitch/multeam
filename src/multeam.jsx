@@ -43,7 +43,7 @@ const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KE
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "list_team_claims"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_activity_heatmap", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -3377,6 +3377,128 @@ const AdminVisitsSection = ({ token }) => {
     </div>
   );
 };
+// Secção "Melhores horas para atualizar" do separador Atividade (só o super admin; rpc get_activity_heatmap, só leitura, horas da Suíça).
+// Mapa 7 dias × 24 horas com as ações (multas, presenças, despesas, cartões) de todas as equipas; as combinações em falta contam 0.
+const HEAT_DAYS = [30, 60, 90];
+const HEAT_DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+const parseHeat = raw => {
+  if (!Array.isArray(raw)) throw new Error("Resposta inesperada do servidor.");
+  return raw.map(r => {
+    if (!r || typeof r !== "object") return null;
+    const dia = Math.round(Number(r.dia)), hora = Math.round(Number(r.hora)), acoes = Math.round(Number(r.acoes));
+    if (!(dia >= 1 && dia <= 7) || !(hora >= 0 && hora <= 23) || !(acoes > 0)) return null;
+    return { pais:locNorm(r.pais), cidade:locNorm(r.cidade), dia, hora, acoes };
+  }).filter(Boolean);
+};
+// opções de filtro: países (por chave sem acentos/maiúsculas) e cidades do país escolhido ("*" = todos)
+const heatOpcoes = (rows, pais) => {
+  const agrupa = (list, campo) => {
+    const g = {}; list.forEach(r => { const k = locKey(r[campo]); if (!g[k]) g[k] = { key:k, label:k ? locTitle(r[campo]) : "Desconhecido", n:0 }; g[k].n += r.acoes; });
+    return Object.values(g).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label, "pt"));
+  };
+  return { paises:agrupa(rows, "pais"), cidades:agrupa(pais === "*" ? rows : rows.filter(r => locKey(r.pais) === pais), "cidade") };
+};
+const heatGrid = (rows, pais, cidade) => {
+  const g = Array.from({ length:7 }, () => Array(24).fill(0));
+  rows.forEach(r => { if ((pais === "*" || locKey(r.pais) === pais) && (cidade === "*" || locKey(r.cidade) === cidade)) g[r.dia - 1][r.hora] += r.acoes; });
+  return g;
+};
+// janelas calmas de um dia entre as 7h e as 24h: sequências de horas com no máximo 25% do máximo do mapa, com 2 h ou mais;
+// ficam as 3 mais longas (empate: a mais cedo), por ordem do dia
+const heatLimite = grid => Math.max(0, ...grid.map(l => Math.max(0, ...l))) * 0.25;
+const calmWindows = (horas, limite) => {
+  const out = []; let ini = -1;
+  for (let h = 7; h <= 24; h++) {
+    const calma = h < 24 && horas[h] <= limite;
+    if (calma && ini < 0) ini = h;
+    if (!calma && ini >= 0) { if (h - ini >= 2) out.push({ de:ini, ate:h }); ini = -1; }
+  }
+  return out.sort((a, b) => (b.ate - b.de) - (a.ate - a.de) || a.de - b.de).slice(0, 3).sort((a, b) => a.de - b.de);
+};
+const heatCor = (v, max) => {
+  const t = max > 0 ? Math.min(1, v / max) : 0, a = [236, 242, 250], b = [20, 33, 84];
+  return { bg:`rgb(${a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(",")})`, fg:t > 0.5 ? "#fff" : "#1a1a1f" };
+};
+const AdminHeatmapSection = ({ token }) => {
+  const [days, setDays] = useState(60);
+  const [st, setSt] = useState({ status:"loading", rows:[], error:"" });
+  const [pais, setPais] = useState("*");
+  const [cidade, setCidade] = useState("*");
+  const [sel, setSel] = useState(null);
+  const load = async d => {
+    setSt({ status:"loading", rows:[], error:"" });
+    try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_heatmap", { p_days:d }, token)), error:"" }); }
+    catch(e) { setSt({ status:"error", rows:[], error:adminErrPt(e) }); }
+  };
+  useEffect(() => { load(days); }, [days]);
+  const rows = st.rows;
+  const { paises, cidades } = heatOpcoes(rows, pais);
+  // se o país/cidade escolhidos deixarem de existir nos dados, volta a "todos"
+  const paisOk = pais === "*" || paises.some(p => p.key === pais) ? pais : "*";
+  const cidadeOk = cidade === "*" || cidades.some(c => c.key === cidade) ? cidade : "*";
+  const grid = heatGrid(rows, paisOk, cidadeOk);
+  const max = Math.max(0, ...grid.map(l => Math.max(0, ...l))), limite = heatLimite(grid);
+  const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
+  return (
+    <div data-heat-painel>
+      <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Melhores horas para atualizar</p>
+      <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+        {HEAT_DAYS.map(d => (
+          <button key={d} data-heat-dias={d} onClick={() => setDays(d)} aria-pressed={days === d} style={{ flex:1, minHeight:44, borderRadius:10, border:`1.5px solid ${days === d ? T.navy : T.border}`, background:days === d ? T.navy : "transparent", color:days === d ? "#fff" : T.sub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{d} dias</button>
+        ))}
+      </div>
+      {st.status === "loading" && <p style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>A carregar…</p>}
+      {st.status === "error" && (
+        <div data-heat-erro style={{ background:T.card, borderRadius:14, padding:"12px 14px", textAlign:"center" }}>
+          <p style={{ margin:"0 0 8px", fontSize:14, color:T.sub }}>Sem dados</p>
+          <button onClick={() => load(days)} style={{ minHeight:44, padding:"0 16px", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>Tentar novamente</button>
+        </div>
+      )}
+      {st.status === "ok" && !rows.length && <p data-heat-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Sem dados</p>}
+      {st.status === "ok" && rows.length > 0 && (<>
+        <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+          <label style={{ flex:1, minWidth:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase" }}>País
+            <select data-heat-pais value={paisOk} onChange={e => { setPais(e.target.value); setCidade("*"); setSel(null); }} style={selStyle}>
+              <option value="*">Todos</option>
+              {paises.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+            </select>
+          </label>
+          <label style={{ flex:1, minWidth:0, fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase" }}>Cidade
+            <select data-heat-cidade value={cidadeOk} onChange={e => { setCidade(e.target.value); setSel(null); }} style={selStyle}>
+              <option value="*">Todas</option>
+              {cidades.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <div data-heat-scroll style={{ overflowX:"auto", background:T.card, borderRadius:14, padding:"8px 6px" }}>
+          <table data-heat-mapa style={{ borderCollapse:"separate", borderSpacing:2, margin:"0 auto" }}>
+            <thead><tr><th aria-hidden="true" />{Array.from({ length:24 }, (_, h) => <th key={h} style={{ fontSize:10, fontWeight:700, color:T.sub, minWidth:22, padding:0 }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {HEAT_DIAS.map((nome, di) => (
+                <tr key={nome}>
+                  <th scope="row" style={{ fontSize:11, fontWeight:700, color:T.sub, textAlign:"left", paddingRight:4, whiteSpace:"nowrap" }}>{nome.slice(0, 3)}</th>
+                  {grid[di].map((v, h) => {
+                    const c = heatCor(v, max), on = sel && sel.d === di && sel.h === h;
+                    return <td key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={v} title={`${nome} ${h}h: ${v} ${v === 1 ? "ação" : "ações"}`} aria-label={`${nome} ${h}h: ${v} ${v === 1 ? "ação" : "ações"}`} onClick={() => setSel({ d:di, h })} style={{ background:c.bg, color:c.fg, minWidth:22, height:26, borderRadius:4, textAlign:"center", fontSize:10, fontWeight:700, cursor:"pointer", outline:on ? "2px solid #FF6B00" : "none" }}>{on ? v : ""}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? `${HEAT_DIAS[sel.d]} ${sel.h}h: ${grid[sel.d][sel.h]} ${grid[sel.d][sel.h] === 1 ? "ação" : "ações"}` : "Toca numa hora para ver o número."}</p>
+        <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginTop:10 }}>
+          <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Janelas calmas (7h–24h)</p>
+          {HEAT_DIAS.map((nome, di) => {
+            const j = calmWindows(grid[di], limite);
+            return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map(w => `${w.de}h–${w.ate}h`).join(" · ") : "sem janela calma"}</p>;
+          })}
+        </div>
+        <p data-heat-nota style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Horas da Suíça</p>
+      </>)}
+    </div>
+  );
+};
 // Separador "Estado" do painel (só o super admin chega aqui): interruptor verde/laranja + texto (máx. 200)
 const AdminStatusSection = ({ token, onSaved }) => {
   const [st, setSt] = useState({ status:"loading", row:null, error:"" });
@@ -3547,7 +3669,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
   // percentagem por pagar / total (só apresentação): 0% se o total for 0 ou não for número; sem divisão por zero
   const totalN = Number(stats && stats.fines_total), unpaidN = Number(stats && stats.fines_unpaid);
   const unpaidPct = totalN > 0 && Number.isFinite(unpaidN) ? Math.round(unpaidN / totalN * 100) : 0;
-  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"]];
+  const tabs = [["stats","📊 Stats"],["teams","⚽ Equipas"],["users","👥 Users"],["estado","🚦 Estado"],["visitas","👁️ Visitas"],["atividade","📈 Atividade"]];
 
   return (
     <div style={{ background:T.bg, minHeight:"100vh", paddingBottom:80 }}>
@@ -3558,9 +3680,9 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         <p style={{ margin:"4px 0 0", fontSize:13, color:"rgba(255,255,255,0.7)" }}>Monitorização da plataforma</p>
         {updatedAt && <p style={{ margin:"2px 0 0", fontSize:12, color:"rgba(255,255,255,0.7)" }}>Atualizado às {String(updatedAt.getHours()).padStart(2,"0")}:{String(updatedAt.getMinutes()).padStart(2,"0")}</p>}
       </div>
-      <div style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}` }}>
+      <div data-admin-tabs style={{ display:"flex", gap:6, padding:"12px 16px", background:T.card, borderBottom:`1px solid ${T.border}`, overflowX:"auto" }}>
         {tabs.map(([id,label]) => (
-          <button key={id} onClick={()=>setSection(id)} style={{ flex:1, padding:"8px 4px", minHeight:44, borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          <button key={id} onClick={()=>setSection(id)} style={{ flex:"1 0 auto", padding:"8px 10px", minHeight:44, borderRadius:10, border:`1.5px solid ${section===id?T.navy:T.border}`, background:section===id?T.navy:"transparent", color:section===id?"#fff":T.sub, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
       </div>
       <div style={{ padding:"16px" }}>
@@ -3633,6 +3755,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
         {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
         {section==="visitas" && <AdminVisitsSection token={token} />}
+        {section==="atividade" && <AdminHeatmapSection token={token} />}
       </div>
     </div>
   );
