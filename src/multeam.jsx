@@ -3519,7 +3519,7 @@ const AdminHeatmapSection = ({ token }) => {
     </div>
   );
 };
-// Separador "Notas" do painel (só o super admin): lista de coisas por fazer, guardada na tabela admin_notes (REST direto; RLS só para o super admin).
+// Separador "Notas" do painel (só o super admin; na Lista cada nota leva um número visual por grupo de prioridade, pela ordem de position; não é gravado): lista de coisas por fazer, guardada na tabela admin_notes (REST direto; RLS só para o super admin).
 // Escrita => não entra na RO_RPCS: no modo leitura a secção só mostra as notas e nenhum pedido de escrita sai da app (roCheck).
 const NOTE_PRIOS = [["alta", "Alta", "#B42318", "#fff"], ["media", "Média", "#F5C518", "#1a1a1f"], ["baixa", "Baixa", "#1E8E3E", "#fff"]];
 const NOTE_PRIO_RANK = { alta:0, media:1, baixa:2 };
@@ -3642,6 +3642,7 @@ const AdminNotesSection = ({ token }) => {
       <div key={n.id} data-nota={n.id} data-nota-estado={n.status} data-nota-prioridade={n.priority} data-nota-aberta={aberta ? "sim" : "nao"} style={{ background:T.card, borderRadius:14, padding:"4px 14px", marginBottom:6 }}>
         <div role="button" tabIndex={0} aria-expanded={aberta} data-nota-linha onClick={() => alternaNota(n.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternaNota(n.id); } }}
           style={{ display:"flex", alignItems:"center", gap:8, minHeight:44, cursor:"pointer" }}>
+          {!arquivo && i >= 0 && <span data-nota-num style={{ flex:"0 0 auto", minWidth:22, fontSize:14, fontWeight:900, color:T.sub }}>{i + 1}.</span>}
           <span data-nota-titulo style={{ flex:"1 1 auto", minWidth:0, fontSize:15, fontWeight:800, overflowWrap:"anywhere" }}>{n.title}</span>
           {arquivo ? <span data-nota-feito-em style={{ flex:"0 0 auto", fontSize:12, color:T.sub }}>Feito em {noteDate(n.done_at)}</span> : noteChip(el, ebg, efg, { "data-nota-chip-estado":true })}
         </div>
