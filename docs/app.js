@@ -1292,6 +1292,12 @@ var normTeamName = function normTeamName(s) {
 var normPlace = function normPlace(s) {
   return normTeamName(s);
 };
+var placeKey = function placeKey(s) {
+  return normPlace(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+};
+var placeToSave = function placeToSave(novo, antigo) {
+  return normPlace(novo) === normPlace(antigo) ? antigo == null ? "" : antigo : normPlace(novo);
+};
 var teamNameIssue = function teamNameIssue(s) {
   var n = normTeamName(s);
   if (n.length < TEAM_NAME_MIN) return "O nome tem de ter pelo menos ".concat(TEAM_NAME_MIN, " caracteres.");
@@ -3774,7 +3780,7 @@ var AddSingleTrainingModal = function AddSingleTrainingModal(_ref48) {
     _useState70 = _slicedToArray(_useState69, 2),
     err = _useState70[0],
     setErr = _useState70[1];
-  var ok = date && time && loc;
+  var ok = date && time && normPlace(loc);
   return React.createElement(Sheet, {
     title: "\uD83D\uDCC5 Treino \xFAnico",
     onClose: onClose
@@ -3839,7 +3845,7 @@ var AddSingleTrainingModal = function AddSingleTrainingModal(_ref48) {
               recurring: false,
               date: date,
               time: time,
-              location: loc,
+              location: normPlace(loc),
               notes: notes
             }, isAdmin && normTactic(tactic) ? {
               tactic: normTactic(tactic)
@@ -3890,7 +3896,7 @@ var AddRecurringModal = function AddRecurringModal(_ref50) {
     _useState82 = _slicedToArray(_useState81, 2),
     err = _useState82[0],
     setErr = _useState82[1];
-  var ok = days.length > 0 && time && loc;
+  var ok = days.length > 0 && time && normPlace(loc);
   var toggleDay = function toggleDay(d) {
     return setDays(function (p) {
       return p.includes(d) ? p.filter(function (x) {
@@ -4005,7 +4011,7 @@ var AddRecurringModal = function AddRecurringModal(_ref50) {
               recurring: true,
               days: days.sort(),
               time: time,
-              location: loc,
+              location: normPlace(loc),
               notes: notes
             }, isAdmin && normTactic(tactic) ? {
               tactic: normTactic(tactic)
@@ -4222,7 +4228,7 @@ var AddMatchModal = function AddMatchModal(_ref52) {
               recurring: false,
               date: date,
               time: time,
-              location: loc || "A definir",
+              location: normPlace(loc) || "A definir",
               notes: notes,
               opponent: opponent,
               homeAway: homeAway,
@@ -4338,7 +4344,7 @@ var EditSingleTrainingModal = function EditSingleTrainingModal(_ref56) {
             return onEdit(training.id, _objectSpread({
               date: date,
               time: time,
-              location: loc,
+              location: placeToSave(loc, training.location),
               notes: notes
             }, isAdmin && normTactic(tactic) !== (training.tactic || "") ? {
               tactic: normTactic(tactic) || null
@@ -4556,7 +4562,7 @@ var EditMatchModal = function EditMatchModal(_ref58) {
             return onEdit(training.id, _objectSpread({
               date: date,
               time: time,
-              location: loc || "A definir",
+              location: placeToSave(loc, training.location) || "A definir",
               notes: notes,
               opponent: opponent,
               homeAway: homeAway,
@@ -4724,7 +4730,7 @@ var EditRecurringModal = function EditRecurringModal(_ref62) {
               recurring: true,
               days: days.sort(),
               time: time,
-              location: loc,
+              location: placeToSave(loc, training.location),
               notes: notes
             }, isAdmin && normTactic(tactic) !== (training.tactic || "") ? {
               tactic: normTactic(tactic) || null
@@ -10530,7 +10536,7 @@ var TreinosPage = function TreinosPage(_ref110) {
   }), logTarget && onLogSession && React.createElement(LogSessionModal, {
     training: logTarget,
     existingDates: trainings.filter(function (t) {
-      return t.teamId === team.id && t.type === "treino" && t.location === logTarget.location && t.time === logTarget.time;
+      return t.teamId === team.id && t.type === "treino" && placeKey(t.location) === placeKey(logTarget.location) && t.time === logTarget.time;
     }).map(function (t) {
       return t.date;
     }),
@@ -20450,7 +20456,7 @@ function App() {
         while (1) switch (_context94.p = _context94.n) {
           case 0:
             alreadyLogged = trainings.find(function (t) {
-              return t.teamId === recurring.teamId && t.type === "treino" && t.date === date && t.location === recurring.location && t.time === recurring.time;
+              return t.teamId === recurring.teamId && t.type === "treino" && t.date === date && placeKey(t.location) === placeKey(recurring.location) && t.time === recurring.time;
             });
             if (!alreadyLogged) {
               _context94.n = 1;
