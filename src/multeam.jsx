@@ -323,6 +323,10 @@ const TEAM_NAME_CHECK_FAIL = "Não foi possível verificar o nome. Tenta novamen
 const normTeamName = s => String(s == null ? "" : s).trim().replace(/\s+/g, " ");
 // Cidade e código postal: a mesma limpeza do nome da equipa (corta as pontas e junta espaços repetidos)
 const normPlace = s => normTeamName(s);
+// chave para comparar locais: sem espaços a mais, maiúsculas nem acentos ("Campo A " = "campo  a")
+const placeKey = s => normPlace(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+// local a gravar ao EDITAR: limpo; se só diferir do guardado em espaços, mantém-se o valor guardado (não se mexe nos dados existentes)
+const placeToSave = (novo, antigo) => normPlace(novo) === normPlace(antigo) ? (antigo == null ? "" : antigo) : normPlace(novo);
 const teamNameIssue = s => { const n = normTeamName(s); if (n.length < TEAM_NAME_MIN) return `O nome tem de ter pelo menos ${TEAM_NAME_MIN} caracteres.`; if (n.length > TEAM_NAME_MAX) return `O nome pode ter no máximo ${TEAM_NAME_MAX} caracteres.`; return ""; };
 // 409 / 23505 por nome repetido (não confunde com o código de convite nem com a chave da equipa)
 const isTeamNameDup = e => { const m = String(e && e.message || ""); return /duplicate key|23505|unique constraint/i.test(m) && !/invite|pkey/i.test(m); };
@@ -1176,7 +1180,7 @@ const TrainingTypePicker = ({ team, onSelect, onClose }) => (
 // ── TREINO ÚNICO ──────────────────────────────────────────────
 const AddSingleTrainingModal = ({ isAdmin, team, onAdd, onClose }) => {
   const [date, setDate] = useState(""); const [time, setTime] = useState("19:30"); const [loc, setLoc] = useState(""); const [notes, setNotes] = useState(""); const [tactic, setTactic] = useState(""); const [err, setErr] = useState("");
-  const ok = date && time && loc;
+  const ok = date && time && normPlace(loc);
   return (
     <Sheet title="📅 Treino único" onClose={onClose}>
       <FL>Data</FL><FI type="date" value={date} onChange={e=>setDate(e.target.value)} />
@@ -1185,7 +1189,7 @@ const AddSingleTrainingModal = ({ isAdmin, team, onAdd, onClose }) => {
       <EventTactic team={team} isAdmin={isAdmin} value={tactic} onChange={setTactic} />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos do treino..." />
       {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"treino", recurring:false, date, time, location:loc, notes, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={team.color}>Agendar treino</PrimaryBtn>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"treino", recurring:false, date, time, location:normPlace(loc), notes, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={team.color}>Agendar treino</PrimaryBtn>
     </Sheet>
   );
 };
@@ -1193,7 +1197,7 @@ const AddSingleTrainingModal = ({ isAdmin, team, onAdd, onClose }) => {
 // ── TREINO RECORRENTE ─────────────────────────────────────────
 const AddRecurringModal = ({ isAdmin, team, onAdd, onClose }) => {
   const [days, setDays] = useState([]); const [time, setTime] = useState("19:30"); const [loc, setLoc] = useState(""); const [notes, setNotes] = useState(""); const [tactic, setTactic] = useState(""); const [err, setErr] = useState("");
-  const ok = days.length > 0 && time && loc;
+  const ok = days.length > 0 && time && normPlace(loc);
   const toggleDay = d => setDays(p => p.includes(d) ? p.filter(x=>x!==d) : [...p,d]);
   return (
     <Sheet title="🔄 Treino recorrente" onClose={onClose}>
@@ -1219,7 +1223,7 @@ const AddRecurringModal = ({ isAdmin, team, onAdd, onClose }) => {
         </p>
       </div>
       {err && <p style={{ color:"#C00", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"recorrente", recurring:true, days:days.sort(), time, location:loc, notes, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={team.color}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"recorrente", recurring:true, days:days.sort(), time, location:normPlace(loc), notes, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={team.color}>
         Criar treino recorrente
       </PrimaryBtn>
     </Sheet>
@@ -1264,7 +1268,7 @@ const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
         ))}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10 }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:loc||"A definir", notes, opponent, homeAway, squad, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:normPlace(loc)||"A definir", notes, opponent, homeAway, squad, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={T.brand}>
         ⚽ Criar jogo vs {opponent||"..."}
       </PrimaryBtn>
     </Sheet>
@@ -1287,7 +1291,7 @@ const EditSingleTrainingModal = ({ isAdmin, team, training, onEdit, onClose }) =
       <EventTactic team={team} isAdmin={isAdmin} value={tactic} onChange={setTactic} />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Objetivos..." />
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc, notes, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={team.color}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location), notes, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={team.color}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -1331,7 +1335,7 @@ const EditMatchModal = ({ isAdmin, team, members, training, onEdit, onClose }) =
         ))}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:loc||"A definir", notes, opponent, homeAway, squad, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location)||"A definir", notes, opponent, homeAway, squad, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -1366,7 +1370,7 @@ const EditRecurringModal = ({ isAdmin, team, training, onEdit, onClose }) => {
         </p>
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { recurring:true, days:days.sort(), time, location:loc, notes, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={team.color}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { recurring:true, days:days.sort(), time, location:placeToSave(loc, training.location), notes, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={team.color}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -2901,7 +2905,7 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
       {editTarget && editTarget.type==="treino"      && <EditSingleTrainingModal isAdmin={tacticAdmin} team={team} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
       {editTarget && editTarget.type==="jogo"        && <EditMatchModal isAdmin={tacticAdmin} team={team} members={members} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
       {editTarget && editTarget.type==="recorrente"  && <EditRecurringModal isAdmin={tacticAdmin} team={team} training={editTarget} onEdit={onEdit} onClose={()=>setEditTarget(null)} />}
-      {logTarget && onLogSession && <LogSessionModal training={logTarget} existingDates={trainings.filter(t=>t.teamId===team.id&&t.type==="treino"&&t.location===logTarget.location&&t.time===logTarget.time).map(t=>t.date)} onLog={d=>onLogSession(logTarget,d,presences[logTarget.id]||{})} onClose={()=>setLogTarget(null)} />}
+      {logTarget && onLogSession && <LogSessionModal training={logTarget} existingDates={trainings.filter(t=>t.teamId===team.id&&t.type==="treino"&&placeKey(t.location)===placeKey(logTarget.location)&&t.time===logTarget.time).map(t=>t.date)} onLog={d=>onLogSession(logTarget,d,presences[logTarget.id]||{})} onClose={()=>setLogTarget(null)} />}
     </div>
   );
 };
@@ -5567,7 +5571,7 @@ export default function App() {
     } catch(e){ writeFailed("registar a despesa", e); }
   };
   const logSession = async (recurring, date, currentPresences) => {
-    const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===date && t.location===recurring.location && t.time===recurring.time);
+    const alreadyLogged = trainings.find(t => t.teamId===recurring.teamId && t.type==="treino" && t.date===date && placeKey(t.location)===placeKey(recurring.location) && t.time===recurring.time);
     if (alreadyLogged) { alert("Sessão já foi registada!"); return; }
     try {
       const newT = needRows(await api.post("trainings", { team_id:recurring.teamId, type:"treino", date, time:recurring.time, location:recurring.location, notes:recurring.notes||null, recurring:false, ...(recurring.tactic?{tactic:recurring.tactic}:{}), created_by:myUserId }, token))[0];
