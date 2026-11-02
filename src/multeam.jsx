@@ -3558,6 +3558,14 @@ const noteChip = (txt, bg, fg, attr) => <span {...attr} style={{ display:"inline
 const NOTAS_GRUPOS_KEY = "multeam.notas.grupos";
 const notasGruposLer = () => { try { const j = JSON.parse(window.localStorage.getItem(NOTAS_GRUPOS_KEY) || "{}"); return j && typeof j === "object" && !Array.isArray(j) ? j : {}; } catch(e) { return {}; } };
 const notasGruposGuardar = o => { try { window.localStorage.setItem(NOTAS_GRUPOS_KEY, JSON.stringify(o)); } catch(e) { /* sem armazenamento: vale o defeito */ } };
+// Arquivo: notas feitas agrupadas por mês de done_at (mais recente primeiro); mês atual aberto, anteriores fechados; o estado de cada mês fica lembrado no aparelho
+const NOTAS_ARQ_KEY = "multeam.notas.arquivo";
+const notasArqLer = () => { try { const j = JSON.parse(window.localStorage.getItem(NOTAS_ARQ_KEY) || "{}"); return j && typeof j === "object" && !Array.isArray(j) ? j : {}; } catch(e) { return {}; } };
+const notasArqGuardar = o => { try { window.localStorage.setItem(NOTAS_ARQ_KEY, JSON.stringify(o)); } catch(e) { /* sem armazenamento: vale o defeito */ } };
+const mesChave = iso => { const d = new Date(iso); if (!iso || isNaN(d)) return "0000-00"; return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const mesTitulo = k => k === "0000-00" ? "Sem data" : `${MESES_PT[+k.slice(5, 7) - 1]} ${k.slice(0, 4)}`;
+// [[chave, [notas]]] com os meses do mais recente para o mais antigo; dentro de cada mês a ordem da lista (done_at mais recente primeiro)
+const arquivoPorMes = list => { const g = {}; list.forEach(n => { const k = mesChave(n.done_at); (g[k] = g[k] || []).push(n); }); return Object.keys(g).sort().reverse().map(k => [k, g[k]]); };
 const NOTE_PRIO_ICON = { alta:"🔴", media:"🟡", baixa:"🟢" };
 const AdminNotesSection = ({ token }) => {
   const ro = RO.on;
@@ -3569,6 +3577,9 @@ const AdminNotesSection = ({ token }) => {
   const [msg, setMsg] = useState({ id:null, text:"" }); // erro/aviso (id = nota a que se refere; null = formulário)
   const [gAb, setGAb] = useState(notasGruposLer); // { alta|media|baixa: true|false } só dos grupos que o utilizador abriu/fechou
   const [abertas, setAbertas] = useState(() => new Set()); // notas com detalhes e botões à vista
+  const [arqAb, setArqAb] = useState(notasArqLer); // { "AAAA-MM": true|false } só dos meses que o utilizador abriu/fechou
+  const mesAberto = k => typeof arqAb[k] === "boolean" ? arqAb[k] : k === mesChave(new Date().toISOString());
+  const setMes = (k, v) => setArqAb(g => { const nv = { ...g, [k]:v }; notasArqGuardar(nv); return nv; });
   const grupoAberto = (p, n) => typeof gAb[p] === "boolean" ? gAb[p] : n <= 3;
   const setGrupo = (p, v) => setGAb(g => { const nv = { ...g, [p]:v }; notasGruposGuardar(nv); return nv; });
   const alternaNota = id => setAbertas(a => { const nv = new Set(a); if (nv.has(id)) nv.delete(id); else nv.add(id); return nv; });
@@ -3643,11 +3654,12 @@ const AdminNotesSection = ({ token }) => {
     const grp = main.filter(x => x.priority === n.priority), i = grp.findIndex(x => x.id === n.id);
     const aberta = abertas.has(n.id);
     return (
-      <div key={n.id} data-nota={n.id} data-nota-estado={n.status} data-nota-prioridade={n.priority} data-nota-aberta={aberta ? "sim" : "nao"} style={{ background:T.card, borderRadius:14, padding:"4px 14px", marginBottom:6 }}>
+      <div key={n.id} data-nota={n.id} data-nota-estado={n.status} data-nota-prioridade={n.priority} data-nota-aberta={aberta ? "sim" : "nao"} data-nota-arquivada={arquivo ? "sim" : "nao"} style={{ background:T.card, borderRadius:14, padding:"4px 14px", marginBottom:6, ...(arquivo ? { borderLeft:"4px solid #1E8E3E" } : {}) }}>
         <div role="button" tabIndex={0} aria-expanded={aberta} data-nota-linha onClick={() => alternaNota(n.id)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternaNota(n.id); } }}
           style={{ display:"flex", alignItems:"center", gap:8, minHeight:44, cursor:"pointer" }}>
+          {arquivo && <span data-nota-visto aria-label="Feita" style={{ flex:"0 0 auto", width:22, height:22, borderRadius:11, background:"#1E8E3E", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900 }}>✓</span>}
           {!arquivo && i >= 0 && <span data-nota-num style={{ flex:"0 0 auto", minWidth:22, fontSize:14, fontWeight:900, color:T.sub }}>{i + 1}.</span>}
-          <span data-nota-titulo style={{ flex:"1 1 auto", minWidth:0, fontSize:15, fontWeight:800, overflowWrap:"anywhere" }}>{n.title}</span>
+          <span data-nota-titulo style={{ flex:"1 1 auto", minWidth:0, fontSize:15, fontWeight:arquivo ? 600 : 800, overflowWrap:"anywhere", ...(arquivo ? { color:T.sub, textDecoration:"line-through" } : {}) }}>{n.title}</span>
           {arquivo ? <span data-nota-feito-em style={{ flex:"0 0 auto", fontSize:12, color:T.sub }}>Feito em {noteDate(n.done_at)}</span> : noteChip(el, ebg, efg, { "data-nota-chip-estado":true })}
         </div>
         {aberta && (
@@ -3726,7 +3738,17 @@ const AdminNotesSection = ({ token }) => {
             </div>
           );
         }))}
-        {vista === "arquivo" && (arq.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Arquivo vazio.</p> : arq.map(n => Cartao({ n, arquivo:true })))}
+        {vista === "arquivo" && (arq.length === 0 ? <p data-notas-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Arquivo vazio.</p> : arquivoPorMes(arq).map(([k, itens]) => {
+          const aberto = mesAberto(k);
+          return (
+            <div key={k} data-arq-mes={k} data-arq-mes-aberto={aberto ? "sim" : "nao"} style={{ marginBottom:8 }}>
+              <button data-arq-mes-cab aria-expanded={aberto} onClick={() => setMes(k, !aberto)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", minHeight:44, padding:"0 14px", marginBottom:aberto ? 6 : 0, borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", color:"#1a1a1f", fontWeight:800, fontSize:14, fontFamily:"inherit", cursor:"pointer" }}>
+                <span data-arq-mes-titulo>{`${mesTitulo(k)} (${itens.length})`}</span><span aria-hidden="true">{aberto ? "▾" : "▸"}</span>
+              </button>
+              {aberto && itens.map(n => Cartao({ n, arquivo:true }))}
+            </div>
+          );
+        }))}
       </>)}
     </div>
   );
