@@ -114,7 +114,7 @@ var RO_MSG = "Modo leitura: não é possível alterar.";
 var RO = {
   on: false
 };
-var RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_recent_site_visits", "get_activity_heatmap", "list_team_claims"];
+var RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_recent_site_visits", "get_activity_heatmap", "get_activity_weekly", "list_team_claims"];
 var roAllows = function roAllows(url, method) {
   var m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -12333,6 +12333,7 @@ var parseHeat = function parseHeat(raw) {
       acoes = Math.round(Number(r.acoes));
     if (!(dia >= 1 && dia <= 7) || !(hora >= 0 && hora <= 23) || !(acoes > 0)) return null;
     return {
+      semana: String(r.semana || "").slice(0, 10),
       pais: locNorm(r.pais),
       cidade: locNorm(r.cidade),
       dia: dia,
@@ -12365,19 +12366,57 @@ var heatOpcoes = function heatOpcoes(rows, pais) {
   };
 };
 var heatGrid = function heatGrid(rows, pais, cidade) {
-  var g = Array.from({
-    length: 7
-  }, function () {
-    return Array(24).fill(0);
-  });
+  var sem = Array.from({
+      length: 7
+    }, function () {
+      return Array.from({
+        length: 24
+      }, function () {
+        return new Set();
+      });
+    }),
+    tot = Array.from({
+      length: 7
+    }, function () {
+      return Array(24).fill(0);
+    });
   rows.forEach(function (r) {
-    if ((pais === "*" || locKey(r.pais) === pais) && (cidade === "*" || locKey(r.cidade) === cidade)) g[r.dia - 1][r.hora] += r.acoes;
+    if ((pais === "*" || locKey(r.pais) === pais) && (cidade === "*" || locKey(r.cidade) === cidade)) {
+      sem[r.dia - 1][r.hora].add(r.semana);
+      tot[r.dia - 1][r.hora] += r.acoes;
+    }
   });
-  return g;
+  return sem.map(function (l, d) {
+    return l.map(function (set, h) {
+      return {
+        s: set.size,
+        a: tot[d][h]
+      };
+    });
+  });
 };
-var heatLimite = function heatLimite(dias) {
-  return Math.max(0, Math.floor(Number(dias) / 7) || 0);
+var heatHojeIso = function heatHojeIso() {
+  try {
+    return {
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
+      Sun: 7
+    }[new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Zurich",
+      weekday: "short"
+    }).format(new Date())] || 1;
+  } catch (e) {
+    return 1;
+  }
 };
+var heatOcorrencias = function heatOcorrencias(dia, dias, hoje) {
+  return Math.floor(dias / 7) + (((hoje - dia) % 7 + 7) % 7 < dias % 7 ? 1 : 0);
+};
+var heatLimite = 1;
 var calmWindows = function calmWindows(horas, limite) {
   var out = [];
   var ini = -1;
@@ -12398,11 +12437,11 @@ var calmWindows = function calmWindows(horas, limite) {
     return a.de - b.de;
   });
 };
-var heatHoraTxt = function heatHoraTxt(nome, h, v) {
-  return "".concat(nome, " ").concat(h, "h aqui (").concat((h + 23) % 24, "h em Portugal").concat(h === 0 ? ", dia anterior" : "", ") \xB7 ").concat(v, " ").concat(v === 1 ? "ação" : "ações");
+var heatNivel = function heatNivel(sem, oc) {
+  return sem <= 1 ? "verde" : sem > oc / 2 ? "vermelho" : "amarelo";
 };
-var heatNivel = function heatNivel(v, dias) {
-  return v * 7 <= dias ? "verde" : v * 7 >= 3 * dias ? "vermelho" : "amarelo";
+var heatHoraTxt = function heatHoraTxt(nome, h, sem, oc, a) {
+  return "".concat(nome, " ").concat(h, "h aqui (").concat((h + 23) % 24, "h em Portugal").concat(h === 0 ? ", dia anterior" : "", ") \xB7 em ").concat(sem, " de ").concat(oc, " ").concat(oc === 1 ? "semana" : "semanas", " \xB7 ").concat(a, " ").concat(a === 1 ? "ação" : "ações");
 };
 var HEAT_CORES = {
   verde: {
@@ -12467,7 +12506,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
             _t56 = setSt;
             _t57 = parseHeat;
             _context47.n = 2;
-            return rpcCall("get_activity_heatmap", {
+            return rpcCall("get_activity_weekly", {
               p_days: d
             }, token);
           case 2:
@@ -12513,7 +12552,8 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
     return c.key === cidade;
   }) ? cidade : "*";
   var grid = heatGrid(rows, paisOk, cidadeOk);
-  var limite = heatLimite(st.days);
+  var hoje = heatHojeIso(),
+    limite = heatLimite;
   var selStyle = {
     width: "100%",
     minHeight: 44,
@@ -12734,15 +12774,18 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
         length: 12
       }, function (_, k) {
         var h = h0 + k,
-          v = grid[di][h],
-          nv = heatNivel(v, st.days),
+          cel = grid[di][h],
+          oc = heatOcorrencias(di + 1, st.days, hoje),
+          nv = heatNivel(cel.s, oc),
           c = HEAT_CORES[nv],
           on = sel && sel.d === di && sel.h === h;
-        var txt = heatHoraTxt(nome, h, v);
+        var txt = heatHoraTxt(nome, h, cel.s, oc, cel.a);
         return React.createElement("div", {
           key: h,
           "data-heat-cel": "".concat(di + 1, "-").concat(h),
-          "data-heat-v": v,
+          "data-heat-v": cel.a,
+          "data-heat-s": cel.s,
+          "data-heat-o": oc,
           "data-heat-cor": nv,
           title: txt,
           "aria-label": "".concat(txt, " \xB7 ").concat(c.frase),
@@ -12779,7 +12822,11 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
       fontWeight: 700,
       minHeight: 18
     }
-  }, sel ? "".concat(heatHoraTxt(HEAT_DIAS[sel.d], sel.h, grid[sel.d][sel.h]), " \xB7 ").concat(HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase) : "Toca numa hora para ver o número."), React.createElement("div", {
+  }, sel ? function () {
+    var cel = grid[sel.d][sel.h],
+      oc = heatOcorrencias(sel.d + 1, st.days, hoje);
+    return "".concat(heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a), " \xB7 ").concat(HEAT_CORES[heatNivel(cel.s, oc)].frase);
+  }() : "Toca numa hora para ver o número."), React.createElement("div", {
     style: {
       background: T.card,
       borderRadius: 14,
@@ -12796,7 +12843,9 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
       letterSpacing: 0.5
     }
   }, "Janelas calmas (7h\u201324h, hora da Su\xED\xE7a)"), HEAT_DIAS.map(function (nome, di) {
-    var j = calmWindows(grid[di], limite);
+    var j = calmWindows(grid[di].map(function (c) {
+      return c.s;
+    }), limite);
     return React.createElement("p", {
       key: nome,
       "data-heat-janela": di + 1,
@@ -12826,7 +12875,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
     style: {
       marginTop: 10
     }
-  }, [["verde", "Verde", "no máximo 1 ação por semana"], ["amarelo", "Amarelo", "mais de 1 e menos de 3 por semana"], ["vermelho", "Vermelho", "3 ou mais por semana"]].map(function (_ref141) {
+  }, [["verde", "Verde", "nunca ou só numa semana"], ["amarelo", "Amarelo", "em algumas semanas"], ["vermelho", "Vermelho", "em mais de metade das semanas"]].map(function (_ref141) {
     var _ref142 = _slicedToArray(_ref141, 3),
       k = _ref142[0],
       nome = _ref142[1],
@@ -12869,7 +12918,7 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
       fontSize: 12,
       color: T.sub
     }
-  }, "Calma = no m\xE1ximo 1 a\xE7\xE3o por semana nessa hora.")));
+  }, "Conta em quantas semanas houve atividade nessa hora, n\xE3o o total de a\xE7\xF5es.")));
 };
 var NOTE_PRIOS = [["alta", "Alta", "#B42318", "#fff"], ["media", "Média", "#F5C518", "#1a1a1f"], ["baixa", "Baixa", "#1E8E3E", "#fff"]];
 var NOTE_PRIO_RANK = {
