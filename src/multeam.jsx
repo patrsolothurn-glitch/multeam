@@ -43,7 +43,7 @@ const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KE
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_activity_heatmap", "list_team_claims"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_recent_site_visits", "get_activity_heatmap", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -3381,6 +3381,60 @@ const AdminVisitsSection = ({ token }) => {
     </div>
   );
 };
+// Secção "Últimas visitas" do separador Visitas (só o super admin; rpc get_recent_site_visits, só leitura): as 50 mais recentes, "Ver mais" pede 200.
+// Sem IP nem código do aparelho. Hora da Suíça (dd/mm/aaaa HH:MM). Uma falha mostra "Sem dados" e não parte o resto do separador.
+const RECENT_VISITS_FIRST = 50, RECENT_VISITS_MORE = 200;
+const parseRecentVisits = raw => {
+  if (!Array.isArray(raw)) throw new Error("Resposta inesperada do servidor.");
+  return raw.map(r => (r && typeof r === "object" && typeof r.event === "string" && r.created_at) ? { at:String(r.created_at), event:r.event, country:r.country ? String(r.country).toUpperCase().slice(0, 2) : "", origin:String(r.origin || "outro"), device:String(r.device_type || "") } : null).filter(Boolean);
+};
+// "dd/mm/aaaa HH:MM" na hora da Suíça (a meia-noite é 00:00, nunca 24:00)
+const swissStamp = iso => {
+  const d = new Date(iso); if (isNaN(d)) return "—";
+  try {
+    const p = {}; new Intl.DateTimeFormat("en-GB", { timeZone:"Europe/Zurich", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).formatToParts(d).forEach(x => { p[x.type] = x.value; });
+    return `${p.day}/${p.month}/${p.year} ${p.hour === "24" ? "00" : p.hour}:${p.minute}`;
+  } catch(e) { return "—"; }
+};
+const VISIT_EVENTS = { visita:"Visita", criar:"Criar equipa", video:"Ver como funciona" };
+const AdminRecentVisitsSection = ({ token }) => {
+  const [limit, setLimit] = useState(RECENT_VISITS_FIRST);
+  const [st, setSt] = useState({ status:"loading", rows:[] });
+  const load = async n => {
+    setSt(s => ({ status:"loading", rows:s.rows }));
+    try { setSt({ status:"ok", rows:parseRecentVisits(await rpcCall("get_recent_site_visits", { p_limit:n }, token)) }); }
+    catch(e) { setSt({ status:"error", rows:[] }); }
+  };
+  useEffect(() => { load(limit); }, [limit]);
+  return (
+    <div data-recentes-painel style={{ marginTop:18 }}>
+      <p style={{ margin:"0 0 8px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Últimas visitas</p>
+      {st.status === "loading" && !st.rows.length && <p style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>A carregar…</p>}
+      {st.status === "error" && (
+        <div data-recentes-erro style={{ background:T.card, borderRadius:14, padding:"12px 14px", textAlign:"center" }}>
+          <p style={{ margin:"0 0 8px", fontSize:14, color:T.sub }}>Sem dados</p>
+          <button onClick={() => load(limit)} style={{ minHeight:44, padding:"0 16px", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>Tentar novamente</button>
+        </div>
+      )}
+      {(st.status === "ok" || (st.status === "loading" && st.rows.length > 0)) && (st.rows.length === 0
+        ? <p data-recentes-vazio style={{ textAlign:"center", color:T.sub, padding:"14px 0" }}>Sem visitas registadas.</p>
+        : <div style={{ background:T.card, borderRadius:14, padding:"6px 14px" }}>
+            {st.rows.map((r, i) => (
+              <div key={i} data-recente style={{ padding:"8px 0", borderTop:i ? `1px solid ${T.border}` : "none" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", gap:8, fontSize:14 }}>
+                  <span data-recente-quando style={{ fontWeight:700 }}>{swissStamp(r.at)}</span>
+                  <span data-recente-evento style={{ fontWeight:800, textAlign:"right" }}>{VISIT_EVENTS[r.event] || r.event}</span>
+                </div>
+                <div data-recente-detalhe style={{ fontSize:13, color:T.sub, overflowWrap:"anywhere" }}>{countryName(r.country)} · {VISIT_ORIGINS[r.origin] || r.origin} · {VISIT_DEVICES[r.device] || (r.device || "Desconhecido")}</div>
+              </div>
+            ))}
+          </div>)}
+      {st.status === "ok" && limit === RECENT_VISITS_FIRST && st.rows.length >= RECENT_VISITS_FIRST && (
+        <button data-recentes-mais onClick={() => setLimit(RECENT_VISITS_MORE)} style={{ width:"100%", minHeight:44, marginTop:10, borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontWeight:700, fontFamily:"inherit", cursor:"pointer" }}>Ver mais</button>
+      )}
+    </div>
+  );
+};
 // Secção "Melhores horas para atualizar" do separador Atividade (só o super admin; rpc get_activity_heatmap, só leitura, horas da Suíça).
 // Mapa 7 dias × 24 horas com as ações (multas, presenças, despesas, cartões) de todas as equipas; as combinações em falta contam 0.
 const HEAT_DAYS = [30, 60, 90];
@@ -4008,7 +4062,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
         )}
         {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
         {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
-        {section==="visitas" && <AdminVisitsSection token={token} />}
+        {section==="visitas" && <><AdminVisitsSection token={token} /><AdminRecentVisitsSection token={token} /></>}
         {section==="atividade" && <AdminHeatmapSection token={token} />}
         {section==="notas" && <AdminNotesSection token={token} />}
       </div>
