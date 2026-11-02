@@ -43,7 +43,7 @@ const clearPushFails = () => { try { window.localStorage.removeItem(PUSH_FAIL_KE
 // Com RO.on ligado, nenhum pedido que não seja GET (ou o POST às rpc de leitura de RO_RPCS) sai da app.
 const RO_MSG = "Modo leitura: não é possível alterar.";
 const RO = { on:false };
-const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_recent_site_visits", "get_activity_heatmap", "list_team_claims"];
+const RO_RPCS = ["get_team_as_admin", "get_all_teams_admin", "get_app_admin_stats", "get_app_activity_totals", "get_admin_teams_overview", "get_app_growth_stats", "get_admin_teams_locations", "get_app_feedback", "get_app_status", "get_site_visits", "get_recent_site_visits", "get_activity_heatmap", "get_activity_weekly", "list_team_claims"];
 const roAllows = (url, method) => {
   const m = String(method || "GET").toUpperCase();
   if (m === "GET" || m === "HEAD") return true;
@@ -3435,8 +3435,9 @@ const AdminRecentVisitsSection = ({ token }) => {
     </div>
   );
 };
-// Secção "Melhores horas para atualizar" do separador Atividade (só o super admin; rpc get_activity_heatmap, só leitura, horas da Suíça).
-// Mapa 7 dias × 24 horas com as ações (multas, presenças, despesas, cartões) de todas as equipas; as combinações em falta contam 0.
+// Secção "Melhores horas para atualizar" do separador Atividade (só o super admin; rpc get_activity_weekly, só leitura, horas da Suíça).
+// Mapa 7 dias × 24 horas que mede REGULARIDADE: em quantas semanas diferentes houve atividade (multas, presenças, despesas, cartões de todas as equipas) nessa hora,
+// e não o volume; as combinações em falta contam 0 semanas. (A rpc get_activity_heatmap continua a existir mas já não é usada aqui.)
 const HEAT_DAYS = [30, 60, 90];
 const HEAT_DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 const parseHeat = raw => {
@@ -3445,7 +3446,7 @@ const parseHeat = raw => {
     if (!r || typeof r !== "object") return null;
     const dia = Math.round(Number(r.dia)), hora = Math.round(Number(r.hora)), acoes = Math.round(Number(r.acoes));
     if (!(dia >= 1 && dia <= 7) || !(hora >= 0 && hora <= 23) || !(acoes > 0)) return null;
-    return { pais:locNorm(r.pais), cidade:locNorm(r.cidade), dia, hora, acoes };
+    return { semana:String(r.semana || "").slice(0, 10), pais:locNorm(r.pais), cidade:locNorm(r.cidade), dia, hora, acoes };
   }).filter(Boolean);
 };
 // opções de filtro: países (por chave sem acentos/maiúsculas) e cidades do país escolhido ("*" = todos)
@@ -3456,15 +3457,18 @@ const heatOpcoes = (rows, pais) => {
   };
   return { paises:agrupa(rows, "pais"), cidades:agrupa(pais === "*" ? rows : rows.filter(r => locKey(r.pais) === pais), "cidade") };
 };
+// por dia e hora (com os filtros País/Cidade): { s: nº de semanas DIFERENTES com ações (uma semana conta uma vez, mesmo com várias cidades), a: total de ações }
 const heatGrid = (rows, pais, cidade) => {
-  const g = Array.from({ length:7 }, () => Array(24).fill(0));
-  rows.forEach(r => { if ((pais === "*" || locKey(r.pais) === pais) && (cidade === "*" || locKey(r.cidade) === cidade)) g[r.dia - 1][r.hora] += r.acoes; });
-  return g;
+  const sem = Array.from({ length:7 }, () => Array.from({ length:24 }, () => new Set())), tot = Array.from({ length:7 }, () => Array(24).fill(0));
+  rows.forEach(r => { if ((pais === "*" || locKey(r.pais) === pais) && (cidade === "*" || locKey(r.cidade) === cidade)) { sem[r.dia - 1][r.hora].add(r.semana); tot[r.dia - 1][r.hora] += r.acoes; } });
+  return sem.map((l, d) => l.map((set, h) => ({ s:set.size, a:tot[d][h] })));
 };
-// janelas calmas de um dia entre as 7h e as 24h: sequências de horas calmas com 2 h ou mais; hora calma = no máximo 1 ação por semana
-// em média (ações <= dias do período / 7, arredondado para baixo: 30 dias → 4, 60 → 8, 90 → 12);
+// quantas vezes o dia da semana (1=segunda…7=domingo) aparece nos últimos N dias, contando o dia de hoje (hora da Suíça)
+const heatHojeIso = () => { try { return ({ Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6, Sun:7 })[new Intl.DateTimeFormat("en-US", { timeZone:"Europe/Zurich", weekday:"short" }).format(new Date())] || 1; } catch(e) { return 1; } };
+const heatOcorrencias = (dia, dias, hoje) => Math.floor(dias / 7) + ((((hoje - dia) % 7 + 7) % 7) < (dias % 7) ? 1 : 0);
+// janelas calmas de um dia entre as 7h e as 24h: sequências de horas VERDES (atividade em 1 semana ou nenhuma) com 2 h ou mais;
 // ficam as 3 mais longas (empate: a mais cedo), por ordem do dia
-const heatLimite = dias => Math.max(0, Math.floor(Number(dias) / 7) || 0);
+const heatLimite = 1;
 const calmWindows = (horas, limite) => {
   const out = []; let ini = -1;
   for (let h = 7; h <= 24; h++) {
@@ -3474,10 +3478,10 @@ const calmWindows = (horas, limite) => {
   }
   return out.sort((a, b) => (b.ate - b.de) - (a.ate - a.de) || a.de - b.de).slice(0, 3).sort((a, b) => a.de - b.de);
 };
-// Semáforo por média semanal de ações nessa hora (semanas = dias do período / 7): verde ≤ 1 por semana, amarelo entre 1 e 3, vermelho ≥ 3 (comparação exata, sem decimais)
+// Semáforo por regularidade: verde = atividade em 1 semana ou nenhuma; vermelho = em mais de metade das semanas do período; amarelo = o resto
+const heatNivel = (sem, oc) => sem <= 1 ? "verde" : sem > oc / 2 ? "vermelho" : "amarelo";
 // texto de uma hora: tudo em hora da Suíça; Portugal = menos 1 hora (a 0h daqui são 23h de Portugal do dia anterior)
-const heatHoraTxt = (nome, h, v) => `${nome} ${h}h aqui (${(h + 23) % 24}h em Portugal${h === 0 ? ", dia anterior" : ""}) · ${v} ${v === 1 ? "ação" : "ações"}`;
-const heatNivel = (v, dias) => v * 7 <= dias ? "verde" : v * 7 >= 3 * dias ? "vermelho" : "amarelo";
+const heatHoraTxt = (nome, h, sem, oc, a) => `${nome} ${h}h aqui (${(h + 23) % 24}h em Portugal${h === 0 ? ", dia anterior" : ""}) · em ${sem} de ${oc} ${oc === 1 ? "semana" : "semanas"} · ${a} ${a === 1 ? "ação" : "ações"}`;
 const HEAT_CORES = {
   verde:    { bg:"#1E8E3E", fg:"#fff",    sim:"✓", frase:"podes atualizar" },
   amarelo:  { bg:"#F5C518", fg:"#1a1a1f", sim:"",  frase:"só se for preciso" },
@@ -3491,7 +3495,7 @@ const AdminHeatmapSection = ({ token }) => {
   const [sel, setSel] = useState(null);
   const load = async d => {
     setSt({ status:"loading", rows:[], error:"", days:d });
-    try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_heatmap", { p_days:d }, token)), error:"", days:d }); }
+    try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_weekly", { p_days:d }, token)), error:"", days:d }); }
     catch(e) { setSt({ status:"error", rows:[], error:adminErrPt(e), days:d }); }
   };
   useEffect(() => { load(days); }, [days]);
@@ -3501,7 +3505,7 @@ const AdminHeatmapSection = ({ token }) => {
   const paisOk = pais === "*" || paises.some(p => p.key === pais) ? pais : "*";
   const cidadeOk = cidade === "*" || cidades.some(c => c.key === cidade) ? cidade : "*";
   const grid = heatGrid(rows, paisOk, cidadeOk);
-  const limite = heatLimite(st.days);
+  const hoje = heatHojeIso(), limite = heatLimite;
   const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
   return (
     <div data-heat-painel>
@@ -3546,9 +3550,9 @@ const AdminHeatmapSection = ({ token }) => {
                   <React.Fragment key={nome}>
                     <span data-heat-dia-nome style={{ fontSize:"clamp(9px, 2.8vw, 12px)", fontWeight:700, color:T.sub }}>{nome.slice(0, 3)}</span>
                     {Array.from({ length:12 }, (_, k) => {
-                      const h = h0 + k, v = grid[di][h], nv = heatNivel(v, st.days), c = HEAT_CORES[nv], on = sel && sel.d === di && sel.h === h;
-                      const txt = heatHoraTxt(nome, h, v);
-                      return <div key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={v} data-heat-cor={nv} title={txt} aria-label={`${txt} · ${c.frase}`} onClick={() => setSel({ d:di, h })} style={{ aspectRatio:"1 / 1", minWidth:0, background:c.bg, color:c.fg, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(9px, 3vw, 16px)", fontWeight:900, lineHeight:1, cursor:"pointer", boxSizing:"border-box", boxShadow:on ? "0 0 0 2px #1a1a1f" : "none" }}>{c.sim}</div>;
+                      const h = h0 + k, cel = grid[di][h], oc = heatOcorrencias(di + 1, st.days, hoje), nv = heatNivel(cel.s, oc), c = HEAT_CORES[nv], on = sel && sel.d === di && sel.h === h;
+                      const txt = heatHoraTxt(nome, h, cel.s, oc, cel.a);
+                      return <div key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={cel.a} data-heat-s={cel.s} data-heat-o={oc} data-heat-cor={nv} title={txt} aria-label={`${txt} · ${c.frase}`} onClick={() => setSel({ d:di, h })} style={{ aspectRatio:"1 / 1", minWidth:0, background:c.bg, color:c.fg, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(9px, 3vw, 16px)", fontWeight:900, lineHeight:1, cursor:"pointer", boxSizing:"border-box", boxShadow:on ? "0 0 0 2px #1a1a1f" : "none" }}>{c.sim}</div>;
                     })}
                   </React.Fragment>
                 ))}
@@ -3556,23 +3560,23 @@ const AdminHeatmapSection = ({ token }) => {
             </div>
           ))}
         </div>
-        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? `${heatHoraTxt(HEAT_DIAS[sel.d], sel.h, grid[sel.d][sel.h])} · ${HEAT_CORES[heatNivel(grid[sel.d][sel.h], st.days)].frase}` : "Toca numa hora para ver o número."}</p>
+        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? (() => { const cel = grid[sel.d][sel.h], oc = heatOcorrencias(sel.d + 1, st.days, hoje); return `${heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a)} · ${HEAT_CORES[heatNivel(cel.s, oc)].frase}`; })() : "Toca numa hora para ver o número."}</p>
         <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginTop:10 }}>
           <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Janelas calmas (7h–24h, hora da Suíça)</p>
           {HEAT_DIAS.map((nome, di) => {
-            const j = calmWindows(grid[di], limite);
+            const j = calmWindows(grid[di].map(c => c.s), limite);
             return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map((w, k) => <span key={k}>{k > 0 ? " · " : ""}<span data-heat-ponto aria-hidden="true" style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:HEAT_CORES.verde.bg, marginRight:4 }} />{`${w.de}h–${w.ate}h`}</span>) : "sem janela calma"}</p>;
           })}
         </div>
         <div data-heat-legenda style={{ marginTop:10 }}>
-          {[["verde", "Verde", "no máximo 1 ação por semana"], ["amarelo", "Amarelo", "mais de 1 e menos de 3 por semana"], ["vermelho", "Vermelho", "3 ou mais por semana"]].map(([k, nome, regra]) => (
+          {[["verde", "Verde", "nunca ou só numa semana"], ["amarelo", "Amarelo", "em algumas semanas"], ["vermelho", "Vermelho", "em mais de metade das semanas"]].map(([k, nome, regra]) => (
             <div key={k} data-heat-legenda-item={k} style={{ display:"flex", alignItems:"center", gap:8, margin:"4px 0", fontSize:13 }}>
               <span aria-hidden="true" style={{ flex:"0 0 22px", width:22, height:22, borderRadius:4, background:HEAT_CORES[k].bg, color:HEAT_CORES[k].fg, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:13 }}>{HEAT_CORES[k].sim}</span>
               <span style={{ minWidth:0, overflowWrap:"anywhere" }}><b>{nome}</b>: {regra} → {HEAT_CORES[k].frase}</span>
             </div>
           ))}
         </div>
-        <p data-heat-calma style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Calma = no máximo 1 ação por semana nessa hora.</p>
+        <p data-heat-calma style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>Conta em quantas semanas houve atividade nessa hora, não o total de ações.</p>
       </>)}
     </div>
   );
