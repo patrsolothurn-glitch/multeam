@@ -3472,6 +3472,17 @@ const heatHoje = () => {
   } catch(e) { const n = new Date(); return { y:n.getFullYear(), m:n.getMonth() + 1, d:n.getDate(), iso:((n.getDay() + 6) % 7) + 1 }; }
 };
 const heatHojeIso = () => heatHoje().iso;
+// dia (1=segunda…7=domingo) e hora (0–23) de AGORA, SEMPRE na hora da Suíça, qualquer que seja o fuso do aparelho. Se o Intl falhar devolve null (sem destaque, em vez de uma hora errada).
+const heatAgora = quando => {
+  try {
+    const p = {}; new Intl.DateTimeFormat("en-GB", { timeZone:"Europe/Zurich", weekday:"short", hour:"2-digit", hourCycle:"h23" }).formatToParts(quando || new Date()).forEach(x => { p[x.type] = x.value; });
+    const iso = ({ Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6, Sun:7 })[p.weekday], hora = Number(p.hour) % 24;
+    return iso && hora >= 0 && hora <= 23 ? { iso, hora } : null;
+  } catch(e) { return null; }
+};
+// destaque do dia e da hora de agora: azul-escuro, sem mexer na cor de fundo das células
+const HEAT_AZUL = "#1e3a5f";
+const HEAT_PILULA = { background:"#DCE6F2", color:HEAT_AZUL, fontWeight:900, borderRadius:999, padding:"0 2px", boxSizing:"border-box", textAlign:"center" };
 // modo "Por semana": aritmética só em dias (UTC), por isso a semana da mudança de hora tem as datas certas
 const HEAT_DIA_MS = 86400000;
 const heatSegundaHoje = h => Date.UTC(h.y, h.m - 1, h.d) - (h.iso - 1) * HEAT_DIA_MS;
@@ -3518,6 +3529,15 @@ const AdminHeatmapSection = ({ token }) => {
   const [sel, setSel] = useState(null);
   const [modo, setModo] = useState("media"); // "media" (o mapa da regularidade) | "semana" (ações de uma semana)
   const [semAtras, setSemAtras] = useState(0); // semanas para trás a partir da semana atual (0 = esta semana)
+  const [agora, setAgora] = useState(() => heatAgora()); // dia e hora de agora (Suíça): só muda de valor, e só então re-renderiza, quando o dia ou a hora mudam
+  useEffect(() => {
+    const atualiza = () => setAgora(prev => { const n = heatAgora(); return (n && prev && n.iso === prev.iso && n.hora === prev.hora) || (!n && !prev) ? prev : n; });
+    const t = setInterval(atualiza, 60000);
+    const vis = () => { if (document.visibilityState === "visible") atualiza(); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", vis); };
+  }, []);
+  const blocosRef = React.useRef([]), jaRolou = React.useRef(false);
   const load = async d => {
     setSt({ status:"loading", rows:[], error:"", days:d });
     try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_weekly", { p_days:d }, token)), error:"", days:d }); }
@@ -3534,6 +3554,14 @@ const AdminHeatmapSection = ({ token }) => {
   const maxRecuo = heatMaxRecuo(hojeD, st.days), atras = Math.min(semAtras, maxRecuo);
   const segMs = heatSegundaHoje(hojeD) - atras * 7 * HEAT_DIA_MS, segIso = heatDataIso(segMs), semana = modo === "semana";
   const gSem = semana ? heatGridSemana(rows, paisOk, cidadeOk, segIso) : null;
+  const destaque = !!agora && (!semana || atras === 0); // destacar agora: na Média e, no modo semana, só quando a semana é a atual
+  const prontoMapa = st.status === "ok" && rows.length > 0;
+  // ao abrir, garantir que o bloco (0h–12h ou 12h–24h) com a hora de agora fica visível (sem saltos; só mexe se estiver fora do ecrã)
+  useEffect(() => {
+    if (!prontoMapa || jaRolou.current || !agora) return;
+    jaRolou.current = true;
+    try { const el = blocosRef.current[agora.hora < 12 ? 0 : 1]; const reduz = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches; if (el && el.scrollIntoView) el.scrollIntoView({ behavior:reduz ? "auto" : "smooth", block:"nearest" }); } catch(e) { /* sem scroll */ }
+  }, [prontoMapa]);
   const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
   return (
     <div data-heat-painel>
@@ -3579,20 +3607,34 @@ const AdminHeatmapSection = ({ token }) => {
           </div>
         )}
         <p data-heat-nota style={{ margin:"0 0 6px", fontSize:13, fontWeight:700, color:T.sub }}>Horas da Suíça (Portugal = menos 1 hora)</p>
+        {destaque && (() => {
+          const di = agora.iso - 1, c0 = semana ? null : grid[di][agora.hora], oc0 = heatOcorrencias(agora.iso, st.days, hoje), a0 = semana ? gSem[di][agora.hora] : c0.a;
+          const nv = semana ? heatNivelSemana(a0) : heatNivel(c0.s, oc0), cc = HEAT_CORES[nv];
+          const num = semana ? `${a0} ${a0 === 1 ? "ação" : "ações"}` : `em ${c0.s} de ${oc0} ${oc0 === 1 ? "semana" : "semanas"} · ${a0} ${a0 === 1 ? "ação" : "ações"}`;
+          return (
+            <div data-heat-agora-linha style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:8, margin:"0 0 8px", padding:"8px 12px", borderRadius:12, background:"#EEF3F9", border:`2px solid ${HEAT_AZUL}`, color:HEAT_AZUL }}>
+              <b data-heat-agora-quando style={{ fontSize:15 }}>Agora: {HEAT_DIAS[di].slice(0, 3)} {String(agora.hora).padStart(2, "0")}h</b>
+              <span data-heat-agora-estado={nv} style={{ background:cc.bg, color:cc.fg, borderRadius:999, padding:"2px 10px", fontSize:13, fontWeight:900 }}>{cc.sim ? `${cc.sim} ` : ""}{nv === "verde" ? "calma" : nv === "amarelo" ? "média" : "ocupada"}</span>
+              <span data-heat-agora-num style={{ fontSize:13, fontWeight:700 }}>{num}</span>
+            </div>
+          );
+        })()}
         <div data-heat-mapa style={{ background:T.card, borderRadius:14, padding:"10px 8px", maxWidth:620, marginLeft:"auto", marginRight:"auto" }}>
           {[[0, 12], [12, 24]].map(([h0, h1], bi) => (
-            <div key={bi} data-heat-bloco={bi + 1} style={{ marginBottom:bi === 0 ? 12 : 0 }}>
+            <div key={bi} ref={el => { blocosRef.current[bi] = el; }} data-heat-bloco={bi + 1} style={{ marginBottom:bi === 0 ? 12 : 0 }}>
               <p data-heat-bloco-titulo style={{ margin:"0 0 4px", fontSize:12, fontWeight:800, color:T.sub }}>{h0}h–{h1}h</p>
               <div style={{ display:"grid", gridTemplateColumns:`${semana ? "clamp(44px, 15vw, 64px)" : "clamp(26px, 8vw, 38px)"} repeat(12, minmax(0, 1fr))`, gap:2, alignItems:"center" }}>
                 <span aria-hidden="true" />
-                {Array.from({ length:12 }, (_, k) => <span key={k} data-heat-hora style={{ fontSize:"clamp(8px, 2.4vw, 11px)", fontWeight:700, color:T.sub, textAlign:"center", minWidth:0 }}>{h0 + k}</span>)}
+                {Array.from({ length:12 }, (_, k) => <span key={k} data-heat-hora {...(destaque && agora.hora === h0 + k ? { "data-heat-hora-agora":true } : {})} style={{ fontSize:"clamp(8px, 2.4vw, 11px)", fontWeight:700, color:T.sub, textAlign:"center", minWidth:0, ...(destaque && agora.hora === h0 + k ? HEAT_PILULA : {}) }}>{h0 + k}</span>)}
                 {HEAT_DIAS.map((nome, di) => (
                   <React.Fragment key={nome}>
-                    <span data-heat-dia-nome style={{ fontSize:semana ? "clamp(8px, 2.5vw, 11px)" : "clamp(9px, 2.8vw, 12px)", fontWeight:700, color:T.sub, whiteSpace:"nowrap" }}>{semana ? `${nome.slice(0, 3)} ${heatDM(segMs + di * HEAT_DIA_MS)}` : nome.slice(0, 3)}</span>
+                    <span data-heat-dia-nome {...(destaque && agora.iso - 1 === di ? { "data-heat-dia-agora":true } : {})} style={{ fontSize:semana ? "clamp(8px, 2.5vw, 11px)" : "clamp(9px, 2.8vw, 12px)", fontWeight:700, color:T.sub, whiteSpace:"nowrap", ...(destaque && agora.iso - 1 === di ? HEAT_PILULA : {}) }}>{semana ? `${nome.slice(0, 3)} ${heatDM(segMs + di * HEAT_DIA_MS)}` : nome.slice(0, 3)}</span>
                     {Array.from({ length:12 }, (_, k) => {
                       const h = h0 + k, cel = grid[di][h], oc = heatOcorrencias(di + 1, st.days, hoje), nv = semana ? heatNivelSemana(gSem[di][h]) : heatNivel(cel.s, oc), c = HEAT_CORES[nv], on = sel && sel.d === di && sel.h === h;
                       const txt = semana ? heatHoraTxtSemana(nome, heatDM(segMs + di * HEAT_DIA_MS), h, gSem[di][h]) : heatHoraTxt(nome, h, cel.s, oc, cel.a);
-                      return <div key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={semana ? gSem[di][h] : cel.a} {...(semana ? {} : { "data-heat-s":cel.s, "data-heat-o":oc })} data-heat-cor={nv} title={txt} aria-label={`${txt} · ${c.frase}`} onClick={() => setSel({ d:di, h })} style={{ aspectRatio:"1 / 1", minWidth:0, background:c.bg, color:c.fg, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(9px, 3vw, 16px)", fontWeight:900, lineHeight:1, cursor:"pointer", boxSizing:"border-box", boxShadow:on ? "0 0 0 2px #1a1a1f" : "none" }}>{c.sim}</div>;
+                      const ag = destaque && agora.iso - 1 === di && agora.hora === h; // célula de agora: só contorno (a cor de fundo não muda)
+                      const sombras = [...(ag ? ["inset 0 0 0 2px #fff", `0 0 0 3px ${HEAT_AZUL}`] : []), ...(on ? [ag ? "0 0 0 5px #1a1a1f" : "0 0 0 2px #1a1a1f"] : [])];
+                      return <div key={h} data-heat-cel={`${di + 1}-${h}`} data-heat-v={semana ? gSem[di][h] : cel.a} {...(semana ? {} : { "data-heat-s":cel.s, "data-heat-o":oc })} data-heat-cor={nv} {...(ag ? { "data-heat-agora":true } : {})} title={txt} aria-label={`${txt} · ${c.frase}`} onClick={() => setSel({ d:di, h })} style={{ aspectRatio:"1 / 1", minWidth:0, background:c.bg, color:c.fg, borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"clamp(9px, 3vw, 16px)", fontWeight:900, lineHeight:1, cursor:"pointer", boxSizing:"border-box", boxShadow:sombras.length ? sombras.join(", ") : "none", ...(ag ? { position:"relative", zIndex:2, transform:"scale(1.08)" } : {}) }}>{c.sim}</div>;
                     })}
                   </React.Fragment>
                 ))}
@@ -3606,7 +3648,8 @@ const AdminHeatmapSection = ({ token }) => {
           {semana && <p data-heat-janelas-nota style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>Calculadas pela média do período, não por esta semana.</p>}
           {HEAT_DIAS.map((nome, di) => {
             const j = calmWindows(grid[di].map(c => c.s), limite);
-            return <p key={nome} data-heat-janela={di + 1} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere" }}><b>{nome}</b> {j.length ? j.map((w, k) => <span key={k}>{k > 0 ? " · " : ""}<span data-heat-ponto aria-hidden="true" style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:HEAT_CORES.verde.bg, marginRight:4 }} />{`${w.de}h–${w.ate}h`}</span>) : "sem janela calma"}</p>;
+            const hojeLinha = !!agora && agora.iso - 1 === di; // linha do dia de hoje (as janelas são sempre as da Média)
+            return <p key={nome} data-heat-janela={di + 1} {...(hojeLinha ? { "data-heat-janela-hoje":true } : {})} style={{ margin:"3px 0", fontSize:14, overflowWrap:"anywhere", ...(hojeLinha ? { background:"#EEF3F9", fontWeight:800, borderRadius:8, padding:"2px 6px" } : {}) }}><b>{nome}</b> {j.length ? j.map((w, k) => <span key={k}>{k > 0 ? " · " : ""}<span {...(hojeLinha && agora.hora >= w.de && agora.hora < w.ate ? { "data-heat-janela-agora":true, title:"Agora" } : {})} style={hojeLinha && agora.hora >= w.de && agora.hora < w.ate ? { background:"#DCE6F2", color:HEAT_AZUL, fontWeight:900, borderRadius:8, boxShadow:`0 0 0 1.5px ${HEAT_AZUL}`, padding:"0 3px" } : undefined}><span data-heat-ponto aria-hidden="true" style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:HEAT_CORES.verde.bg, marginRight:4 }} />{`${w.de}h–${w.ate}h`}</span></span>) : "sem janela calma"}</p>;
           })}
         </div>
         <div data-heat-legenda style={{ marginTop:10 }}>
