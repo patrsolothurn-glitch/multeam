@@ -12618,8 +12618,6 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
       document.removeEventListener("visibilitychange", vis);
     };
   }, []);
-  var blocosRef = React.useRef([]),
-    jaRolou = React.useRef(false);
   var load = function () {
     var _ref138 = _asyncToGenerator(_regenerator().m(function _callee47(d) {
       var _t56, _t57, _t58, _t59, _t60;
@@ -12692,7 +12690,6 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
     semana = modo === "semana";
   var gSem = semana ? heatGridSemana(rows, paisOk, cidadeOk, segIso) : null;
   var destaque = !!agora && (!semana || atras === 0);
-  var prontoMapa = st.status === "ok" && rows.length > 0;
   var leituraRef = React.useRef(null);
   var blocoSel = sel ? sel.h < 12 ? 0 : 1 : 1;
   var leituraTxt = function leituraTxt() {
@@ -12713,18 +12710,6 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
       });
     } catch (e) {}
   }, [sel]);
-  useEffect(function () {
-    if (!prontoMapa || jaRolou.current || !agora) return;
-    jaRolou.current = true;
-    try {
-      var el = blocosRef.current[agora.hora < 12 ? 0 : 1];
-      var reduz = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (el && el.scrollIntoView) el.scrollIntoView({
-        behavior: reduz ? "auto" : "smooth",
-        block: "nearest"
-      });
-    } catch (e) {}
-  }, [prontoMapa]);
   var selStyle = {
     width: "100%",
     minHeight: 44,
@@ -13031,9 +13016,6 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
       h1 = _ref142[1];
     return React.createElement("div", {
       key: bi,
-      ref: function ref(el) {
-        blocosRef.current[bi] = el;
-      },
       "data-heat-bloco": bi + 1,
       style: {
         marginBottom: bi === 0 ? 12 : 0
