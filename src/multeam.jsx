@@ -3556,6 +3556,13 @@ const AdminHeatmapSection = ({ token }) => {
   const gSem = semana ? heatGridSemana(rows, paisOk, cidadeOk, segIso) : null;
   const destaque = !!agora && (!semana || atras === 0); // destacar agora: na Média e, no modo semana, só quando a semana é a atual
   const prontoMapa = st.status === "ok" && rows.length > 0;
+  const leituraRef = React.useRef(null);
+  const blocoSel = sel ? (sel.h < 12 ? 0 : 1) : 1; // a linha de detalhe fica logo por baixo do bloco tocado (sem seleção, por baixo do último, como a dica)
+  const leituraTxt = () => { if (!sel) return "Toca numa hora para ver o número."; if (semana) { const a = gSem[sel.d][sel.h]; return `${heatHoraTxtSemana(HEAT_DIAS[sel.d], heatDM(segMs + sel.d * HEAT_DIA_MS), sel.h, a)} · ${HEAT_CORES[heatNivelSemana(a)].frase}`; } const cel = grid[sel.d][sel.h], oc = heatOcorrencias(sel.d + 1, st.days, hoje); return `${heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a)} · ${HEAT_CORES[heatNivel(cel.s, oc)].frase}`; };
+  useEffect(() => { // ao tocar, garante que a linha de detalhe está dentro do ecrã (só mexe se estiver fora)
+    if (!sel || !leituraRef.current || typeof leituraRef.current.scrollIntoView !== "function") return;
+    try { leituraRef.current.scrollIntoView({ block:"nearest" }); } catch(e) { /* sem scroll: a linha continua por baixo do bloco */ }
+  }, [sel]);
   // ao abrir, garantir que o bloco (0h–12h ou 12h–24h) com a hora de agora fica visível (sem saltos; só mexe se estiver fora do ecrã)
   useEffect(() => {
     if (!prontoMapa || jaRolou.current || !agora) return;
@@ -3639,10 +3646,12 @@ const AdminHeatmapSection = ({ token }) => {
                   </React.Fragment>
                 ))}
               </div>
+              {blocoSel === bi
+                ? <p ref={leituraRef} data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{leituraTxt()}</p>
+                : <span aria-hidden="true" style={{ display:"block", margin:"6px 0 0", minHeight:18 }} />}
             </div>
           ))}
         </div>
-        <p data-heat-leitura style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, minHeight:18 }}>{sel ? (() => { if (semana) { const a = gSem[sel.d][sel.h]; return `${heatHoraTxtSemana(HEAT_DIAS[sel.d], heatDM(segMs + sel.d * HEAT_DIA_MS), sel.h, a)} · ${HEAT_CORES[heatNivelSemana(a)].frase}`; } const cel = grid[sel.d][sel.h], oc = heatOcorrencias(sel.d + 1, st.days, hoje); return `${heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a)} · ${HEAT_CORES[heatNivel(cel.s, oc)].frase}`; })() : "Toca numa hora para ver o número."}</p>
         <div style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginTop:10 }}>
           <p style={{ margin:"0 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>Janelas calmas (7h–24h, hora da Suíça)</p>
           {semana && <p data-heat-janelas-nota style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>Calculadas pela média do período, não por esta semana.</p>}

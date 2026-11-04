@@ -12693,6 +12693,26 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
   var gSem = semana ? heatGridSemana(rows, paisOk, cidadeOk, segIso) : null;
   var destaque = !!agora && (!semana || atras === 0);
   var prontoMapa = st.status === "ok" && rows.length > 0;
+  var leituraRef = React.useRef(null);
+  var blocoSel = sel ? sel.h < 12 ? 0 : 1 : 1;
+  var leituraTxt = function leituraTxt() {
+    if (!sel) return "Toca numa hora para ver o número.";
+    if (semana) {
+      var a = gSem[sel.d][sel.h];
+      return "".concat(heatHoraTxtSemana(HEAT_DIAS[sel.d], heatDM(segMs + sel.d * HEAT_DIA_MS), sel.h, a), " \xB7 ").concat(HEAT_CORES[heatNivelSemana(a)].frase);
+    }
+    var cel = grid[sel.d][sel.h],
+      oc = heatOcorrencias(sel.d + 1, st.days, hoje);
+    return "".concat(heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a), " \xB7 ").concat(HEAT_CORES[heatNivel(cel.s, oc)].frase);
+  };
+  useEffect(function () {
+    if (!sel || !leituraRef.current || typeof leituraRef.current.scrollIntoView !== "function") return;
+    try {
+      leituraRef.current.scrollIntoView({
+        block: "nearest"
+      });
+    } catch (e) {}
+  }, [sel]);
   useEffect(function () {
     if (!prontoMapa || jaRolou.current || !agora) return;
     jaRolou.current = true;
@@ -13120,24 +13140,24 @@ var AdminHeatmapSection = function AdminHeatmapSection(_ref137) {
           } : {})
         }), c.sim);
       }));
-    })));
-  })), React.createElement("p", {
-    "data-heat-leitura": true,
-    style: {
-      margin: "6px 0 0",
-      fontSize: 13,
-      fontWeight: 700,
-      minHeight: 18
-    }
-  }, sel ? function () {
-    if (semana) {
-      var a = gSem[sel.d][sel.h];
-      return "".concat(heatHoraTxtSemana(HEAT_DIAS[sel.d], heatDM(segMs + sel.d * HEAT_DIA_MS), sel.h, a), " \xB7 ").concat(HEAT_CORES[heatNivelSemana(a)].frase);
-    }
-    var cel = grid[sel.d][sel.h],
-      oc = heatOcorrencias(sel.d + 1, st.days, hoje);
-    return "".concat(heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a), " \xB7 ").concat(HEAT_CORES[heatNivel(cel.s, oc)].frase);
-  }() : "Toca numa hora para ver o número."), React.createElement("div", {
+    })), blocoSel === bi ? React.createElement("p", {
+      ref: leituraRef,
+      "data-heat-leitura": true,
+      style: {
+        margin: "6px 0 0",
+        fontSize: 13,
+        fontWeight: 700,
+        minHeight: 18
+      }
+    }, leituraTxt()) : React.createElement("span", {
+      "aria-hidden": "true",
+      style: {
+        display: "block",
+        margin: "6px 0 0",
+        minHeight: 18
+      }
+    }));
+  })), React.createElement("div", {
     style: {
       background: T.card,
       borderRadius: 14,
