@@ -3537,7 +3537,6 @@ const AdminHeatmapSection = ({ token }) => {
     document.addEventListener("visibilitychange", vis);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", vis); };
   }, []);
-  const blocosRef = React.useRef([]), jaRolou = React.useRef(false);
   const load = async d => {
     setSt({ status:"loading", rows:[], error:"", days:d });
     try { setSt({ status:"ok", rows:parseHeat(await rpcCall("get_activity_weekly", { p_days:d }, token)), error:"", days:d }); }
@@ -3555,7 +3554,6 @@ const AdminHeatmapSection = ({ token }) => {
   const segMs = heatSegundaHoje(hojeD) - atras * 7 * HEAT_DIA_MS, segIso = heatDataIso(segMs), semana = modo === "semana";
   const gSem = semana ? heatGridSemana(rows, paisOk, cidadeOk, segIso) : null;
   const destaque = !!agora && (!semana || atras === 0); // destacar agora: na Média e, no modo semana, só quando a semana é a atual
-  const prontoMapa = st.status === "ok" && rows.length > 0;
   const leituraRef = React.useRef(null);
   const blocoSel = sel ? (sel.h < 12 ? 0 : 1) : 1; // a linha de detalhe fica logo por baixo do bloco tocado (sem seleção, por baixo do último, como a dica)
   const leituraTxt = () => { if (!sel) return "Toca numa hora para ver o número."; if (semana) { const a = gSem[sel.d][sel.h]; return `${heatHoraTxtSemana(HEAT_DIAS[sel.d], heatDM(segMs + sel.d * HEAT_DIA_MS), sel.h, a)} · ${HEAT_CORES[heatNivelSemana(a)].frase}`; } const cel = grid[sel.d][sel.h], oc = heatOcorrencias(sel.d + 1, st.days, hoje); return `${heatHoraTxt(HEAT_DIAS[sel.d], sel.h, cel.s, oc, cel.a)} · ${HEAT_CORES[heatNivel(cel.s, oc)].frase}`; };
@@ -3563,12 +3561,6 @@ const AdminHeatmapSection = ({ token }) => {
     if (!sel || !leituraRef.current || typeof leituraRef.current.scrollIntoView !== "function") return;
     try { leituraRef.current.scrollIntoView({ block:"nearest" }); } catch(e) { /* sem scroll: a linha continua por baixo do bloco */ }
   }, [sel]);
-  // ao abrir, garantir que o bloco (0h–12h ou 12h–24h) com a hora de agora fica visível (sem saltos; só mexe se estiver fora do ecrã)
-  useEffect(() => {
-    if (!prontoMapa || jaRolou.current || !agora) return;
-    jaRolou.current = true;
-    try { const el = blocosRef.current[agora.hora < 12 ? 0 : 1]; const reduz = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches; if (el && el.scrollIntoView) el.scrollIntoView({ behavior:reduz ? "auto" : "smooth", block:"nearest" }); } catch(e) { /* sem scroll */ }
-  }, [prontoMapa]);
   const selStyle = { width:"100%", minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"#fff", color:"#1a1a1f", fontSize:14, fontFamily:"inherit", padding:"0 8px", boxSizing:"border-box" };
   return (
     <div data-heat-painel>
@@ -3628,7 +3620,7 @@ const AdminHeatmapSection = ({ token }) => {
         })()}
         <div data-heat-mapa style={{ background:T.card, borderRadius:14, padding:"10px 8px", maxWidth:620, marginLeft:"auto", marginRight:"auto" }}>
           {[[0, 12], [12, 24]].map(([h0, h1], bi) => (
-            <div key={bi} ref={el => { blocosRef.current[bi] = el; }} data-heat-bloco={bi + 1} style={{ marginBottom:bi === 0 ? 12 : 0 }}>
+            <div key={bi} data-heat-bloco={bi + 1} style={{ marginBottom:bi === 0 ? 12 : 0 }}>
               <p data-heat-bloco-titulo style={{ margin:"0 0 4px", fontSize:12, fontWeight:800, color:T.sub }}>{h0}h–{h1}h</p>
               <div style={{ display:"grid", gridTemplateColumns:`${semana ? "clamp(44px, 15vw, 64px)" : "clamp(26px, 8vw, 38px)"} repeat(12, minmax(0, 1fr))`, gap:2, alignItems:"center" }}>
                 <span aria-hidden="true" />
