@@ -44,6 +44,9 @@ fs.writeFileSync(indexPath, html, 'utf8');
 const swPath = './docs/sw.js';
 let sw = fs.readFileSync(swPath, 'utf8');
 sw = sw.replace(/multeam-v\d+/, `multeam-v${buildNum}`);
+// Impressão do manifest no sw.js: se só o manifest mudar, o sw.js também muda (o browser instala o service worker novo)
+const manifestHash = require('crypto').createHash('sha256').update(fs.readFileSync('./docs/manifest.json')).digest('hex').slice(0, 8);
+sw = sw.replace(/MANIFEST_HASH = '[0-9a-f]*'/, `MANIFEST_HASH = '${manifestHash}'`);
 fs.writeFileSync(swPath, sw, 'utf8');
 
 console.log(`✅ Build Multeam-${buildNum} complete → docs/app.js (v=${buildNum})`);

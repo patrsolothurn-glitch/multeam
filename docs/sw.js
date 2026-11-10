@@ -1,14 +1,17 @@
 // Multeam Service Worker
 // A app (index.html, app.js e React): rede primeiro, com limite de 4 s; a cópia guardada só serve quando a rede falha
 // (sem ligação, site em baixo, erro 404/5xx) ou demora mais do que o limite. O resto: cache primeiro, como antes.
-const CACHE = 'multeam-v344';
+const CACHE = 'multeam-v345';
+// Impressão (sha256, 8 caracteres) do manifest.json: o build.js atualiza-a. Assim o sw.js muda sempre que o manifest muda e o browser instala o service worker novo
+const MANIFEST_HASH = '19350bc2';
 const BUILD = CACHE.split('-v')[1];
 const NET_TIMEOUT = 4000;
 const REACT = [
   'https://unpkg.com/react@18/umd/react.production.min.js',
   'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
 ];
-const STATIC = ['/manifest.json', '/icon-192.png'];
+// O manifest NÃO está no pré-cache: vai sempre à rede primeiro (ver o fetch abaixo)
+const STATIC = ['/icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
@@ -19,7 +22,10 @@ self.addEventListener('install', e => {
       if (!r.ok || r.redirected) throw new Error('precache ' + u + ' ' + r.status);
       await c.put(u, r);
     }
-    await c.addAll(STATIC).catch(()=>{});
+    // Ícone: cópia fresca da rede (cache: 'reload'), para nunca guardar uma velha da cache HTTP do browser
+    await Promise.all(STATIC.map(async u => {
+      try { const r = await fetch(new Request(u, { cache: 'reload' })); if (r.ok) await c.put(u, r); } catch (err) {}
+    }));
     // React: melhor esforço, com limite de tempo (não impede a instalação)
     await Promise.all(REACT.map(async u => {
       try {
@@ -104,6 +110,17 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       fetch(e.request, { cache: 'no-store' })
         .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  // Manifest: rede primeiro (um manifest novo, p.ex. com outra orientação, chega logo); a cópia guardada só serve sem rede
+  if (new URL(url).origin === self.location.origin && new URL(url).pathname === '/manifest.json') {
+    e.respondWith(
+      fetch(e.request, { cache: 'no-store' }).then(res => {
+        if (res.ok) { const copia = res.clone(); caches.open(CACHE).then(c => c.put('/manifest.json', copia)).catch(()=>{}); return res; }
+        // erro HTTP (p.ex. 404 do Pages desligado): a cópia guardada, se existir
+        return caches.match('/manifest.json').then(r => r || res);
+      }).catch(() => caches.match('/manifest.json').then(r => r || Response.error()))
     );
     return;
   }
