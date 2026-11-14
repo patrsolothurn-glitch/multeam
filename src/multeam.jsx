@@ -223,7 +223,7 @@ const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Num
 const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
   date:c.match_date||'', opponent:c.opponent||'', note:c.note||'', consumed:!!c.consumed });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:(() => { const d = e.created_at ? new Date(e.created_at) : null; return d && !isNaN(d) ? localDateStr(d) : ''; })() });
-const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], tactic:t.tactic||'', createdBy:t.created_by });
+const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], tactic:t.tactic||'', goalsFor:Number.isInteger(t.goals_for)?t.goals_for:null, goalsAgainst:Number.isInteger(t.goals_against)?t.goals_against:null, createdBy:t.created_by });
 
 const aAbsence = a => ({ id:a.id, teamId:a.team_id, memberId:a.member_id||null, memberName:a.member_name||'Jogador', kind:a.kind==='ausencia'?'ausencia':'lesao', emoji:a.emoji||'🤕', note:a.note||'', start:a.start_date||'', end:a.end_date||null });
 
@@ -231,6 +231,59 @@ const DAYS_PT = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ── HELPERS ──────────────────────────────────────────────────
 const isPast = d => new Date(d + "T23:59:59") < new Date();
+// ── JOGOS: arquivo automático, resultado e classificação ─────────────────────────────────────────────────────────
+// Tudo em hora da Suíça (Europe/Zurich), qualquer que seja o fuso do aparelho. A data e a hora do jogo são a hora de parede da Suíça.
+// Arquivo automático: o jogo vai para o arquivo 2 h depois do início. Classificação: só jogos com resultado da época atual por data (1 jul – 30 jun).
+const JOGO_DURACAO_MIN = 120;
+const zurichParts = (quando = new Date()) => {
+  try {
+    const p = {}; new Intl.DateTimeFormat("en-GB", { timeZone:"Europe/Zurich", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23" }).formatToParts(quando).forEach(x => { p[x.type] = x.value; });
+    const o = { y:+p.year, m:+p.month, d:+p.day, h:+p.hour, mi:+p.minute };
+    return Object.values(o).every(Number.isFinite) ? o : null;
+  } catch (e) { return null; }
+};
+const zurichWallMin = (quando = new Date()) => { const z = zurichParts(quando); return z ? Date.UTC(z.y, z.m - 1, z.d, z.h, z.mi) / 6e4 : null; };
+// Início do jogo (hora de parede, em minutos). Sem hora conta como as 12:00.
+const jogoInicioMin = t => {
+  const m = /^(\d{4})-(\d\d)-(\d\d)/.exec((t && t.date) || ""); if (!m) return null;
+  const h = /^(\d{1,2}):(\d\d)/.exec((t && t.time) || "");
+  return Date.UTC(+m[1], +m[2] - 1, +m[3], h ? +h[1] : 12, h ? +h[2] : 0) / 6e4;
+};
+const jogoArquivado = (t, quando = new Date()) => { const ini = jogoInicioMin(t), ag = zurichWallMin(quando); return ini != null && ag != null && ag >= ini + JOGO_DURACAO_MIN; };
+const temResultado = t => !!t && Number.isInteger(t.goalsFor) && Number.isInteger(t.goalsAgainst);
+const jogosDaEquipa = (trainings, teamId) => (trainings || []).filter(t => t.teamId === teamId && t.type === "jogo").sort((a, b) => (jogoInicioMin(a) ?? 0) - (jogoInicioMin(b) ?? 0));
+// atual = 1.º jogo por arquivar, próximo = o seguinte, outros = os restantes (todos os futuros); arquivo = já terminados, o mais recente primeiro
+const jogosPlano = (trainings, teamId, quando = new Date()) => {
+  const todos = jogosDaEquipa(trainings, teamId), abertos = todos.filter(t => !jogoArquivado(t, quando));
+  return { atual:abertos[0] || null, proximo:abertos[1] || null, outros:abertos.slice(2), arquivo:todos.filter(t => jogoArquivado(t, quando)).reverse() };
+};
+// Época atual por data (hora da Suíça): de 1 de julho a 30 de junho. Não usa team.season.
+const epocaAtual = (quando = new Date()) => { const z = zurichParts(quando); if (!z) return null; const a = z.m >= 7 ? z.y : z.y - 1; return { ini:`${a}-07-01`, fim:`${a + 1}-06-30` }; };
+const naEpoca = (t, ep) => { const d = String((t && t.date) || "").slice(0, 10); return !!ep && d >= ep.ini && d <= ep.fim; };
+// Vitória 3, empate 1, derrota 0. Só conta jogos com resultado (golos nossos / do adversário) da época atual.
+const classificacao = (trainings, teamId, quando = new Date()) => {
+  const ep = epocaAtual(quando), r = { ep, j:0, v:0, e:0, d:0, gm:0, gs:0, dg:0, pts:0, semResultado:0 };
+  if (!ep) return r;
+  jogosDaEquipa(trainings, teamId).forEach(t => {
+    if (!naEpoca(t, ep)) return;
+    if (!temResultado(t)) { if (jogoArquivado(t, quando)) r.semResultado++; return; }
+    r.j++; r.gm += t.goalsFor; r.gs += t.goalsAgainst;
+    if (t.goalsFor > t.goalsAgainst) { r.v++; r.pts += 3; } else if (t.goalsFor === t.goalsAgainst) { r.e++; r.pts += 1; } else r.d++;
+  });
+  r.dg = r.gm - r.gs; return r;
+};
+const jogoLetra = t => !temResultado(t) ? "" : t.goalsFor > t.goalsAgainst ? "V" : t.goalsFor === t.goalsAgainst ? "E" : "D";
+// Equipa da casa e equipa de fora (a nossa equipa conforme home_away) e o resultado na ordem casa–fora
+const jogoEquipas = (t, team) => (t.homeAway === "fora" ? { casa:t.opponent || "Adversário", fora:team.name } : { casa:team.name, fora:t.opponent || "Adversário" });
+const jogoPlacar = t => !temResultado(t) ? "" : t.homeAway === "fora" ? `${t.goalsAgainst}–${t.goalsFor}` : `${t.goalsFor}–${t.goalsAgainst}`;
+// Golos dos formulários: as duas caixas vazias = sem resultado; ou as duas com inteiros 0–99
+const parseGolos = (gf, ga) => {
+  const a = String(gf == null ? "" : gf).trim(), b = String(ga == null ? "" : ga).trim();
+  if (!a && !b) return { ok:true, vazio:true, f:null, a:null };
+  const n = x => /^\d{1,2}$/.test(x) ? parseInt(x, 10) : null;
+  return n(a) != null && n(b) != null ? { ok:true, vazio:false, f:n(a), a:n(b) } : { ok:false };
+};
+const GOLOS_ERRO = "Preenche os golos das duas equipas (0 a 99) ou deixa as duas caixas vazias.";
 const UNAVAIL_EMOJIS = ["🤕","🩼","🩹","🧊","⚕️","🏥"];
 // Cor sólida para texto branco: usa a cor dada se tiver contraste >= 3 com o branco, senão o azul-escuro.
 const solidForWhite = c => {
@@ -1234,6 +1287,24 @@ const AddRecurringModal = ({ isAdmin, team, onAdd, onClose }) => {
   );
 };
 
+// Duas caixas de golos (nossos / do adversário), na ordem casa–fora. Vazias = sem resultado.
+const GolosCampos = ({ team, opponent, homeAway, gf, ga, setGf, setGa }) => {
+  const nos = (team && team.name) || "A nossa equipa", eles = opponent || "Adversário";
+  const campo = (rotulo, v, set, id) => (
+    <div style={{ flex:1, minWidth:0 }}>
+      <p style={{ margin:"0 0 4px", fontSize:12, color:T.sub, fontWeight:700, overflowWrap:"anywhere" }}>{rotulo}</p>
+      <FI type="number" inputMode="numeric" min={0} max={99} step={1} data-golos={id} aria-label={`Golos: ${rotulo}`} value={v} onChange={e=>set(e.target.value)} placeholder="–" />
+    </div>
+  );
+  const c1 = homeAway === "fora" ? [eles, ga, setGa, "adv"] : [nos, gf, setGf, "nos"], c2 = homeAway === "fora" ? [nos, gf, setGf, "nos"] : [eles, ga, setGa, "adv"];
+  return (
+    <>
+      <FL>Resultado (opcional)</FL>
+      <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>{campo(c1[0], c1[1], c1[2], c1[3])}{campo(c2[0], c2[1], c2[2], c2[3])}</div>
+    </>
+  );
+};
+
 // ── CRIAR JOGO ────────────────────────────────────────────────
 const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
   const tm = sortMembers(members.filter(m=>m.teamId===team.id), true);
@@ -1241,6 +1312,7 @@ const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
   const [loc, setLoc] = useState(""); const [homeAway, setHomeAway] = useState("casa"); const [notes, setNotes] = useState("");
   const [squad, setSquad] = useState(tm.filter(m=>!m.unavailable).map(m=>m.id)); // todos selecionados por omissão, menos os indisponíveis (podem ser escolhidos à mão)
   const [tactic, setTactic] = useState(""); const [err, setErr] = useState("");
+  const [gf, setGf] = useState(""); const [ga, setGa] = useState("");
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
   return (
@@ -1257,6 +1329,7 @@ const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
       <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Municipal, Grenchen" />
       <EventTactic team={team} isAdmin={isAdmin} value={tactic} onChange={setTactic} />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex: Campeonato cantonal..." />
+      <GolosCampos team={team} opponent={opponent} homeAway={homeAway} gf={gf} ga={ga} setGf={setGf} setGa={setGa} />
       <FL>Convocatória ({squad.length}/{tm.length})</FL>
       <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
         {tm.map(m => (
@@ -1272,7 +1345,7 @@ const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
         ))}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10 }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:normPlace(loc)||"A definir", notes, opponent, homeAway, squad, ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); const g = parseGolos(gf, ga); if (!g.ok) { setErr(GOLOS_ERRO); return; } try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:normPlace(loc)||"A definir", notes, opponent, homeAway, squad, ...(g.vazio ? {} : { goalsFor:g.f, goalsAgainst:g.a }), ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={T.brand}>
         ⚽ Criar jogo vs {opponent||"..."}
       </PrimaryBtn>
     </Sheet>
@@ -1313,6 +1386,7 @@ const EditMatchModal = ({ isAdmin, team, members, training, onEdit, onClose }) =
   const [notes, setNotes] = useState(training.notes);
   const [squad, setSquad] = useState(training.squad||tm.filter(m=>!m.unavailable).map(m=>m.id));
   const [tactic, setTactic] = useState(training.tactic||""); const [err, setErr] = useState("");
+  const [gf, setGf] = useState(training.goalsFor == null ? "" : String(training.goalsFor)); const [ga, setGa] = useState(training.goalsAgainst == null ? "" : String(training.goalsAgainst));
   const ok = opponent && date && time;
   const toggleSquad = id => setSquad(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]);
   return (
@@ -1329,6 +1403,7 @@ const EditMatchModal = ({ isAdmin, team, members, training, onEdit, onClose }) =
       <FL>Local</FL><FI type="text" value={loc} onChange={e=>setLoc(e.target.value)} placeholder="Ex: Campo Municipal..." />
       <EventTactic team={team} isAdmin={isAdmin} value={tactic} onChange={setTactic} />
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex: Campeonato cantonal..." />
+      <GolosCampos team={team} opponent={opponent} homeAway={homeAway} gf={gf} ga={ga} setGf={setGf} setGa={setGa} />
       <FL>Convocatória ({squad.length}/{tm.length})</FL>
       <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
         {tm.map(m => (
@@ -1339,7 +1414,7 @@ const EditMatchModal = ({ isAdmin, team, members, training, onEdit, onClose }) =
         ))}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location)||"A definir", notes, opponent, homeAway, squad, ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); const g = parseGolos(gf, ga); if (!g.ok) { setErr(GOLOS_ERRO); return; } const mudouGolos = g.f !== training.goalsFor || g.a !== training.goalsAgainst; try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location)||"A definir", notes, opponent, homeAway, squad, ...(mudouGolos ? { goalsFor:g.f, goalsAgainst:g.a } : {}), ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -2737,6 +2812,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
             <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
               <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{isJogo ? `vs ${t.opponent}` : "Treino"}</p>
               {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
+              {isJogo && temResultado(t) && <span data-jogo-resultado><Badge label={`${jogoLetra(t)} ${t.goalsFor}–${t.goalsAgainst}`} color={jogoLetra(t)==="V"?T.green:jogoLetra(t)==="D"?T.brand:T.sub} /></span>}
             </div>
             <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}<span data-event-date> · {eventDayMonth(dt)}</span></p>
             <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc)}</p>
@@ -2773,6 +2849,92 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
   );
 };
 
+// ── PAINEL "JOGOS": atual e próximo à vista, restantes e arquivo minimizados, classificação da época ─────────────────
+const jogoQuando = t => { const d = parseEventDay(t.date); return `${d ? eventDateShort(d) : ""}${t.time ? ` · ${t.time}` : ""}`; };
+const JogoLinha = ({ t, team, rotulo, arquivado, foraEpoca, onEditJogo, onDeleteJogo, onResultado, onApagarResultado }) => {
+  const eq = jogoEquipas(t, team), res = temResultado(t), btn = { display:"inline-flex", alignItems:"center", gap:4, minHeight:44, padding:"8px 12px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" };
+  return (
+    <div data-jogo-linha={t.id} style={{ background:T.card, borderRadius:14, padding:"12px 14px", marginBottom:8, border:`1px solid ${T.border}` }}>
+      {rotulo && <p style={{ margin:"0 0 4px", fontSize:11, fontWeight:800, color:team.color, textTransform:"uppercase", letterSpacing:0.5 }}>{rotulo}</p>}
+      <p style={{ margin:0, fontWeight:800, fontSize:15, overflowWrap:"anywhere" }}>{eq.casa} <span style={{ color:T.sub, fontWeight:600 }}>×</span> {eq.fora}</p>
+      <p data-jogo-quando style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{jogoQuando(t)}</p>
+      <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub, overflowWrap:"anywhere" }}>📍 {t.location}</p>
+      <TacticLine t={t} team={team} />
+      <p data-jogo-placar style={{ margin:"6px 0 0", fontSize:res ? 18 : 13, fontWeight:res ? 900 : 700, color:res ? T.text : "#C94F00" }}>
+        {res ? `${eq.casa} ${jogoPlacar(t)} ${eq.fora}` : (arquivado ? "Terminado, sem resultado" : "Sem resultado")}
+        {res && arquivado && foraEpoca && <span style={{ fontSize:11, color:T.sub, fontWeight:700 }}> · época anterior</span>}
+      </p>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+        <button data-jogo-acao="resultado" onClick={() => onResultado(t)} style={btn}>⚽ {res ? "Editar resultado" : "Registar resultado"}</button>
+        {res && <button data-jogo-acao="apagar-resultado" onClick={() => onApagarResultado(t)} style={btn}>🗑️ Apagar resultado</button>}
+        <button data-jogo-acao="editar" onClick={() => onEditJogo(t)} style={btn}>✏️ Editar jogo</button>
+        <button data-jogo-acao="apagar" onClick={() => onDeleteJogo(t)} style={{ ...btn, color:T.brand }}>🗑️ Apagar jogo</button>
+      </div>
+    </div>
+  );
+};
+const ResultadoModal = ({ team, training, onSave, onClose }) => {
+  const [gf, setGf] = useState(training.goalsFor == null ? "" : String(training.goalsFor));
+  const [ga, setGa] = useState(training.goalsAgainst == null ? "" : String(training.goalsAgainst));
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  const guardar = async () => {
+    if (busy) return;
+    const g = parseGolos(gf, ga);
+    if (!g.ok || g.vazio) { setErr(g.vazio ? "Escreve os golos das duas equipas." : GOLOS_ERRO); return; }
+    setErr(""); setBusy(true);
+    try { await onSave(training.id, { goalsFor:g.f, goalsAgainst:g.a }); onClose(); } catch (e) { setErr(errPt(e)); setBusy(false); }
+  };
+  const eq = jogoEquipas(training, team);
+  return (
+    <Sheet title="⚽ Resultado" onClose={onClose}>
+      <p style={{ margin:"0 0 12px", fontWeight:800, fontSize:15, overflowWrap:"anywhere" }}>{eq.casa} × {eq.fora}</p>
+      <GolosCampos team={team} opponent={training.opponent} homeAway={training.homeAway} gf={gf} ga={ga} setGf={setGf} setGa={setGa} />
+      {err && <p role="alert" style={{ color:"#c0392b", fontSize:13, margin:"0 0 10px", background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
+      <PrimaryBtn onClick={guardar} disabled={busy} color={T.brand}>💾 Guardar resultado</PrimaryBtn>
+    </Sheet>
+  );
+};
+const JogosPanel = ({ team, trainings, onClose, onEditJogo, onDeleteJogo, onResultado, onApagarResultado }) => {
+  const [mais, setMais] = useState(false), [arq, setArq] = useState(false);
+  const agora = new Date(), plano = jogosPlano(trainings, team.id, agora), cl = classificacao(trainings, team.id, agora);
+  const acoes = { onEditJogo, onDeleteJogo, onResultado, onApagarResultado };
+  const cab = (aberto, set, txt, id) => (
+    <button data-jogos-toggle={id} aria-expanded={aberto} onClick={() => set(!aberto)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", minHeight:44, background:"transparent", border:"none", borderTop:`1px solid ${T.border}`, padding:"10px 0", cursor:"pointer", fontFamily:"inherit", fontSize:14, fontWeight:800, color:T.text }}>
+      <span>{txt}</span><span aria-hidden style={{ color:T.sub }}>{aberto ? "▼" : "▶"}</span>
+    </button>
+  );
+  const epTxt = cl.ep ? `${cl.ep.ini.slice(8, 10)}/${cl.ep.ini.slice(5, 7)}/${cl.ep.ini.slice(0, 4)} – ${cl.ep.fim.slice(8, 10)}/${cl.ep.fim.slice(5, 7)}/${cl.ep.fim.slice(0, 4)}` : "";
+  const celula = (k, v, forte) => <div key={k} style={{ textAlign:"center", minWidth:0 }}><p style={{ margin:0, fontSize:10, fontWeight:700, color:T.sub, textTransform:"uppercase" }}>{k}</p><p style={{ margin:0, fontSize:forte ? 20 : 16, fontWeight:900, color:forte ? team.color : T.text }}>{v}</p></div>;
+  return (
+    <Sheet title="📋 Jogos" onClose={onClose}>
+      <div data-jogos-painel>
+        {!plano.atual && <p style={{ margin:"0 0 12px", fontSize:14, color:T.sub }}>Sem jogos por jogar. Toca em 🏆 para criar um.</p>}
+        {plano.atual && <JogoLinha t={plano.atual} team={team} rotulo="Atual" {...acoes} />}
+        {plano.proximo && <JogoLinha t={plano.proximo} team={team} rotulo="Próximo" {...acoes} />}
+        {plano.outros.length > 0 && (<>
+          {cab(mais, setMais, `Mais jogos (${plano.outros.length})`, "mais")}
+          {mais && <div data-jogos-mais>{plano.outros.map(t => <JogoLinha key={t.id} t={t} team={team} {...acoes} />)}</div>}
+        </>)}
+        {plano.arquivo.length > 0 && (<>
+          {cab(arq, setArq, `Arquivo (${plano.arquivo.length})`, "arquivo")}
+          {arq && <div data-jogos-arquivo>{plano.arquivo.map(t => <JogoLinha key={t.id} t={t} team={team} arquivado foraEpoca={!naEpoca(t, cl.ep)} {...acoes} />)}</div>}
+        </>)}
+        <div data-jogos-classificacao style={{ borderTop:`1px solid ${T.border}`, marginTop:6, paddingTop:12 }}>
+          <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800 }}>Classificação</p>
+          <p style={{ margin:"0 0 10px", fontSize:12, color:T.sub }}>Época atual: {epTxt} (hora da Suíça). Vitória 3 · empate 1 · derrota 0.</p>
+          {cl.j === 0
+            ? <p data-jogos-sem-resultados style={{ margin:0, fontSize:14, color:T.sub }}>Ainda sem resultados nesta época.</p>
+            : <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"10px 6px" }}>
+                {celula("Jogos", cl.j)}{celula("Vitórias", cl.v)}{celula("Empates", cl.e)}{celula("Derrotas", cl.d)}
+                {celula("Golos +", cl.gm)}{celula("Golos −", cl.gs)}{celula("Dif.", cl.dg > 0 ? `+${cl.dg}` : String(cl.dg))}{celula("Pontos", cl.pts, true)}
+              </div>}
+          {cl.semResultado > 0 && <p data-jogos-sem-resultado style={{ margin:"10px 0 0", fontSize:12, color:"#C94F00", fontWeight:700 }}>{plural(cl.semResultado, "jogo terminado sem resultado não conta", "jogos terminados sem resultado não contam")}.</p>}
+        </div>
+      </div>
+    </Sheet>
+  );
+};
+
 const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onLogSession, onBack, modal, setModal }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
@@ -2782,6 +2944,8 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
   const [showFilter, setShowFilter] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+  const [showJogos, setShowJogos] = useState(false);
+  const [resultTarget, setResultTarget] = useState(null);
 
   const myMember = members.find(m => m.teamId === team.id && m.userId === myUserId);
   const tt = trainings.filter(t => t.teamId === team.id);
@@ -2803,7 +2967,7 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
       {/* Header */}
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}cc)`, padding:"52px 16px 16px", color:"#fff" }}>
         <button onClick={onBack} style={{ minHeight:44, background:"rgba(255,255,255,0.2)", border:"none", color:"#fff", borderRadius:10, padding:"7px 14px", fontSize:14, cursor:"pointer", fontWeight:600, fontFamily:"inherit", marginBottom:10 }}>← Voltar</button>
-        <h1 style={{ margin:0, fontSize:30, fontWeight:900, letterSpacing:-1 }}>Treinos</h1>
+        <h1 style={{ margin:0, fontSize:30, fontWeight:900, letterSpacing:-1 }}>Treinos / Jogos</h1>
         <p style={{ margin:"2px 0 0", opacity:0.7, fontSize:14 }}>{team.name} · {team.season}</p>
       </div>
 
@@ -2821,6 +2985,9 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
           </button>
           <button onClick={() => setModal("jogo")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
             🏆
+          </button>
+          <button data-jogos-btn onClick={() => setShowJogos(true)} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+            📋 Jogos
           </button>
         </>)}
         <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${filterType?team.color:T.border}`, background:filterType?`${team.color}15`:"transparent", color:filterType?team.color:T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, marginLeft:"auto" }}>
@@ -2903,6 +3070,12 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
           <PrimaryBtn onClick={()=>setShowFilter(false)} color={team.color}>Fechar</PrimaryBtn>
         </Sheet>
       )}
+      {showJogos && isAdmin && <JogosPanel team={team} trainings={trainings} onClose={()=>setShowJogos(false)}
+        onEditJogo={t=>setEditTarget(t)}
+        onDeleteJogo={t=>{ if (window.confirm("Eliminar este jogo? Não tem volta.")) onDelete(t.id); }}
+        onResultado={t=>setResultTarget(t)}
+        onApagarResultado={t=>{ if (window.confirm("Apagar o resultado deste jogo? O jogo mantém-se.")) onEdit(t.id, { goalsFor:null, goalsAgainst:null }).catch(()=>{}); }} />}
+      {resultTarget && isAdmin && <ResultadoModal team={team} training={trainings.find(x=>x.id===resultTarget.id)||resultTarget} onSave={onEdit} onClose={()=>setResultTarget(null)} />}
       {modal==="treino"      && <AddSingleTrainingModal isAdmin={tacticAdmin} team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
       {modal==="recorrente"  && <AddRecurringModal isAdmin={tacticAdmin} team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
       {modal==="jogo"        && <AddMatchModal isAdmin={tacticAdmin} team={team} members={members} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
@@ -6186,7 +6359,7 @@ export default function App() {
     } catch(e) { writeFailed("registar a sessão", e); }
   };
   const addTraining = async d => {
-    const res = needRows(await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,...(d.tactic?{tactic:d.tactic}:{}),created_by:myUserId},token));
+    const res = needRows(await api.post('trainings',{team_id:d.teamId,type:d.type,date:d.date||null,time:d.time||null,location:d.location,notes:d.notes,recurring:d.recurring||false,days:d.days||null,opponent:d.opponent||null,home_away:d.homeAway||null,squad:d.squad||null,...(d.tactic?{tactic:d.tactic}:{}),...(Number.isInteger(d.goalsFor)&&Number.isInteger(d.goalsAgainst)?{goals_for:d.goalsFor,goals_against:d.goalsAgainst}:{}),created_by:myUserId},token));
     const t = Array.isArray(res) ? res[0] : res;
     if(t) {
       setTrainings(p=>[...p,aTraining(t)]);
@@ -6217,6 +6390,8 @@ export default function App() {
     if(d.homeAway  !== undefined) patch.home_away = d.homeAway;
     if(d.squad     !== undefined) patch.squad     = d.squad;
     if(d.tactic    !== undefined) patch.tactic    = d.tactic||null;
+    if(d.goalsFor  !== undefined) patch.goals_for = d.goalsFor;
+    if(d.goalsAgainst !== undefined) patch.goals_against = d.goalsAgainst;
     try {
       const t = needRows(await api.patch(`trainings?id=eq.${id}`,patch,token))[0];
       setTrainings(p=>p.map(x=>x.id===id?aTraining(t):x));
