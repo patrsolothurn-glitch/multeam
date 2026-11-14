@@ -2126,6 +2126,27 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
   );
 };
 
+// Rótulo da barra de baixo que nunca quebra nem passa do botão: parte de 10 px e encolhe só o necessário (a largura do botão e a fonte do
+// aparelho mudam), para não mexer na altura da barra nem nos outros 5 botões. Usado só no botão "Treinos / Jogos".
+const NavFitLabel = ({ children, weight, color }) => {
+  const ref = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current, box = el && el.parentElement;
+    if (!el || !box) return;
+    const fit = () => {
+      el.style.fontSize = "10px";
+      const need = el.getBoundingClientRect().width, have = box.getBoundingClientRect().width;
+      if (have > 0 && need > have) el.style.fontSize = Math.max(6, Math.floor((10 * have / need) * 10) / 10) + "px";
+    };
+    fit();
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(fit); ro.observe(box); } else window.addEventListener("resize", fit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit).catch(() => {});
+    return () => { if (ro) ro.disconnect(); else window.removeEventListener("resize", fit); };
+  }, [children, weight]);
+  return <span ref={ref} style={{ fontSize:10, whiteSpace:"nowrap", fontWeight:weight, color }}>{children}</span>;
+};
+
 const TeamPickerModal = ({ teams, members, myUserId, currentTeamId, onSelect, onClose, onCreateTeam, readOnly }) => (
   <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"flex-end", zIndex:150 }}
     onClick={e => e.target===e.currentTarget && onClose()}>
@@ -7048,7 +7069,7 @@ export default function App() {
     </div>
   );
 
-  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treinos"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
+  const nav = [{id:"home",emoji:"🏠",label:"Início"},{id:"fines",emoji:"🧾",label:"Multas"},{id:"cards",emoji:"🟨",label:"Cartões"},{id:"treinos",emoji:"🗓️",label:"Treino/Jogo"},{id:"caixa",emoji:"💰",label:"Caixa"},{id:"geral",emoji:"👤",label:"Geral"}];
   const atRiskCount = canManageTrainings ? members.filter(m => m.teamId===teamId && cardCount(cards, teamId, m.id).yellows >= 4).length : 0;
   const toastBox = toast ? <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.color, color:"#fff", borderRadius:20, padding:"10px 20px", fontSize:14, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,0.3)", whiteSpace:"nowrap", pointerEvents:"none" }}>{toast.msg}</div> : null;
   const loadWarnBox = (loadWarn.length > 0 && !roMode) ? (
@@ -7078,9 +7099,11 @@ export default function App() {
       )}
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
-          <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit" }}>
+          <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit", ...(item.id==="treinos" ? { minWidth:0 } : {}) }}>
             <span style={{ fontSize:20 }}>{item.emoji}</span>
-            <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?T.navy:T.sub }}>{item.label}</span>
+            {item.id==="treinos"
+              ? <NavFitLabel weight={tab===item.id?800:500} color={tab===item.id?T.navy:T.sub}>{item.label}</NavFitLabel>
+              : <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?T.navy:T.sub }}>{item.label}</span>}
           </button>
         ))}
       </div>
@@ -7156,9 +7179,11 @@ export default function App() {
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
-          <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit" }}>
+          <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit", ...(item.id==="treinos" ? { minWidth:0 } : {}) }}>
             <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <CountBadge n={atRiskCount} />}{item.id==="geral" && !roMode && (claimsTotal + myQuestionCount)>0 && <span data-badge="claims"><CountBadge n={claimsTotal + myQuestionCount} /></span>}</span>
-            <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?team.color:T.sub }}>{item.label}</span>
+            {item.id==="treinos"
+              ? <NavFitLabel weight={tab===item.id?800:500} color={tab===item.id?team.color:T.sub}>{item.label}</NavFitLabel>
+              : <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?team.color:T.sub }}>{item.label}</span>}
           </button>
         ))}
       </div>

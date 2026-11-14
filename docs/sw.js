@@ -1,7 +1,7 @@
 // Multeam Service Worker
 // A app (index.html, app.js e React): rede primeiro, com limite de 4 s; a cópia guardada só serve quando a rede falha
 // (sem ligação, site em baixo, erro 404/5xx) ou demora mais do que o limite. O resto: cache primeiro, como antes.
-const CACHE = 'multeam-v346';
+const CACHE = 'multeam-v347';
 // Impressão (sha256, 8 caracteres) do manifest.json: o build.js atualiza-a. Assim o sw.js muda sempre que o manifest muda e o browser instala o service worker novo
 const MANIFEST_HASH = '19350bc2';
 const BUILD = CACHE.split('-v')[1];
