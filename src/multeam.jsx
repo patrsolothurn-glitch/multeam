@@ -1315,6 +1315,20 @@ const GolosCampos = ({ team, opponent, homeAway, gf, ga, setGf, setGa }) => {
 };
 
 // ── CRIAR JOGO ────────────────────────────────────────────────
+// Chip da convocatória (criar e editar jogo): "Nome · SIGLA" (só "Nome" quando a posição não tem sigla), padding 10 e espaço 6 entre chips.
+const ConvocadoChip = ({ m, on, team, onToggle }) => {
+  const sigla = positionAbbr(m.position);
+  return (
+    <button type="button" data-convocado={m.id} data-selecionado={on ? "1" : "0"} aria-pressed={on} onClick={onToggle} style={{
+      display:"flex", alignItems:"center", gap:8, padding:10, borderRadius:10, boxSizing:"border-box", maxWidth:"100%", minHeight:44, textAlign:"left",
+      border:`2px solid ${on?team.color:T.border}`, background:on?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1,
+    }}>
+      <div style={{ width:28, height:28, borderRadius:14, flexShrink:0, background:on?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
+      <span style={{ minWidth:0, overflowWrap:"anywhere", fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{sigla && ` · ${sigla}`}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
+    </button>
+  );
+};
+
 const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
   const tm = sortMembers(members.filter(m=>m.teamId===team.id), true);
   const [opponent, setOpponent] = useState(""); const [date, setDate] = useState(""); const [time, setTime] = useState("15:00");
@@ -1340,18 +1354,8 @@ const AddMatchModal = ({ isAdmin, team, members, onAdd, onClose }) => {
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex: Campeonato cantonal..." />
       <GolosCampos team={team} opponent={opponent} homeAway={homeAway} gf={gf} ga={ga} setGf={setGf} setGa={setGa} />
       <FL>Convocatória ({squad.length}/{tm.length})</FL>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
-        {tm.map(m => (
-          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{
-            display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10,
-            border:`2px solid ${squad.includes(m.id)?team.color:T.border}`,
-            background:squad.includes(m.id)?`${team.color}15`:T.inputBg,
-            cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1,
-          }}>
-            <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
-            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
-          </button>
-        ))}
+      <div data-convocatoria style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+        {tm.map(m => <ConvocadoChip key={m.id} m={m} on={squad.includes(m.id)} team={team} onToggle={()=>toggleSquad(m.id)} />)}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10 }}>{err}</p>}
       <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); const g = parseGolos(gf, ga); if (!g.ok) { setErr(GOLOS_ERRO); return; } try { await onAdd({ teamId:team.id, type:"jogo", recurring:false, date, time, location:normPlace(loc)||"A definir", notes, opponent, homeAway, squad, ...(g.vazio ? {} : { goalsFor:g.f, goalsAgainst:g.a }), ...(isAdmin && normTactic(tactic) ? { tactic:normTactic(tactic) } : {}) }); } catch(e){ setErr(errPt(e)); } }} disabled={!ok} color={T.brand}>
@@ -1414,13 +1418,8 @@ const EditMatchModal = ({ isAdmin, team, members, training, onEdit, onClose }) =
       <FL>Notas (opcional)</FL><FI type="text" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ex: Campeonato cantonal..." />
       <GolosCampos team={team} opponent={opponent} homeAway={homeAway} gf={gf} ga={ga} setGf={setGf} setGa={setGa} />
       <FL>Convocatória ({squad.length}/{tm.length})</FL>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:16 }}>
-        {tm.map(m => (
-          <button key={m.id} onClick={()=>toggleSquad(m.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:10, border:`2px solid ${squad.includes(m.id)?team.color:T.border}`, background:squad.includes(m.id)?`${team.color}15`:T.inputBg, cursor:"pointer", fontFamily:"inherit", opacity:m.unavailable?0.55:1 }}>
-            <div style={{ width:28, height:28, borderRadius:14, background:squad.includes(m.id)?team.color:T.border, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:11, fontWeight:800 }}>{m.initials}</div>
-            <span style={{ fontSize:13, fontWeight:600 }}>{m.name.split(" ")[0]}{m.unavailable && ` ${m.unavailableEmoji||"🤕"}`}</span>
-          </button>
-        ))}
+      <div data-convocatoria style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+        {tm.map(m => <ConvocadoChip key={m.id} m={m} on={squad.includes(m.id)} team={team} onToggle={()=>toggleSquad(m.id)} />)}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
       <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); const g = parseGolos(gf, ga); if (!g.ok) { setErr(GOLOS_ERRO); return; } const mudouGolos = g.f !== training.goalsFor || g.a !== training.goalsAgainst; try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location)||"A definir", notes, opponent, homeAway, squad, ...(mudouGolos ? { goalsFor:g.f, goalsAgainst:g.a } : {}), ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
@@ -1481,6 +1480,13 @@ const POSITIONS_GROUPED = {
 // Ordem dos membros: equipa técnica (ordem do select) e depois posições de campo; posição vazia, "Jogador", "Outro" ou desconhecida no fim.
 // Construída a partir de POSITIONS_GROUPED (sem repetir listas); só apresentação.
 const normTxt = s => String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+// Siglas das posições (só apresentação; nada é gravado): aparecem na convocatória como "Nome · SIGLA". "Outro" não tem sigla (texto vazio de propósito),
+// e uma posição desconhecida (texto livre dos desportos livres, vazio, "Jogador") também não: o chip mostra só o nome.
+const POSITION_ABBR = { "Guarda-redes":"GR", "Defesa Central":"DC", "Lateral Direito":"LD", "Lateral Esquerdo":"LE", "Defesa Líbero":"LIB", "Médio Defensivo":"MD", "Médio Centro":"MC", "Médio Box-to-Box":"B2B", "Médio Ofensivo":"MO", "Meia Atacante":"MA",
+  "Extremo Direito":"ED", "Extremo Esquerdo":"EE", "Segundo Avançado":"SA", "Ponta de Lança":"PL", "Avançado Centro":"AC", "Fixo":"FIX", "Ala":"ALA", "Pivot":"PIV", "Universal":"UNI",
+  "Treinador":"TR", "Treinador Desportivo":"TD", "Treinador Adjunto":"TA", "Treinador de Guarda-redes":"TGR", "Preparador Físico":"PF", "Diretor Desportivo":"DD", "Presidente":"PRES", "Massagista / Fisioterapeuta":"FIS", "Delegado":"DEL", "Team Manager":"TM", "Médico":"MED", "Outro":"" };
+const POSITION_ABBR_NORM = new Map(Object.entries(POSITION_ABBR).map(([k, v]) => [normTxt(k), v]));
+const positionAbbr = pos => POSITION_ABBR_NORM.get(normTxt(pos)) || "";
 const STAFF_POSITIONS = [...POSITIONS_GROUPED["🎽 Equipa Técnica"], ...POSITIONS_GROUPED["🏛 Direção / Gestão"]];
 const DEFENSE_FIRST = ["Lateral Direito", "Defesa Central", "Lateral Esquerdo"];
 const FIELD_POSITIONS = [...POSITIONS_GROUPED["🥅 Guarda-redes"], ...DEFENSE_FIRST, ...POSITIONS_GROUPED["🛡 Defesa"].filter(p => !DEFENSE_FIRST.includes(p)),
