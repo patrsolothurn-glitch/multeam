@@ -268,14 +268,23 @@ const classificacao = (trainings, teamId, quando = new Date()) => {
     if (!naEpoca(t, ep)) return;
     if (!temResultado(t)) { if (jogoArquivado(t, quando)) r.semResultado++; return; }
     r.j++; r.gm += t.goalsFor; r.gs += t.goalsAgainst;
-    if (t.goalsFor > t.goalsAgainst) { r.v++; r.pts += 3; } else if (t.goalsFor === t.goalsAgainst) { r.e++; r.pts += 1; } else r.d++;
+    const l = jogoLetra(t); if (l === "V") r.v++; else if (l === "E") r.e++; else r.d++; r.pts += jogoPontos(t);
   });
   r.dg = r.gm - r.gs; return r;
 };
 const jogoLetra = t => !temResultado(t) ? "" : t.goalsFor > t.goalsAgainst ? "V" : t.goalsFor === t.goalsAgainst ? "E" : "D";
 // Equipa da casa e equipa de fora (a nossa equipa conforme home_away) e o resultado na ordem casa–fora
 const jogoEquipas = (t, team) => (t.homeAway === "fora" ? { casa:t.opponent || "Adversário", fora:team.name } : { casa:team.name, fora:t.opponent || "Adversário" });
-const jogoPlacar = t => !temResultado(t) ? "" : t.homeAway === "fora" ? `${t.goalsAgainst}–${t.goalsFor}` : `${t.goalsFor}–${t.goalsAgainst}`;
+// Pontos que o jogo dá: vitória 3, empate 1, derrota 0 (sem resultado: null). Usada no cartão e na classificação.
+const jogoPontos = t => { const l = jogoLetra(t); return l === "V" ? 3 : l === "E" ? 1 : l === "D" ? 0 : null; };
+// Linhas do placar na ordem casa → fora (nome, golos, se é a nossa equipa): a ÚNICA fonte do placar. O cartão, o painel e jogoPlacar usam-na,
+// por isso nunca discordam (num jogo fora a casa é o adversário e os golos dele vêm primeiro).
+const jogoLinhasPlacar = (t, team) => {
+  if (!temResultado(t)) return [];
+  const eq = jogoEquipas(t, team || { name:"" }), fora = t.homeAway === "fora";
+  return [{ nome:eq.casa, golos:fora ? t.goalsAgainst : t.goalsFor, nos:!fora, chave:fora ? "adv" : "nos" }, { nome:eq.fora, golos:fora ? t.goalsFor : t.goalsAgainst, nos:fora, chave:fora ? "nos" : "adv" }];
+};
+const jogoPlacar = t => jogoLinhasPlacar(t).map(l => l.golos).join("–");
 // Golos dos formulários: as duas caixas vazias = sem resultado; ou as duas com inteiros 0–99
 const parseGolos = (gf, ga) => {
   const a = String(gf == null ? "" : gf).trim(), b = String(ga == null ? "" : ga).trim();
@@ -2814,7 +2823,93 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence, isAdmin
   );
 };
 
-const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, setEditTarget, myMember, presences, onSetPresence }) => {
+// Etiqueta do tipo de evento (sempre com texto; cores diferentes): "Jogo" nos jogos, "🔄 Treino" nos treinos recorrentes. O treino único não leva etiqueta (o título já diz "Treino").
+const TipoTag = ({ tipo }) => {
+  const jogo = tipo === "jogo";
+  return <span data-tipo-tag={jogo ? "jogo" : "treino"} style={{ flexShrink:0, display:"inline-block", whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, fontSize:11, fontWeight:800, lineHeight:"14px",
+    background:jogo ? "#FEF3C7" : "#DBEAFE", color:jogo ? "#92400E" : "#1E40AF", border:`1px solid ${jogo ? "#F59E0B66" : "#3B82F666"}` }}>{jogo ? "Jogo" : "🔄 Treino"}</span>;
+};
+const RESULTADO_PALAVRA = { V:"Vitória", E:"Empate", D:"Derrota" };
+// Resultado no cartão do jogo: placar grande sempre à vista; quem gere regista, edita e apaga aqui mesmo (sem abrir o painel "Jogos").
+// Jogador e modo leitura (canEdit falso) só veem o placar. As duas caixas têm de estar preenchidas (0 a 99) ou as duas vazias.
+const ResultadoCartao = ({ t, team, canEdit, onSave }) => {
+  const [editando, setEditando] = useState(false);
+  const [gf, setGf] = useState(""); const [ga, setGa] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [okMsg, setOkMsg] = useState(false);
+  const alive = React.useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const tem = temResultado(t), eq = jogoEquipas(t, team), fora = t.homeAway === "fora";
+  if (!tem && !canEdit) return null;
+  const forma = canEdit && (!tem || editando);
+  const abrirEdicao = () => { setGf(tem ? String(t.goalsFor) : ""); setGa(tem ? String(t.goalsAgainst) : ""); setErr(""); setEditando(true); };
+  const guardar = async () => {
+    if (busy) return;
+    const g = parseGolos(gf, ga);
+    if (!g.ok || g.vazio) { setErr(g.vazio ? "Escreve os golos das duas equipas." : GOLOS_ERRO); return; }
+    setErr(""); setBusy(true);
+    try { await onSave(t.id, { goalsFor:g.f, goalsAgainst:g.a }); if (alive.current) { setEditando(false); setOkMsg(true); setTimeout(() => { if (alive.current) setOkMsg(false); }, 2500); } }
+    catch (e) { if (alive.current) setErr(errPt(e)); }
+    if (alive.current) setBusy(false);
+  };
+  const apagar = async () => {
+    if (busy || !window.confirm("Apagar o resultado deste jogo? O jogo mantém-se.")) return;
+    setErr(""); setBusy(true);
+    try { await onSave(t.id, { goalsFor:null, goalsAgainst:null }); if (alive.current) { setEditando(false); setGf(""); setGa(""); } }
+    catch (e) { if (alive.current) setErr(errPt(e)); }
+    if (alive.current) setBusy(false);
+  };
+  const caixa = { box:{ marginTop:8, padding:"8px 10px", borderRadius:10, background:`${team.color}10`, border:`1px solid ${team.color}33`, boxSizing:"border-box" },
+    nome:{ flex:1, minWidth:0, fontSize:13, fontWeight:700, overflowWrap:"anywhere", lineHeight:"16px" },
+    btn:{ minWidth:44, minHeight:44, padding:"0 10px", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:16, cursor:"pointer", fontFamily:"inherit" } };
+  // linhas na ordem casa → fora (as mesmas do painel): nome, caixa/golos e se é a nossa equipa
+  const linhas = [{ nome:eq.casa, chave:fora ? "adv" : "nos" }, { nome:eq.fora, chave:fora ? "nos" : "adv" }];
+  const placarLinhas = jogoLinhasPlacar(t, team);
+  if (forma) {
+    const valor = k => k === "nos" ? gf : ga, muda = (k, v) => (k === "nos" ? setGf : setGa)(v);
+    return (
+      <div data-cartao-resultado="forma" style={caixa.box}>
+        <p style={{ margin:"0 0 6px", fontSize:12, fontWeight:800, textTransform:"uppercase", letterSpacing:0.4, color:T.sub }}>{tem ? "Resultado" : "Registar resultado"}</p>
+        {linhas.map(l => (
+          <div key={l.chave} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+            <span style={caixa.nome}>{l.nome}</span>
+            <input data-cartao-golos={l.chave} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} aria-label={`Golos: ${l.nome}`} placeholder="–" value={valor(l.chave)} disabled={busy}
+              onChange={e => muda(l.chave, e.target.value)} onKeyDown={e => { if (e.key === "Enter") guardar(); }}
+              style={{ width:64, height:56, flexShrink:0, boxSizing:"border-box", textAlign:"center", fontSize:28, fontWeight:900, borderRadius:10, border:`2px solid ${T.border}`, background:T.inputBg, fontFamily:"inherit", outline:"none", color:T.text }} />
+          </div>
+        ))}
+        {err && <p role="alert" data-cartao-erro style={{ margin:"0 0 6px", color:"#B42318", fontSize:12, fontWeight:700, background:"#FFE5E5", borderRadius:8, padding:"6px 8px" }}>{err}</p>}
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <button data-cartao-guardar onClick={guardar} disabled={busy} style={{ flex:1, minWidth:96, minHeight:48, borderRadius:12, border:"none", background:busy ? T.border : team.color, color:"#fff", fontSize:15, fontWeight:800, cursor:busy ? "default" : "pointer", fontFamily:"inherit" }}>{busy ? "A guardar…" : "Guardar"}</button>
+          {tem && <button data-cartao-cancelar onClick={() => { setEditando(false); setErr(""); }} disabled={busy} style={{ ...caixa.btn, minHeight:48, fontWeight:700, fontSize:14 }}>Cancelar</button>}
+        </div>
+      </div>
+    );
+  }
+  const letra = jogoLetra(t), cor = letra === "V" ? T.green : letra === "D" ? T.brand : T.sub;
+  return (
+    <div data-cartao-resultado="placar" aria-label={`${eq.casa} ${jogoPlacar(t).replace("–", " – ")} ${eq.fora}: ${RESULTADO_PALAVRA[letra]}, ${plural(jogoPontos(t), "ponto", "pontos")}`} style={caixa.box}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
+        <span data-cartao-veredito={letra} style={{ fontSize:12, fontWeight:800, padding:"2px 8px", borderRadius:6, background:`${cor}22`, color:cor }}>{RESULTADO_PALAVRA[letra]} · <span data-cartao-pontos={jogoPontos(t)}>{plural(jogoPontos(t), "ponto", "pontos")}</span></span>
+        {okMsg && <span role="status" data-cartao-ok style={{ fontSize:12, fontWeight:700, color:T.green }}>✓ Resultado guardado</span>}
+      </div>
+      {placarLinhas.map(l => (
+        <div key={l.chave} style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={caixa.nome}>{l.nome}</span>
+          <span data-cartao-golos-valor={l.chave} style={{ fontSize:30, fontWeight:900, lineHeight:"36px", minWidth:36, textAlign:"right", color:T.text }}>{l.golos}</span>
+        </div>
+      ))}
+      {canEdit && (
+        <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:6 }}>
+          {err && <p role="alert" data-cartao-erro style={{ margin:"auto auto auto 0", color:"#B42318", fontSize:12, fontWeight:700 }}>{err}</p>}
+          <button data-cartao-acao="editar" aria-label="Editar resultado" title="Editar resultado" onClick={abrirEdicao} disabled={busy} style={caixa.btn}>✏️</button>
+          <button data-cartao-acao="apagar" aria-label="Apagar resultado" title="Apagar resultado" onClick={apagar} disabled={busy} style={caixa.btn}>🗑️</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelete, setEditTarget, myMember, presences, onSetPresence, onEditResultado }) => {
   const past = isPast(t.date);
   const isJogo = t.type === "jogo";
   const dt = new Date(t.date+"T00:00:00");
@@ -2822,7 +2917,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
   const weekday = dt.toLocaleDateString("pt-PT",{weekday:"long"});
   const squadMembers = isJogo ? sortMembers((t.squad||[]).map(id=>members.find(m=>m.id===id)).filter(Boolean), true) : [];
   return (
-    <div style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden", borderLeft:`3px solid ${past?T.sub:isJogo?T.brand:team.color}`, opacity:past?0.65:1 }}>
+    <div data-evento={t.id} data-tipo-evento={t.type} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden", borderLeft:`3px solid ${past?T.sub:isJogo?T.brand:team.color}`, opacity:past?0.65:1 }}>
       <div style={{ padding:"14px 14px 0" }}>
         <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
           <div style={{ textAlign:"center", width:38, flexShrink:0 }}>
@@ -2830,15 +2925,18 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
             <p style={{ margin:0, fontSize:9, fontWeight:700, color:T.sub, textTransform:"uppercase" }}>{dt.toLocaleDateString("pt-PT",{month:"short"})}</p>
           </div>
           <div style={{ flex:1 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-              <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{isJogo ? `vs ${t.opponent}` : "Treino"}</p>
-              {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
-              {isJogo && temResultado(t) && <span data-jogo-resultado><Badge label={`${jogoLetra(t)} ${t.goalsFor}–${t.goalsAgainst}`} color={jogoLetra(t)==="V"?T.green:jogoLetra(t)==="D"?T.brand:T.sub} /></span>}
+            <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+              <div style={{ flex:1, minWidth:0, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <p style={{ margin:0, fontWeight:800, fontSize:16 }}>{isJogo ? `vs ${t.opponent}` : "Treino"}</p>
+                {isJogo && <Badge label={t.homeAway==="casa"?"🏠 Casa":"✈️ Fora"} color={t.homeAway==="casa"?T.green:T.brand} />}
+              </div>
+              {isJogo && <TipoTag tipo="jogo" />}
             </div>
             <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>{weekday}, {t.time}<span data-event-date> · {eventDayMonth(dt)}</span></p>
             <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc)}</p>
             <TacticLine t={t} team={team} />
             {t.notes && <p style={{ margin:"4px 0 0", fontSize:13 }}>{t.notes}</p>}
+            {isJogo && <ResultadoCartao t={t} team={team} canEdit={!!isAdmin && !!onEditResultado} onSave={onEditResultado} />}
             {isJogo && squadMembers.length>0 && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
                 {squadMembers.map(m=>(
@@ -2851,7 +2949,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
             )}
           </div>
           {isAdmin && (
-            <button onClick={() => setCtxMenu(ctxMenu===t.id?null:t.id)} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:T.sub, padding:"0 4px", flexShrink:0 }}>⋮</button>
+            <button onClick={() => setCtxMenu(ctxMenu===t.id?null:t.id)} style={{ background:"none", border:"none", fontSize:22, cursor:"pointer", color:T.sub, padding:"0 0 0 4px", flexShrink:0, boxSizing:"border-box", width:44, height:44, display:"flex", alignItems:"center", justifyContent:"flex-start", margin:"-9px -14px -9px 0" }}>⋮</button>
           )}
         </div>
         <PresBar t={t} presences={presences} myMember={myMember} team={team} members={members} onSetPresence={onSetPresence} isAdmin={isAdmin} />
@@ -2956,6 +3054,19 @@ const JogosPanel = ({ team, trainings, onClose, onEditJogo, onDeleteJogo, onResu
   );
 };
 
+// Classificação da época em UMA linha compacta, à vista no ecrã Treinos / Jogos (J, V, E, D e pontos). Mesma função do painel "Jogos".
+const ClassificacaoLinha = ({ trainings, team }) => {
+  const cl = classificacao(trainings, team.id, new Date());
+  if (!cl.ep || cl.j === 0) return null;
+  const celula = (k, v, forte) => <span key={k} data-classif={k} style={{ whiteSpace:"nowrap" }}><span style={{ color:T.sub, fontWeight:700 }}>{k}</span> <b style={{ fontWeight:900, color:forte ? team.color : T.text }}>{v}</b></span>;
+  return (
+    <div data-classificacao-linha style={{ display:"flex", flexWrap:"wrap", alignItems:"baseline", gap:"2px 12px", padding:"8px 12px", marginBottom:10, borderRadius:12, background:T.card, border:`1px solid ${T.border}`, fontSize:13 }}>
+      <span style={{ fontWeight:800 }}>Classificação {cl.ep.ini.slice(0, 4)}/{cl.ep.fim.slice(2, 4)}</span>
+      {celula("J", cl.j)}{celula("V", cl.v)}{celula("E", cl.e)}{celula("D", cl.d)}{celula("Pontos", cl.pts, true)}
+    </div>
+  );
+};
+
 const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onLogSession, onBack, modal, setModal }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
@@ -2992,38 +3103,39 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
         <p style={{ margin:"2px 0 0", opacity:0.7, fontSize:14 }}>{team.name} · {team.season}</p>
       </div>
 
-      {/* Filter bar */}
-      <div style={{ background:T.card, padding:"10px 16px", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", borderBottom:`1px solid ${T.border}` }}>
-        <button onClick={() => setShowPast(!showPast)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${T.border}`, background:showPast?T.navy:"transparent", color:showPast?"#fff":T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+      {/* Barra de botões: padding 10 e espaço 6 (e largura mínima 44) para o "≡ Filtros" caber na mesma linha com o "📋 Jogos" a partir de ~480 px; em ecrãs estreitos quebra como antes */}
+      <div style={{ background:T.card, padding:"10px 16px", display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", borderBottom:`1px solid ${T.border}` }}>
+        <button onClick={() => setShowPast(!showPast)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 10px", minHeight:44, minWidth:44, borderRadius:20, border:`1px solid ${T.border}`, background:showPast?T.navy:"transparent", color:showPast?"#fff":T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
           🕐 Passado
         </button>
         {isAdmin && (<>
-          <button onClick={() => setModal("treino")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
+          <button onClick={() => setModal("treino")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 10px", minHeight:44, minWidth:44, borderRadius:20, border:"none", background:team.color, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, boxShadow:`0 2px 10px ${team.color}44` }}>
             ⚽ Treino
           </button>
-          <button onClick={() => setModal("recorrente")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+          <button onClick={() => setModal("recorrente")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 10px", minHeight:44, minWidth:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
             🔄
           </button>
-          <button onClick={() => setModal("jogo")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+          <button onClick={() => setModal("jogo")} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 10px", minHeight:44, minWidth:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
             🏆
           </button>
-          <button data-jogos-btn onClick={() => setShowJogos(true)} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
+          <button data-jogos-btn onClick={() => setShowJogos(true)} style={{ display:"flex", alignItems:"center", gap:4, padding:"8px 10px", minHeight:44, minWidth:44, borderRadius:20, border:`1px solid ${team.color}`, background:"transparent", color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0 }}>
             📋 Jogos
           </button>
         </>)}
-        <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", minHeight:44, borderRadius:20, border:`1px solid ${filterType?team.color:T.border}`, background:filterType?`${team.color}15`:"transparent", color:filterType?team.color:T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, marginLeft:"auto" }}>
+        <button onClick={() => setShowFilter(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 10px", minHeight:44, minWidth:44, borderRadius:20, border:`1px solid ${filterType?team.color:T.border}`, background:filterType?`${team.color}15`:"transparent", color:filterType?team.color:T.sub, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", flexShrink:0, marginLeft:"auto" }}>
           ≡ Filtros{filterType?" •":""}
         </button>
       </div>
 
       {/* Content */}
       <div style={{ padding:"12px 16px 60px" }}>
+        <ClassificacaoLinha trainings={trainings} team={team} />
         {/* Recurring */}
         {recurring.length>0 && (
           <>
             <p style={{ margin:"8px 0 8px", fontSize:13, fontWeight:800, color:team.color, textTransform:"uppercase", letterSpacing:0.5 }}>🔄 Recorrentes</p>
             {recurring.map(t => (
-              <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8, borderLeft:`3px solid ${team.color}` }}>
+              <div key={t.id} data-evento={t.id} data-tipo-evento="recorrente" style={{ background:T.card, borderRadius:14, padding:"14px", marginBottom:8, borderLeft:`3px solid ${team.color}` }}>
                 <div style={{ display:"flex", gap:12, alignItems:"center" }}>
                   <div style={{ width:40, height:40, borderRadius:20, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🔄</div>
                   <div style={{ flex:1 }}>
@@ -3033,10 +3145,13 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
                 <TacticLine t={t} team={team} />
                     {t.notes&&<p style={{ margin:0, fontSize:12, color:T.sub }}>{t.notes}</p>}
                   </div>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", alignSelf:"flex-start", gap:4, flexShrink:0 }}>
+                  <TipoTag tipo="recorrente" />
                   {isAdmin&&<div style={{ display:"flex", gap:6, flexShrink:0 }}>
                     <button onClick={()=>setEditTarget(t)} style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>✏️</button>
                     <button onClick={()=>{ if (window.confirm("Eliminar este treino? Não tem volta.")) onDelete(t.id); }} aria-label="Eliminar" style={{ background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.sub }}>🗑️</button>
                   </div>}
+                  </div>
                 </div>
                 {isAdmin && onLogSession && (
                   <button onClick={()=>setLogTarget(t)} style={{ display:"block", width:"100%", marginTop:10, padding:"8px", borderRadius:10, border:`1.5px solid ${team.color}`, background:`${team.color}12`, color:team.color, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", textAlign:"center" }}>📋 Registar sessão</button>
@@ -3062,7 +3177,7 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
                 </div>
                 <span style={{ fontSize:16, color:T.sub }}>{isCollapsed ? "▶" : "▼"}</span>
               </button>
-              {!isCollapsed && evts.map(t => <EventCard key={t.id} fc={fc[t.id]} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} />)}
+              {!isCollapsed && evts.map(t => <EventCard key={t.id} fc={fc[t.id]} t={t} team={team} members={members} isAdmin={isAdmin} ctxMenu={ctxMenu} setCtxMenu={setCtxMenu} onDelete={onDelete} setEditTarget={setEditTarget} myMember={myMember} presences={presences} onSetPresence={onSetPresence} onEditResultado={onEdit} />)}
             </div>
           );
         })}
