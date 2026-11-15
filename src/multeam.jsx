@@ -2613,29 +2613,31 @@ const HomeTab = ({ appStatus, noticeUserId, team, fines, members, expenses, trai
       })()}
       {(upcoming.length > 0 || recurring.length > 0) && (
         <>
-          <Sec label="Próximos treinos" />
+          <Sec label="Próximos" />
           {recurring.map(t => (
-            <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+            <div key={t.id} data-proximo={t.id} data-tipo-evento="recorrente" style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:22 }}>🔄</div>
-              <div style={{ flex:1 }}>
+              <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
                 {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time))) && <p data-event-date style={{ margin:0, fontSize:13, fontWeight:600, color:T.sub }}>Próximo: {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time)))}</p>}
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
                 <TacticLine t={t} team={team} />
               </div>
+              <TipoTag tipo="treino" />
             </div>
           ))}
           {upcoming.map(t => (
-            <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+            <div key={t.id} data-proximo={t.id} data-tipo-evento={t.type} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <p style={{ margin:0, fontSize:18, fontWeight:900, color:team.color, lineHeight:1 }}>{new Date(t.date+"T00:00:00").getDate()}</p>
                 <p style={{ margin:0, fontSize:10, color:team.color, fontWeight:700 }}>{new Date(t.date+"T00:00:00").toLocaleDateString("pt-PT",{month:"short"}).toUpperCase()}</p>
               </div>
-              <div style={{ flex:1 }}>
-                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}<span data-event-date style={{ fontWeight:600, color:T.sub }}> · {eventDateShort(parseEventDay(t.date))}</span></p>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:0, fontWeight:700, fontSize:15, overflowWrap:"anywhere" }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}<span data-event-date style={{ fontWeight:600, color:T.sub }}> · {eventDateShort(parseEventDay(t.date))}</span></p>
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
                 <TacticLine t={t} team={team} />
               </div>
+              <TipoTag tipo={t.type==="jogo"?"jogo":"treino"} />
             </div>
           ))}
         </>
@@ -2833,7 +2835,7 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence, isAdmin
 const TipoTag = ({ tipo }) => {
   const jogo = tipo === "jogo";
   return <span data-tipo-tag={jogo ? "jogo" : "treino"} style={{ flexShrink:0, display:"inline-block", whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, fontSize:11, fontWeight:800, lineHeight:"14px",
-    background:jogo ? "#FEF3C7" : "#DBEAFE", color:jogo ? "#92400E" : "#1E40AF", border:`1px solid ${jogo ? "#F59E0B66" : "#3B82F666"}` }}>{jogo ? "Jogo" : "🔄 Treino"}</span>;
+    background:jogo ? "#FEF3C7" : "#DBEAFE", color:jogo ? "#92400E" : "#1E40AF", border:`1px solid ${jogo ? "#F59E0B66" : "#3B82F666"}` }}>{jogo ? "Jogo" : tipo === "treino" ? "Treino" : "🔄 Treino"}</span>;
 };
 const RESULTADO_PALAVRA = { V:"Vitória", E:"Empate", D:"Derrota" };
 // Resultado no cartão do jogo: placar grande sempre à vista; quem gere regista, edita e apaga aqui mesmo (sem abrir o painel "Jogos").

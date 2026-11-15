@@ -9320,10 +9320,12 @@ var HomeTab = function HomeTab(_ref102) {
       }, m.unpaid > 0 ? money(m.unpaid) : "✓"));
     }));
   }(), (upcoming.length > 0 || recurring.length > 0) && React.createElement(React.Fragment, null, React.createElement(Sec, {
-    label: "Pr\xF3ximos treinos"
+    label: "Pr\xF3ximos"
   }), recurring.map(function (t) {
     return React.createElement("div", {
       key: t.id,
+      "data-proximo": t.id,
+      "data-tipo-evento": "recorrente",
       style: {
         background: T.card,
         borderRadius: 14,
@@ -9347,7 +9349,8 @@ var HomeTab = function HomeTab(_ref102) {
       }
     }, "\uD83D\uDD04"), React.createElement("div", {
       style: {
-        flex: 1
+        flex: 1,
+        minWidth: 0
       }
     }, React.createElement("p", {
       style: {
@@ -9374,10 +9377,14 @@ var HomeTab = function HomeTab(_ref102) {
     }, "\uD83D\uDCCD ", t.location, fcText(fc[t.id])), React.createElement(TacticLine, {
       t: t,
       team: team
-    })));
+    })), React.createElement(TipoTag, {
+      tipo: "treino"
+    }));
   }), upcoming.map(function (t) {
     return React.createElement("div", {
       key: t.id,
+      "data-proximo": t.id,
+      "data-tipo-evento": t.type,
       style: {
         background: T.card,
         borderRadius: 14,
@@ -9418,13 +9425,15 @@ var HomeTab = function HomeTab(_ref102) {
       month: "short"
     }).toUpperCase())), React.createElement("div", {
       style: {
-        flex: 1
+        flex: 1,
+        minWidth: 0
       }
     }, React.createElement("p", {
       style: {
         margin: 0,
         fontWeight: 700,
-        fontSize: 15
+        fontSize: 15,
+        overflowWrap: "anywhere"
       }
     }, t.type === "jogo" ? "\u26BD vs ".concat(t.opponent) : "🕐", " ", t.time, React.createElement("span", {
       "data-event-date": true,
@@ -9441,7 +9450,9 @@ var HomeTab = function HomeTab(_ref102) {
     }, "\uD83D\uDCCD ", t.location, fcText(fc[t.id])), React.createElement(TacticLine, {
       t: t,
       team: team
-    })));
+    })), React.createElement(TipoTag, {
+      tipo: t.type === "jogo" ? "jogo" : "treino"
+    }));
   })), React.createElement(Sec, {
     label: "Multas recentes"
   }), recent.length === 0 && React.createElement("p", {
@@ -10107,7 +10118,7 @@ var TipoTag = function TipoTag(_ref112) {
       color: jogo ? "#92400E" : "#1E40AF",
       border: "1px solid ".concat(jogo ? "#F59E0B66" : "#3B82F666")
     }
-  }, jogo ? "Jogo" : "🔄 Treino");
+  }, jogo ? "Jogo" : tipo === "treino" ? "Treino" : "🔄 Treino");
 };
 var RESULTADO_PALAVRA = {
   V: "Vitória",
