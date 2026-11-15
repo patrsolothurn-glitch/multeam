@@ -92,7 +92,7 @@ const MIME = { ".js": "text/javascript", ".html": "text/html", ".json": "applica
   await em(6000); const sel = app.locator("select").first(); await toque(sel); await sleep(250);
   await sel.selectOption({ label: "T. P." });
   await em(7100); await clicar(app.locator('[role=button]', { hasText: "Atraso ao treino" }).first());
-  await em(8000); const atribuir = app.getByRole("button", { name: /Atribuir 5€/ }); await atribuir.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+  await em(8000); const atribuir = app.getByRole("button", { name: /Atribuir 5\.00 €/ }); await atribuir.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
   await em(8700); await clicar(atribuir);
   await em(9900); await page.evaluate(() => window.palco.legenda(""));
 
