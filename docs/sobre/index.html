@@ -59,6 +59,9 @@
     .hero .cta { margin-top:28px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
     .hero .cta small { color:#c3d0e6; font-size:15px; }
     .hero .cta-video { margin-top:14px; }
+    .hero .cta-pontos { flex:0 0 100%; margin:2px 0 0; padding:0; list-style:none; display:grid; gap:6px; color:#dbe4f3; font-size:16px; font-weight:600; }
+    .hero .cta-pontos li { position:relative; padding-left:26px; }
+    .hero .cta-pontos li::before { content:"✓"; position:absolute; left:0; top:0; color:#8fe3a8; font-weight:900; }
     .hero .cta-sub { margin:10px 0 0; color:#c3d0e6; font-size:15px; }
     .hero .cta-novo { margin:6px 0 0; color:#c3d0e6; font-size:15px; }
     .btn-video { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:10px 22px; border-radius:14px; border:2px solid #fff; background:transparent; color:#fff; font-weight:800; font-size:16px; text-decoration:none; transition:background .15s; }
@@ -145,16 +148,21 @@
         <div>
           <span class="tag">⚽ Grátis para equipas</span>
           <h1>As multas e a caixa do balneário, <em>sem papel e sem discussões.</em></h1>
-          <p class="lead">A Multeam regista as multas, controla as presenças nos treinos e jogos e mostra a caixa da equipa. Tudo no telemóvel, para todos verem.</p>
+          <p class="lead">Multas, presenças, jogos e classificação da equipa. Tudo no telemóvel, para todos verem.</p>
           <div class="cta">
             <a class="btn" href="https://multeam.ch/">Criar a minha equipa</a>
             <small>Grátis e sem instalar nada da loja.</small>
+            <ul class="cta-pontos">
+              <li>Convoca em poucos toques</li>
+              <li>Resultado e pontos no cartão</li>
+              <li>Classificação sempre à vista</li>
+            </ul>
           </div>
           <div class="cta-video"><a class="btn-video" href="#demo">▶ Ver como funciona (37 s)</a></div>
           <p class="cta-sub">Serve para futebol, futsal, karaté, padel e qualquer outro desporto.</p>
-          <p class="cta-novo">Novo: tática da equipa e de cada treino ou jogo (4-3-3, 4-4-2, futsal e outros desportos).</p>
+          <p class="cta-novo">Novo: jogos com resultado, pontos e classificação da época.</p>
         </div>
-        <div class="phone"><img src="inicio.webp" width="390" height="780" alt="Ecrã inicial da Multeam com a caixa da equipa, o próximo treino e o botão Atribuir multa" fetchpriority="high" /></div>
+        <div class="phone"><img src="jogo-cartao.webp" width="390" height="780" alt="Ecrã Treinos / Jogos da Multeam: a classificação da época e o cartão de um jogo com o resultado 1–1 em grande e Empate · 1 ponto" fetchpriority="high" /></div>
       </div>
     </section>
 
