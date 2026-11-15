@@ -7602,7 +7602,7 @@ var JoinTeamModal = function JoinTeamModal(_ref89) {
       fontSize: 14,
       margin: "0 0 16px"
     }
-  }, "J\xE1 podes ver os treinos, multas e eventos da equipa."), !window.matchMedia('(display-mode: standalone)').matches && React.createElement("div", {
+  }, "J\xE1 podes ver os treinos, jogos, multas e eventos da equipa."), !window.matchMedia('(display-mode: standalone)').matches && React.createElement("div", {
     style: {
       background: "".concat(T.green, "12"),
       borderRadius: 12,
@@ -8444,7 +8444,7 @@ var RsvpGate = function RsvpGate(_ref99) {
   return React.createElement("div", {
     role: "dialog",
     "aria-modal": "true",
-    "aria-label": "Vais ao treino?",
+    "aria-label": "Vais ao ".concat(ev.t.type === "jogo" ? "jogo" : "treino", "?"),
     "data-rsvp-gate": true,
     style: {
       position: "fixed",
@@ -11095,7 +11095,7 @@ var JogosPanel = function JogosPanel(_ref122) {
       fontSize: 12,
       color: T.sub
     }
-  }, "\xC9poca atual: ", epTxt, " (hora da Su\xED\xE7a). Vit\xF3ria 3 \xB7 empate 1 \xB7 derrota 0."), cl.j === 0 ? React.createElement("p", {
+  }, "\xC9poca atual: ", epTxt, ". Vit\xF3ria 3 \xB7 empate 1 \xB7 derrota 0."), cl.j === 0 ? React.createElement("p", {
     "data-jogos-sem-resultados": true,
     style: {
       margin: 0,
@@ -19018,7 +19018,7 @@ var TeamDataSection = function TeamDataSection(_ref213) {
     label: "Nome",
     v: "".concat(team.emoji || "", " ").concat(team.name || "").trim()
   }), React.createElement(Val, {
-    label: "Obrigar a responder ao treino",
+    label: "Obrigar a responder ao treino ou jogo",
     v: team.forceRsvp ? "Ligado" : "Desligado"
   }), React.createElement("div", {
     style: {
@@ -19061,7 +19061,7 @@ var TeamDataSection = function TeamDataSection(_ref213) {
       fontSize: 12,
       color: T.sub
     }
-  }, "Cidade e pa\xEDs: usados para a previs\xE3o do tempo nos treinos.")) : React.createElement(React.Fragment, null, React.createElement(FL, null, "Nome"), React.createElement(FI, {
+  }, "Cidade e pa\xEDs: usados para a previs\xE3o do tempo nos treinos e jogos.")) : React.createElement(React.Fragment, null, React.createElement(FL, null, "Nome"), React.createElement(FI, {
     value: f.name,
     onChange: function onChange(e) {
       set("name", e.target.value);
@@ -19163,7 +19163,7 @@ var TeamDataSection = function TeamDataSection(_ref213) {
     },
     emptyLabel: "Por definir",
     color: f.color
-  }), React.createElement(FL, null, "Obrigar a responder ao treino"), React.createElement("button", {
+  }), React.createElement(FL, null, "Obrigar a responder ao treino ou jogo"), React.createElement("button", {
     role: "switch",
     "aria-checked": !!f.force_rsvp,
     "data-rsvp-switch": true,
@@ -19318,7 +19318,7 @@ var TeamDataSection = function TeamDataSection(_ref213) {
       fontSize: 12,
       color: T.sub
     }
-  }, "Usado para a previs\xE3o do tempo nos treinos."), (!nameOk || !seasonOk) && React.createElement("p", {
+  }, "Usado para a previs\xE3o do tempo nos treinos e jogos."), (!nameOk || !seasonOk) && React.createElement("p", {
     style: {
       margin: "0 0 10px",
       fontSize: 13,
@@ -20007,7 +20007,7 @@ var DeleteTeamModal = function DeleteTeamModal(_ref226) {
       fontWeight: 700,
       color: T.brand
     }
-  }, q(0, "membro", "membros"), " \xB7 ", q(1, "multa", "multas"), " \xB7 ", q(2, "treino", "treinos"), " \xB7 ", q(3, "cartão", "cartões"), " \xB7 ", q(4, "despesa", "despesas"), " \xB7 ", q(5, "lesão", "lesões"), " \xB7 ", q(6, "ausência", "ausências"))), countsFailed && React.createElement(LoadWarn, {
+  }, q(0, "membro", "membros"), " \xB7 ", q(1, "multa", "multas"), " \xB7 ", q(2, "treino ou jogo", "treinos e jogos"), " \xB7 ", q(3, "cartão", "cartões"), " \xB7 ", q(4, "despesa", "despesas"), " \xB7 ", q(5, "lesão", "lesões"), " \xB7 ", q(6, "ausência", "ausências"))), countsFailed && React.createElement(LoadWarn, {
     id: "contagens",
     onRetry: function onRetry() {
       return setTick(function (t) {
@@ -20787,7 +20787,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref231) {
       fontSize: 13,
       color: T.sub
     }
-  }, "Podem gerir membros, atribuir multas, despesas e treinos. ", roleWord(team.sport, true), " s\xF3 veem e confirmam presen\xE7as."))), React.createElement("button", {
+  }, "Podem gerir membros, atribuir multas, despesas, treinos e jogos. ", roleWord(team.sport, true), " s\xF3 veem e confirmam presen\xE7as."))), React.createElement("button", {
     onClick: onAddMember,
     style: {
       width: "100%",
@@ -21414,7 +21414,7 @@ var LoginScreen = function LoginScreen(_ref240) {
       fontSize: 14,
       letterSpacing: 0.3
     }
-  }, "Equipas \xB7 Multas \xB7 Treinos")), React.createElement("div", {
+  }, "Equipas \xB7 Multas \xB7 Treinos e jogos")), React.createElement("div", {
     style: {
       width: "100%",
       maxWidth: 340
