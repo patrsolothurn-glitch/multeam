@@ -116,7 +116,7 @@ const MIME = { ".js": "text/javascript", ".html": "text/html", ".json": "applica
   await em(26000); await page.evaluate(() => window.palco.legenda("Presenças no treino: <em>Sim ou Não</em>"));
   await em(26600); await clicar(separador("Início")); await sleep(500); await topo();
   await em(28800); await clicar(app.getByRole("button", { name: /Sim/ }).first());
-  await em(30200); await clicar(separador("Treinos"));
+  await em(30200); await clicar(separador("Treino/Jogo"));
   await em(31800); await page.evaluate(() => window.palco.legenda(""));
 
   // Cena 7 (32-37,5 s): final (pelo menos 4 s)
