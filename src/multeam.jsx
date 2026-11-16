@@ -177,7 +177,7 @@ const sessServerLogout = tok => { if (!tok) return; try { fetch(`${SB_URL}/auth/
 
 // ── DATA ADAPTERS ────────────────────────────────────────────
 const mk = s => s ? s.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '??';
-const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', emojiRaw:t.emoji||'', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, tactic:t.tactic||'', forceRsvp:t.force_rsvp===true, createdBy:t.created_by });
+const aTeam = t => ({ id:t.id, name:t.name, emoji:t.emoji||'⚽', emojiRaw:t.emoji||'', color:t.color||'#1D3557', season:t.season||'2025/26', inviteCode:t.invite_code, country:t.country, sport:t.sport, currency:t.currency, city:t.city, postal:t.postal, tactic:t.tactic||'', forceRsvp:t.force_rsvp===true, leagueUrl:typeof t.league_url === 'string' ? t.league_url : '', createdBy:t.created_by });
 // Modo leitura do super admin e painel: NUNCA telefones nem aniversários (a rpc get_team_as_admin devolve-os nos perfis; aqui deixam de entrar na app)
 // Dados de saúde (lesões, notas e indisponibilidade): também nunca no modo leitura. Os membros entram sem indisponibilidade/nota/emoji de lesão e o histórico de lesões/ausências não entra.
 const semSaude = m => ({ ...m, unavailable:false, unavailableNote:'', unavailableSince:'', unavailableEmoji:'🤕' });
@@ -223,7 +223,7 @@ const aFineType = ft => ({ id:ft.id, teamId:ft.team_id, name:ft.name, amount:Num
 const aCard = c => ({ id:c.id, teamId:c.team_id, memberId:c.member_id, kind:c.kind,
   date:c.match_date||'', opponent:c.opponent||'', note:c.note||'', consumed:!!c.consumed });
 const aExpense = e => ({ id:e.id, teamId:e.team_id, description:e.description, amount:Number(e.amount), date:(() => { const d = e.created_at ? new Date(e.created_at) : null; return d && !isNaN(d) ? localDateStr(d) : ''; })() });
-const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], tactic:t.tactic||'', goalsFor:Number.isInteger(t.goals_for)?t.goals_for:null, goalsAgainst:Number.isInteger(t.goals_against)?t.goals_against:null, createdBy:t.created_by });
+const aTraining = t => ({ id:t.id, teamId:t.team_id, type:t.type||'treino', date:t.date||'', time:(t.time||'').slice(0,5), location:t.location||'', notes:t.notes||'', recurring:t.recurring||false, days:t.days||[], opponent:t.opponent||'', homeAway:t.home_away||'casa', squad:t.squad||[], scorers:limpaMarcadores(t.scorers), keepers:limpaGuardaRedes(t.keepers), tactic:t.tactic||'', goalsFor:Number.isInteger(t.goals_for)?t.goals_for:null, goalsAgainst:Number.isInteger(t.goals_against)?t.goals_against:null, createdBy:t.created_by });
 
 const aAbsence = a => ({ id:a.id, teamId:a.team_id, memberId:a.member_id||null, memberName:a.member_name||'Jogador', kind:a.kind==='ausencia'?'ausencia':'lesao', emoji:a.emoji||'🤕', note:a.note||'', start:a.start_date||'', end:a.end_date||null });
 
@@ -285,6 +285,65 @@ const jogoLinhasPlacar = (t, team) => {
   return [{ nome:eq.casa, golos:fora ? t.goalsAgainst : t.goalsFor, nos:!fora, chave:fora ? "adv" : "nos" }, { nome:eq.fora, golos:fora ? t.goalsFor : t.goalsAgainst, nos:fora, chave:fora ? "nos" : "adv" }];
 };
 const jogoPlacar = t => jogoLinhasPlacar(t).map(l => l.golos).join("–");
+// ── Golos por jogador (scorers) e guarda-redes (keepers) de um jogo ──
+// Listas [{ m:<id do membro, tal como em squad>, g:<golos> }]. O id guarda-se como vem do membro (m.id: número ou texto, conforme a base) e compara-se SEMPRE como texto.
+const idTxt = id => String(id == null ? "" : id);
+const limpaLista = (l, min) => {
+  const mapa = new Map();
+  (Array.isArray(l) ? l : []).forEach(x => { if (x && x.m != null && x.m !== "" && Number.isInteger(x.g) && x.g >= min) { const k = idTxt(x.m), a = mapa.get(k); mapa.set(k, a ? { m:a.m, g:a.g + x.g } : { m:x.m, g:x.g }); } });
+  return [...mapa.values()];
+};
+const limpaMarcadores = l => limpaLista(l, 1);     // quem não marcou não entra
+const limpaGuardaRedes = l => limpaLista(l, 0);    // 0 golos sofridos também conta (jogo sem sofrer)
+const somaG = l => (Array.isArray(l) ? l : []).reduce((s, x) => s + x.g, 0);
+// Mensagem de erro se a atribuição não cabe no resultado ("" = tudo certo)
+const atribuicaoErro = (gf, ga, scorers, keepers) => {
+  const s = somaG(scorers), k = somaG(keepers);
+  if (Array.isArray(keepers) && keepers.length > 2) return "No máximo 2 guarda-redes por jogo.";
+  if (s > gf) return `Os marcadores somam ${s} ${s === 1 ? "golo" : "golos"}, mais do que os ${gf} do resultado. Ajusta os marcadores.`;
+  if (k > ga) return `Os golos sofridos atribuídos aos guarda-redes somam ${k}, mais do que os ${ga} do resultado. Ajusta os guarda-redes.`;
+  return "";
+};
+// Ao apagar o resultado (ou deixá-lo vazio) limpam-se os golos atribuídos NO MESMO pedido; sem nada atribuído o pedido fica como sempre
+const limpaAtribuicao = t => ((t && t.scorers && t.scorers.length) || (t && t.keepers && t.keepers.length)) ? { scorers:[], keepers:[] } : {};
+// Estatísticas da época atual (a mesma época da classificação): só jogos com resultado
+const estatisticasEpoca = (trainings, teamId, quando = new Date()) => {
+  const ep = epocaAtual(quando), r = { ep, jogos:0, golos:0, semAutor:0, marcadores:[], guardaRedes:[] };
+  if (!ep) return r;
+  const mar = new Map(), gr = new Map();
+  jogosDaEquipa(trainings, teamId).forEach(t => {
+    if (!naEpoca(t, ep) || !temResultado(t)) return;
+    r.jogos++; r.golos += t.goalsFor;
+    const sc = limpaMarcadores(t.scorers), atrib = Math.min(somaG(sc), t.goalsFor);
+    r.semAutor += t.goalsFor - atrib;
+    sc.forEach(x => { const k = idTxt(x.m), a = mar.get(k); mar.set(k, a ? { m:a.m, g:a.g + x.g } : { m:x.m, g:x.g }); });
+    limpaGuardaRedes(t.keepers).forEach(x => { const k = idTxt(x.m), a = gr.get(k); gr.set(k, a ? { m:a.m, jogos:a.jogos + 1, sofridos:a.sofridos + x.g } : { m:x.m, jogos:1, sofridos:x.g }); });
+  });
+  r.marcadores = [...mar.values()].sort((a, b) => b.g - a.g || idTxt(a.m).localeCompare(idTxt(b.m)));
+  r.guardaRedes = [...gr.values()].map(x => ({ ...x, media:x.sofridos / x.jogos })).sort((a, b) => b.sofridos - a.sofridos || a.jogos - b.jogos || idTxt(a.m).localeCompare(idTxt(b.m)));
+  return r;
+};
+// Golos de um jogador na época atual (perfil do jogador)
+const golosEpocaMembro = (trainings, teamId, memberId, quando = new Date()) => { const k = idTxt(memberId), x = estatisticasEpoca(trainings, teamId, quando).marcadores.find(m => idTxt(m.m) === k); return x ? x.g : 0; };
+
+// ── Link da classificação da liga (teams.league_url): só https, sem espaços, máx. 300 ──
+const LEAGUE_URL_MAX = 300;
+// Devolve { ok, url, host, erro }. Vazio = apagar (url null). Sem esquema ("www.x.pt") acrescenta https://. O texto guarda-se como foi escrito (com ?, , e # finais).
+const normalizaLinkLiga = valor => {
+  const v = String(valor == null ? "" : valor).trim();
+  if (!v) return { ok:true, url:null, host:"" };
+  const mau = erro => ({ ok:false, url:null, host:"", erro });
+  if (/\s/.test(v)) return mau("O link não pode ter espaços.");
+  if (/^(javascript|data|vbscript|file|blob|about|mailto|tel|ftp):/i.test(v)) return mau("Este tipo de link não é aceite. Usa um link https:// de uma página da liga.");
+  if (/^http:/i.test(v)) return mau("Só são aceites links https:// (seguros). Troca http:// por https://.");
+  if (v.startsWith("//") || (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) && !/^https:\/\//i.test(v))) return mau("O link tem de começar por https://");
+  const url = /^https:\/\//i.test(v) ? "https://" + v.slice(8) : "https://" + v;
+  if (url.length > LEAGUE_URL_MAX) return mau(`O link é demasiado comprido (máximo ${LEAGUE_URL_MAX} caracteres).`);
+  let u; try { u = new URL(url); } catch (e) { return mau("O link não é válido. Exemplo: https://liga.pt/classificacao"); }
+  if (u.protocol !== "https:" || !u.hostname || !u.hostname.includes(".") || u.username || u.password) return mau("O link não é válido. Exemplo: https://liga.pt/classificacao");
+  return { ok:true, url, host:u.hostname };
+};
+const hostDoLink = url => { try { return new URL(String(url)).hostname; } catch (e) { return ""; } };
 // Golos dos formulários: as duas caixas vazias = sem resultado; ou as duas com inteiros 0–99
 const parseGolos = (gf, ga) => {
   const a = String(gf == null ? "" : gf).trim(), b = String(ga == null ? "" : ga).trim();
@@ -6536,6 +6595,8 @@ export default function App() {
     if(d.tactic    !== undefined) patch.tactic    = d.tactic||null;
     if(d.goalsFor  !== undefined) patch.goals_for = d.goalsFor;
     if(d.goalsAgainst !== undefined) patch.goals_against = d.goalsAgainst;
+    if(d.scorers   !== undefined) patch.scorers   = d.scorers;
+    if(d.keepers   !== undefined) patch.keepers   = d.keepers;
     try {
       const t = needRows(await api.patch(`trainings?id=eq.${id}`,patch,token))[0];
       setTrainings(p=>p.map(x=>x.id===id?aTraining(t):x));
