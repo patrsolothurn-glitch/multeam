@@ -2127,7 +2127,7 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
         <div style={{ textAlign:"center", padding:"20px 0 10px" }}>
           <p style={{ fontSize:52 }}>🎉</p>
           <p style={{ fontWeight:800, fontSize:20, margin:"8px 0 6px" }}>Bem-vindo ao {found.name}!</p>
-          <p style={{ color:T.sub, fontSize:14, margin:"0 0 16px" }}>Já podes ver os treinos, multas e eventos da equipa.</p>
+          <p style={{ color:T.sub, fontSize:14, margin:"0 0 16px" }}>Já podes ver os treinos, jogos, multas e eventos da equipa.</p>
           {!window.matchMedia('(display-mode: standalone)').matches && (
             <div style={{ background:`${T.green}12`, borderRadius:12, padding:"12px 14px", marginBottom:16, textAlign:"left" }}>
               <p style={{ margin:0, fontSize:13, color:T.green, fontWeight:700 }}>📲 Instala a app!</p>
@@ -2359,7 +2359,7 @@ const RsvpGate = ({ ev, team, onAnswer, onLater }) => {
     <button data-rsvp={data} disabled={busy} onClick={onClick} style={{ width:"100%", minHeight:56, padding:"14px", borderRadius:16, border:`2px solid ${color}`, background:bg, color:bg==="transparent"?color:"#fff", fontSize:17, fontWeight:800, cursor:busy?"default":"pointer", fontFamily:"inherit", marginTop:12 }}>{label}</button>
   );
   return (
-    <div role="dialog" aria-modal="true" aria-label="Vais ao treino?" data-rsvp-gate style={{ position:"fixed", inset:0, zIndex:3000, background:T.bg, overflowY:"auto", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"24px 20px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <div role="dialog" aria-modal="true" aria-label={`Vais ao ${ev.t.type === "jogo" ? "jogo" : "treino"}?`} data-rsvp-gate style={{ position:"fixed", inset:0, zIndex:3000, background:T.bg, overflowY:"auto", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"24px 20px", boxSizing:"border-box", fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <div style={{ width:"100%", maxWidth:420 }}>
         <p style={{ margin:"0 0 4px", fontSize:12, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:0.5 }}>{team.name}</p>
         <h1 style={{ margin:"0 0 14px", fontSize:28, fontWeight:900, lineHeight:1.15 }}>Vais ao {ev.t.type === "jogo" ? "jogo" : "treino"}?</h1>
@@ -2613,29 +2613,31 @@ const HomeTab = ({ appStatus, noticeUserId, team, fines, members, expenses, trai
       })()}
       {(upcoming.length > 0 || recurring.length > 0) && (
         <>
-          <Sec label="Próximos treinos" />
+          <Sec label="Próximos" />
           {recurring.map(t => (
-            <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+            <div key={t.id} data-proximo={t.id} data-tipo-evento="recorrente" style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:22 }}>🔄</div>
-              <div style={{ flex:1 }}>
+              <div style={{ flex:1, minWidth:0 }}>
                 <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{(t.days||[]).map(d=>DAYS_PT[d]).join(", ")} · {t.time}</p>
                 {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time))) && <p data-event-date style={{ margin:0, fontSize:13, fontWeight:600, color:T.sub }}>Próximo: {eventDateShort(parseEventDay(nextOccurrence(t.days, t.time)))}</p>}
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
                 <TacticLine t={t} team={team} />
               </div>
+              <TipoTag tipo="treino" />
             </div>
           ))}
           {upcoming.map(t => (
-            <div key={t.id} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+            <div key={t.id} data-proximo={t.id} data-tipo-evento={t.type} style={{ background:T.card, borderRadius:14, padding:"13px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
               <div style={{ width:44, height:44, borderRadius:10, background:`${team.color}18`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 <p style={{ margin:0, fontSize:18, fontWeight:900, color:team.color, lineHeight:1 }}>{new Date(t.date+"T00:00:00").getDate()}</p>
                 <p style={{ margin:0, fontSize:10, color:team.color, fontWeight:700 }}>{new Date(t.date+"T00:00:00").toLocaleDateString("pt-PT",{month:"short"}).toUpperCase()}</p>
               </div>
-              <div style={{ flex:1 }}>
-                <p style={{ margin:0, fontWeight:700, fontSize:15 }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}<span data-event-date style={{ fontWeight:600, color:T.sub }}> · {eventDateShort(parseEventDay(t.date))}</span></p>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ margin:0, fontWeight:700, fontSize:15, overflowWrap:"anywhere" }}>{t.type==="jogo"?`⚽ vs ${t.opponent}`:"🕐"} {t.time}<span data-event-date style={{ fontWeight:600, color:T.sub }}> · {eventDateShort(parseEventDay(t.date))}</span></p>
                 <p style={{ margin:0, fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc[t.id])}</p>
                 <TacticLine t={t} team={team} />
               </div>
+              <TipoTag tipo={t.type==="jogo"?"jogo":"treino"} />
             </div>
           ))}
         </>
@@ -2833,7 +2835,7 @@ const PresBar = ({ t, presences, myMember, team, members, onSetPresence, isAdmin
 const TipoTag = ({ tipo }) => {
   const jogo = tipo === "jogo";
   return <span data-tipo-tag={jogo ? "jogo" : "treino"} style={{ flexShrink:0, display:"inline-block", whiteSpace:"nowrap", padding:"3px 8px", borderRadius:6, fontSize:11, fontWeight:800, lineHeight:"14px",
-    background:jogo ? "#FEF3C7" : "#DBEAFE", color:jogo ? "#92400E" : "#1E40AF", border:`1px solid ${jogo ? "#F59E0B66" : "#3B82F666"}` }}>{jogo ? "Jogo" : "🔄 Treino"}</span>;
+    background:jogo ? "#FEF3C7" : "#DBEAFE", color:jogo ? "#92400E" : "#1E40AF", border:`1px solid ${jogo ? "#F59E0B66" : "#3B82F666"}` }}>{jogo ? "Jogo" : tipo === "treino" ? "Treino" : "🔄 Treino"}</span>;
 };
 const RESULTADO_PALAVRA = { V:"Vitória", E:"Empate", D:"Derrota" };
 // Resultado no cartão do jogo: placar grande sempre à vista; quem gere regista, edita e apaga aqui mesmo (sem abrir o painel "Jogos").
@@ -3046,7 +3048,7 @@ const JogosPanel = ({ team, trainings, onClose, onEditJogo, onDeleteJogo, onResu
         </>)}
         <div data-jogos-classificacao style={{ borderTop:`1px solid ${T.border}`, marginTop:6, paddingTop:12 }}>
           <p style={{ margin:"0 0 2px", fontSize:14, fontWeight:800 }}>Classificação</p>
-          <p style={{ margin:"0 0 10px", fontSize:12, color:T.sub }}>Época atual: {epTxt} (hora da Suíça). Vitória 3 · empate 1 · derrota 0.</p>
+          <p style={{ margin:"0 0 10px", fontSize:12, color:T.sub }}>Época atual: {epTxt}. Vitória 3 · empate 1 · derrota 0.</p>
           {cl.j === 0
             ? <p data-jogos-sem-resultados style={{ margin:0, fontSize:14, color:T.sub }}>Ainda sem resultados nesta época.</p>
             : <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"10px 6px" }}>
@@ -5024,7 +5026,7 @@ const TeamDataSection = ({ team, onSave }) => {
             <TacticBig tactic={team.tactic} />
           </div>
           <Val label="Nome" v={`${team.emoji||""} ${team.name||""}`.trim()} />
-          <Val label="Obrigar a responder ao treino" v={team.forceRsvp ? "Ligado" : "Desligado"} />
+          <Val label="Obrigar a responder ao treino ou jogo" v={team.forceRsvp ? "Ligado" : "Desligado"} />
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0" }}>
             <span style={{ fontSize:13, color:T.sub }}>Cor</span>
             <span style={{ width:20, height:20, borderRadius:10, background:team.color, display:"inline-block" }} />
@@ -5034,7 +5036,7 @@ const TeamDataSection = ({ team, onSave }) => {
           <Val label="Moeda" v={team.currency} />
           <Val label="País" v={team.country} />
           <Val label="Cidade" v={[team.postal, team.city].filter(Boolean).join(" ")} />
-          <p style={{ margin:"4px 0 0", fontSize:12, color:T.sub }}>Cidade e país: usados para a previsão do tempo nos treinos.</p>
+          <p style={{ margin:"4px 0 0", fontSize:12, color:T.sub }}>Cidade e país: usados para a previsão do tempo nos treinos e jogos.</p>
         </>
       ) : (
         <>
@@ -5065,7 +5067,7 @@ const TeamDataSection = ({ team, onSave }) => {
             {sportIssue && <p role="alert" data-sport-error style={{ margin:"-6px 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{sportIssue}</p>}
           </>}
           <TacticField key={sportSel} sport={sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER)} value={f.tactic} onChange={v=>set("tactic",v)} emptyLabel="Por definir" color={f.color} />
-          <FL>Obrigar a responder ao treino</FL>
+          <FL>Obrigar a responder ao treino ou jogo</FL>
           <button role="switch" aria-checked={!!f.force_rsvp} data-rsvp-switch onClick={()=>set("force_rsvp", !f.force_rsvp)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, width:"100%", minHeight:44, padding:"8px 14px", borderRadius:12, border:`2px solid ${f.force_rsvp ? f.color : T.border}`, background:f.force_rsvp ? `${f.color}15` : T.inputBg, color:T.text, fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:6 }}>
             <span>{f.force_rsvp ? "Ligado" : "Desligado"}</span>
             <span style={{ fontSize:12, color:T.sub, fontWeight:700 }}>{f.force_rsvp ? "Tocar para desligar" : "Tocar para ligar"}</span>
@@ -5098,7 +5100,7 @@ const TeamDataSection = ({ team, onSave }) => {
               <FI value={f.postal} onChange={e=>set("postal",e.target.value)} placeholder="2545" />
             </div>
           </div>
-          <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.sub }}>Usado para a previsão do tempo nos treinos.</p>
+          <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.sub }}>Usado para a previsão do tempo nos treinos e jogos.</p>
           {(!nameOk || !seasonOk) && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:T.brand }}>{!nameOk ? "O nome não pode ficar vazio." : "A época não pode ficar vazia."}</p>}
           {err && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:T.brand }}>{err}</p>}
           <div style={{ display:"flex", gap:10 }}>
@@ -5274,7 +5276,7 @@ const DeleteTeamModal = ({ team, token, onDelete, onClose }) => {
     <Sheet title={`Apagar ${team.name}?`} onClose={busy ? ()=>{} : onClose}>
       <div style={{ background:"#FFF5F5", border:"1px solid #FFD0D0", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
         <p style={{ margin:"0 0 4px", fontSize:13, color:T.sub }}>Perde-se tudo:</p>
-        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{q(0,"membro","membros")} · {q(1,"multa","multas")} · {q(2,"treino","treinos")} · {q(3,"cartão","cartões")} · {q(4,"despesa","despesas")} · {q(5,"lesão","lesões")} · {q(6,"ausência","ausências")}</p>
+        <p style={{ margin:0, fontSize:15, fontWeight:700, color:T.brand }}>{q(0,"membro","membros")} · {q(1,"multa","multas")} · {q(2,"treino ou jogo","treinos e jogos")} · {q(3,"cartão","cartões")} · {q(4,"despesa","despesas")} · {q(5,"lesão","lesões")} · {q(6,"ausência","ausências")}</p>
       </div>
       {countsFailed && <LoadWarn id="contagens" onRetry={()=>setTick(t=>t+1)}>Não foi possível contar tudo o que se perde (—).</LoadWarn>}
       <p style={{ margin:"0 0 12px", fontSize:14 }}>Isto não tem volta. Escreve o nome da equipa para confirmar.</p>
@@ -5490,7 +5492,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
           <span style={{ fontSize:20 }}>👑</span>
           <div>
             <p style={{ margin:0, fontWeight:700, fontSize:14 }}>Administradores têm nível máximo</p>
-            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>Podem gerir membros, atribuir multas, despesas e treinos. {roleWord(team.sport, true)} só veem e confirmam presenças.</p>
+            <p style={{ margin:"2px 0 0", fontSize:13, color:T.sub }}>Podem gerir membros, atribuir multas, despesas, treinos e jogos. {roleWord(team.sport, true)} só veem e confirmam presenças.</p>
           </div>
         </div>
 
@@ -5648,7 +5650,7 @@ const LoginScreen = ({ onLogin }) => {
       <div style={{ marginBottom:44, textAlign:"center" }}>
         <div style={{ width:80, height:80, borderRadius:22, background:T.brand, display:"flex", alignItems:"center", justifyContent:"center", fontSize:38, margin:"0 auto 18px", boxShadow:`0 8px 32px ${T.brand}66` }}>🟥</div>
         <h1 style={{ color:"#fff", fontSize:34, fontWeight:900, margin:0, letterSpacing:-1.5 }}>Multeam</h1>
-        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:14, letterSpacing:0.3 }}>Equipas · Multas · Treinos</p>
+        <p style={{ color:"rgba(255,255,255,0.45)", margin:"5px 0 0", fontSize:14, letterSpacing:0.3 }}>Equipas · Multas · Treinos e jogos</p>
       </div>
       <div style={{ width:"100%", maxWidth:340 }}>
         <input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" />
