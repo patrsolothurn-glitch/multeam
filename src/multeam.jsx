@@ -1481,7 +1481,7 @@ const EditMatchModal = ({ isAdmin, team, members, training, onEdit, onClose }) =
         {tm.map(m => <ConvocadoChip key={m.id} m={m} on={squad.includes(m.id)} team={team} onToggle={()=>toggleSquad(m.id)} />)}
       </div>
       {err && <p style={{ color:"#c0392b", fontSize:13, marginBottom:10, background:"#FFE5E5", borderRadius:8, padding:"8px 12px" }}>{err}</p>}
-      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); const g = parseGolos(gf, ga); if (!g.ok) { setErr(GOLOS_ERRO); return; } const mudouGolos = g.f !== training.goalsFor || g.a !== training.goalsAgainst; try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location)||"A definir", notes, opponent, homeAway, squad, ...(mudouGolos ? { goalsFor:g.f, goalsAgainst:g.a } : {}), ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
+      <PrimaryBtn onClick={async () => { if(!ok) return; setErr(""); const g = parseGolos(gf, ga); if (!g.ok) { setErr(GOLOS_ERRO); return; } const ea = g.vazio ? "" : atribuicaoErro(g.f, g.a, training.scorers, training.keepers); if (ea) { setErr(`O resultado ficaria abaixo do que já atribuíste. ${ea}`); return; } const mudouGolos = g.f !== training.goalsFor || g.a !== training.goalsAgainst; try { await onEdit(training.id, { date, time, location:placeToSave(loc, training.location)||"A definir", notes, opponent, homeAway, squad, ...(mudouGolos ? { goalsFor:g.f, goalsAgainst:g.a } : {}), ...(g.vazio ? limpaAtribuicao(training) : {}), ...(isAdmin && normTactic(tactic) !== (training.tactic||"") ? { tactic:normTactic(tactic) || null } : {}) }); onClose(); } catch(e){ setErr(errPt(e)); }}} disabled={!ok} color={T.brand}>
         💾 Guardar alterações
       </PrimaryBtn>
     </Sheet>
@@ -2899,7 +2899,7 @@ const TipoTag = ({ tipo }) => {
 const RESULTADO_PALAVRA = { V:"Vitória", E:"Empate", D:"Derrota" };
 // Resultado no cartão do jogo: placar grande sempre à vista; quem gere regista, edita e apaga aqui mesmo (sem abrir o painel "Jogos").
 // Jogador e modo leitura (canEdit falso) só veem o placar. As duas caixas têm de estar preenchidas (0 a 99) ou as duas vazias.
-const ResultadoCartao = ({ t, team, canEdit, onSave }) => {
+const ResultadoCartao = ({ t, team, canEdit, onSave, members }) => {
   const [editando, setEditando] = useState(false);
   const [gf, setGf] = useState(""); const [ga, setGa] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [okMsg, setOkMsg] = useState(false);
@@ -2913,6 +2913,8 @@ const ResultadoCartao = ({ t, team, canEdit, onSave }) => {
     if (busy) return;
     const g = parseGolos(gf, ga);
     if (!g.ok || g.vazio) { setErr(g.vazio ? "Escreve os golos das duas equipas." : GOLOS_ERRO); return; }
+    const ea = atribuicaoErro(g.f, g.a, t.scorers, t.keepers); // o resultado não pode ficar abaixo do que já foi atribuído aos jogadores
+    if (ea) { setErr(`O resultado ficaria abaixo do que já atribuíste. ${ea}`); return; }
     setErr(""); setBusy(true);
     try { await onSave(t.id, { goalsFor:g.f, goalsAgainst:g.a }); if (alive.current) { setEditando(false); setOkMsg(true); setTimeout(() => { if (alive.current) setOkMsg(false); }, 2500); } }
     catch (e) { if (alive.current) setErr(errPt(e)); }
@@ -2921,7 +2923,7 @@ const ResultadoCartao = ({ t, team, canEdit, onSave }) => {
   const apagar = async () => {
     if (busy || !window.confirm("Apagar o resultado deste jogo? O jogo mantém-se.")) return;
     setErr(""); setBusy(true);
-    try { await onSave(t.id, { goalsFor:null, goalsAgainst:null }); if (alive.current) { setEditando(false); setGf(""); setGa(""); } }
+    try { await onSave(t.id, { goalsFor:null, goalsAgainst:null, ...limpaAtribuicao(t) }); if (alive.current) { setEditando(false); setGf(""); setGa(""); } } // apagar o resultado limpa os golos atribuídos no mesmo pedido
     catch (e) { if (alive.current) setErr(errPt(e)); }
     if (alive.current) setBusy(false);
   };
@@ -2965,6 +2967,7 @@ const ResultadoCartao = ({ t, team, canEdit, onSave }) => {
           <span data-cartao-golos-valor={l.chave} style={{ fontSize:30, fontWeight:900, lineHeight:"36px", minWidth:36, textAlign:"right", color:T.text }}>{l.golos}</span>
         </div>
       ))}
+      <GolosJogo t={t} team={team} members={members} canEdit={canEdit} onSave={onSave} />
       {canEdit && (
         <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:6 }}>
           {err && <p role="alert" data-cartao-erro style={{ margin:"auto auto auto 0", color:"#B42318", fontSize:12, fontWeight:700 }}>{err}</p>}
@@ -3003,7 +3006,7 @@ const EventCard = ({ fc, t, team, members, isAdmin, ctxMenu, setCtxMenu, onDelet
             <p style={{ margin:"1px 0 0", fontSize:13, color:T.sub }}>📍 {t.location}{fcText(fc)}</p>
             <TacticLine t={t} team={team} />
             {t.notes && <p style={{ margin:"4px 0 0", fontSize:13 }}>{t.notes}</p>}
-            {isJogo && <ResultadoCartao t={t} team={team} canEdit={!!isAdmin && !!onEditResultado} onSave={onEditResultado} />}
+            {isJogo && <ResultadoCartao t={t} team={team} canEdit={!!isAdmin && !!onEditResultado} onSave={onEditResultado} members={members} />}
             {isJogo && squadMembers.length>0 && (
               <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6 }}>
                 {squadMembers.map(m=>(
@@ -3067,6 +3070,8 @@ const ResultadoModal = ({ team, training, onSave, onClose }) => {
     if (busy) return;
     const g = parseGolos(gf, ga);
     if (!g.ok || g.vazio) { setErr(g.vazio ? "Escreve os golos das duas equipas." : GOLOS_ERRO); return; }
+    const ea = atribuicaoErro(g.f, g.a, training.scorers, training.keepers);
+    if (ea) { setErr(`O resultado ficaria abaixo do que já atribuíste. ${ea}`); return; }
     setErr(""); setBusy(true);
     try { await onSave(training.id, { goalsFor:g.f, goalsAgainst:g.a }); onClose(); } catch (e) { setErr(errPt(e)); setBusy(false); }
   };
@@ -3134,7 +3139,147 @@ const ClassificacaoLinha = ({ trainings, team }) => {
   );
 };
 
-const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onLogSession, onBack, modal, setModal }) => {
+// Botão do link da classificação da liga (teams.league_url): mostra só o domínio e abre noutro separador. Sem link: o admin vê "Adicionar link da classificação"; os jogadores não veem nada.
+const LinkLiga = ({ team, podeEditar, onAdicionar }) => {
+  const base = { display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"11px", minHeight:44, borderRadius:12, boxSizing:"border-box", width:"100%", marginBottom:10, fontWeight:700, fontSize:14, textDecoration:"none", fontFamily:"inherit", textAlign:"center", overflowWrap:"anywhere" };
+  const ll = normalizaLinkLiga(team.leagueUrl); // dupla verificação: só se mostra um link https válido
+  if (ll.ok && ll.url) {
+    return (
+      <a data-link-liga href={ll.url} target="_blank" rel="noopener noreferrer" style={{ ...base, flexDirection:"column", gap:2, background:team.color, color:"#fff" }}>
+        <span>🔗 Classificação da liga ↗</span>
+        <span data-link-liga-host style={{ fontSize:12, fontWeight:600, opacity:0.92 }}>{ll.host}</span>
+      </a>
+    );
+  }
+  if (!podeEditar || !onAdicionar) return null;
+  return <button data-link-liga-adicionar onClick={onAdicionar} style={{ ...base, background:"transparent", border:`1.5px dashed ${team.color}`, color:team.color, cursor:"pointer" }}>➕ Adicionar link da classificação</button>;
+};
+
+const ehGuardaRedes = m => normTxt(m && m.position) === "guarda-redes";
+const nomeDoMembro = (members, id) => { const m = (members || []).find(x => idTxt(x.id) === idTxt(id)); return m ? m.name : "ex-membro"; };
+// Golos por jogador e guarda-redes no cartão do jogo: todos veem o resumo; o admin atribui, altera e limpa (tudo opcional). Só jogos com resultado.
+const GolosJogo = ({ t, team, members, canEdit, onSave }) => {
+  const [aberto, setAberto] = useState(false);
+  const [sc, setSc] = useState({}); const [kp, setKp] = useState({});
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [okMsg, setOkMsg] = useState(false);
+  const alive = React.useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  if (!temResultado(t)) return null;
+  const gkOn = !isFreeSport(team.sport); // guarda-redes só nos desportos de futebol/futsal e variantes; em "Outro" só marcadores
+  const equipa = (members || []).filter(m => m.teamId === team.id);
+  const conv = sortMembers((t.squad || []).length ? (t.squad || []).map(id => equipa.find(m => idTxt(m.id) === idTxt(id))).filter(Boolean) : equipa.filter(m => !isStaffPosition(m.position)), true);
+  const grs = conv.filter(ehGuardaRedes);
+  const atrib = limpaMarcadores(t.scorers), gk = limpaGuardaRedes(t.keepers);
+  const semAutor = Math.max(0, t.goalsFor - somaG(atrib));
+  const bruto = k => { const m = equipa.find(x => idTxt(x.id) === k); return m ? m.id : (atrib.concat(gk).find(x => idTxt(x.m) === k) || { m:k }).m; };
+  const abrir = () => {
+    const a = {}; atrib.forEach(x => { a[idTxt(x.m)] = x.g; });
+    const k = {}; if (gk.length) gk.forEach(x => { k[idTxt(x.m)] = x.g; }); else if (gkOn && grs.length === 1) k[idTxt(grs[0].id)] = t.goalsAgainst; // só 1 guarda-redes convocado: pré-preenchido
+    setSc(a); setKp(k); setErr(""); setAberto(true);
+  };
+  const totSc = Object.values(sc).reduce((x, y) => x + y, 0), totKp = Object.values(kp).reduce((x, y) => x + y, 0);
+  const linhasSc = [...conv.map(m => idTxt(m.id)), ...Object.keys(sc).filter(k => !conv.some(m => idTxt(m.id) === k))];
+  const linhasKp = [...grs.map(m => idTxt(m.id)), ...Object.keys(kp).filter(k => !grs.some(m => idTxt(m.id) === k))];
+  const guardar = async () => {
+    if (busy) return;
+    const scorers = limpaMarcadores(Object.entries(sc).map(([k, g]) => ({ m:bruto(k), g }))), keepers = limpaGuardaRedes(Object.entries(kp).map(([k, g]) => ({ m:bruto(k), g })));
+    const e = atribuicaoErro(t.goalsFor, t.goalsAgainst, scorers, keepers); if (e) { setErr(e); return; }
+    setErr(""); setBusy(true);
+    try { await onSave(t.id, { scorers, keepers }); if (alive.current) { setAberto(false); setOkMsg(true); setTimeout(() => { if (alive.current) setOkMsg(false); }, 2500); } }
+    catch (x) { if (alive.current) setErr(errPt(x)); }
+    if (alive.current) setBusy(false);
+  };
+  const passo = { minWidth:44, minHeight:44, borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:20, fontWeight:800, cursor:"pointer", fontFamily:"inherit", padding:0 };
+  const Linha = ({ k, valor, set, max, nome }) => (
+    <div data-golos-linha={k} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+      <span style={{ flex:1, minWidth:0, fontSize:13, fontWeight:700, overflowWrap:"anywhere" }}>{nome}</span>
+      <button type="button" aria-label={`Menos um: ${nome}`} data-golos-menos={k} disabled={busy || valor <= 0} onClick={() => set(Math.max(0, valor - 1))} style={{ ...passo, opacity:valor <= 0 ? 0.4 : 1 }}>−</button>
+      <span data-golos-valor={k} style={{ minWidth:24, textAlign:"center", fontSize:18, fontWeight:900 }}>{valor}</span>
+      <button type="button" aria-label={`Mais um: ${nome}`} data-golos-mais={k} disabled={busy || max <= 0} onClick={() => set(valor + 1)} style={{ ...passo, opacity:max <= 0 ? 0.4 : 1 }}>+</button>
+    </div>
+  );
+  return (
+    <div data-golos-jogo style={{ marginTop:8 }}>
+      {!aberto && (atrib.length > 0 || gk.length > 0) && (
+        <div data-golos-resumo style={{ fontSize:12, lineHeight:"17px", color:T.text }}>
+          {atrib.length > 0 && <p data-golos-marcadores style={{ margin:"0 0 2px", overflowWrap:"anywhere" }}>⚽ {atrib.map(x => `${nomeDoMembro(equipa, x.m)} ${x.g}`).join(" · ")}{semAutor > 0 ? ` · sem autor ${semAutor}` : ""}</p>}
+          {gk.length > 0 && <p data-golos-guardaredes style={{ margin:"0 0 2px", overflowWrap:"anywhere" }}>🧤 {gk.map(x => `${nomeDoMembro(equipa, x.m)} ${plural(x.g, "golo sofrido", "golos sofridos")}`).join(" · ")}</p>}
+        </div>
+      )}
+      {okMsg && <p role="status" data-golos-ok style={{ margin:"2px 0", fontSize:12, fontWeight:700, color:T.green }}>✓ Golos guardados</p>}
+      {canEdit && !aberto && <button data-golos-abrir onClick={abrir} style={{ display:"block", width:"100%", minHeight:44, marginTop:4, borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{(atrib.length || gk.length) ? "✏️ Golos e guarda-redes" : "⚽ Quem marcou?"}</button>}
+      {canEdit && aberto && (
+        <div data-golos-editor style={{ marginTop:6, padding:"8px 10px", borderRadius:10, background:T.card, border:`1px solid ${T.border}` }}>
+          <p style={{ margin:"0 0 6px", fontSize:12, fontWeight:800, textTransform:"uppercase", letterSpacing:0.4, color:T.sub }}>Quem marcou?</p>
+          {linhasSc.map(k => <Linha key={k} k={k} valor={sc[k] || 0} nome={nomeDoMembro(equipa, k)} max={t.goalsFor - totSc} set={v => { setSc(p => ({ ...p, [k]: v })); setErr(""); }} />)}
+          <p data-golos-sem-autor style={{ margin:"4px 0 10px", fontSize:13, fontWeight:700, color:T.sub }}>Sem autor: {Math.max(0, t.goalsFor - totSc)} <span style={{ fontWeight:500 }}>(autogolos incluídos)</span></p>
+          {gkOn && (<>
+            <p style={{ margin:"0 0 6px", fontSize:12, fontWeight:800, textTransform:"uppercase", letterSpacing:0.4, color:T.sub }}>Guarda-redes (golos sofridos)</p>
+            {linhasKp.length === 0 && <p data-golos-sem-gr style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>Não há guarda-redes na convocatória (a posição do membro tem de ser "Guarda-redes").</p>}
+            {linhasKp.map(k => {
+              const on = Object.prototype.hasOwnProperty.call(kp, k), nome = nomeDoMembro(equipa, k);
+              return (
+                <div key={k} data-golos-gr={k} style={{ marginBottom:6 }}>
+                  <button type="button" data-golos-gr-escolher={k} aria-pressed={on} disabled={busy} onClick={() => { setErr(""); if (on) setKp(p => { const q = { ...p }; delete q[k]; return q; }); else if (Object.keys(kp).length >= 2) setErr("No máximo 2 guarda-redes por jogo."); else setKp(p => ({ ...p, [k]: 0 })); }}
+                    style={{ display:"block", width:"100%", minHeight:44, textAlign:"left", padding:"0 10px", borderRadius:10, border:`2px solid ${on ? team.color : T.border}`, background:on ? `${team.color}15` : "transparent", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", overflowWrap:"anywhere" }}>{on ? "✓ " : ""}{nome}</button>
+                  {on && <Linha k={"gr-" + k} valor={kp[k] || 0} nome="Golos sofridos" max={t.goalsAgainst - totKp} set={v => { setKp(p => ({ ...p, [k]: v })); setErr(""); }} />}
+                </div>
+              );
+            })}
+          </>)}
+          {err && <p role="alert" data-golos-erro style={{ margin:"4px 0 8px", color:"#B42318", fontSize:12, fontWeight:700, background:"#FFE5E5", borderRadius:8, padding:"6px 8px" }}>{err}</p>}
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            <button data-golos-guardar onClick={guardar} disabled={busy} style={{ flex:1, minWidth:96, minHeight:48, borderRadius:12, border:"none", background:busy ? T.border : team.color, color:"#fff", fontSize:15, fontWeight:800, cursor:busy ? "default" : "pointer", fontFamily:"inherit" }}>{busy ? "A guardar…" : "Guardar"}</button>
+            <button data-golos-limpar onClick={() => { setSc({}); setKp({}); setErr(""); }} disabled={busy} style={{ minHeight:48, padding:"0 12px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Limpar</button>
+            <button data-golos-cancelar onClick={() => { setAberto(false); setErr(""); }} disabled={busy} style={{ minHeight:48, padding:"0 12px", borderRadius:12, border:`1.5px solid ${T.border}`, background:"transparent", color:T.sub, fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Estatísticas da época (a mesma da classificação): melhores marcadores e guarda-redes. Só jogos com resultado; todos veem.
+const EstatisticasSecao = ({ trainings, team, members }) => {
+  const [todos, setTodos] = useState(false);
+  const est = estatisticasEpoca(trainings, team.id, new Date());
+  if (!est.ep || est.jogos === 0) return null;
+  const equipa = (members || []).filter(m => m.teamId === team.id);
+  const gkOn = !isFreeSport(team.sport);
+  const lista = todos ? est.marcadores : est.marcadores.slice(0, 5);
+  const media = x => x.media.toFixed(1).replace(".", ",");
+  const tit = { margin:"0 0 6px", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:0.5, color:T.sub };
+  return (
+    <div data-estatisticas style={{ padding:"10px 12px", marginBottom:10, borderRadius:12, background:T.card, border:`1px solid ${T.border}`, fontSize:13 }}>
+      <p style={{ margin:"0 0 8px", fontWeight:800 }}>Estatísticas {est.ep.ini.slice(0, 4)}/{est.ep.fim.slice(2, 4)}</p>
+      <p style={tit}>Melhores marcadores</p>
+      {est.marcadores.length === 0 && <p data-est-sem-marcadores style={{ margin:"0 0 6px", color:T.sub }}>Ainda sem marcadores atribuídos.</p>}
+      {lista.map((x, i) => (
+        <div key={idTxt(x.m)} data-est-marcador={idTxt(x.m)} style={{ display:"flex", gap:8, alignItems:"baseline", padding:"3px 0" }}>
+          <span style={{ width:18, color:T.sub, fontWeight:700 }}>{i + 1}</span>
+          <span style={{ flex:1, minWidth:0, fontWeight:700, overflowWrap:"anywhere" }}>{nomeDoMembro(equipa, x.m)}</span>
+          <b data-est-golos style={{ fontWeight:900, color:team.color }}>{x.g}</b>
+        </div>
+      ))}
+      {est.marcadores.length > 5 && <button data-est-ver-todos onClick={() => setTodos(!todos)} style={{ display:"block", minHeight:44, background:"transparent", border:"none", color:team.color, fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit", padding:"0 4px" }}>{todos ? "ver menos" : `ver todos (${est.marcadores.length})`}</button>}
+      {est.semAutor > 0 && <p data-est-sem-autor style={{ margin:"4px 0 8px", color:T.sub }}>{plural(est.semAutor, "golo sem autor", "golos sem autor")}</p>}
+      {gkOn && est.guardaRedes.length > 0 && (<>
+        <p style={{ ...tit, marginTop:8 }}>Guarda-redes</p>
+        <div style={{ display:"flex", gap:8, color:T.sub, fontSize:11, fontWeight:700, textTransform:"uppercase" }}><span style={{ flex:1 }}>Nome</span><span style={{ width:44, textAlign:"right" }}>Jogos</span><span style={{ width:56, textAlign:"right" }}>Sofridos</span><span style={{ width:44, textAlign:"right" }}>Média</span></div>
+        {est.guardaRedes.map(x => (
+          <div key={idTxt(x.m)} data-est-gr={idTxt(x.m)} style={{ display:"flex", gap:8, alignItems:"baseline", padding:"3px 0" }}>
+            <span style={{ flex:1, minWidth:0, fontWeight:700, overflowWrap:"anywhere" }}>{nomeDoMembro(equipa, x.m)}</span>
+            <span data-est-gr-jogos style={{ width:44, textAlign:"right" }}>{x.jogos}</span>
+            <span data-est-gr-sofridos style={{ width:56, textAlign:"right", fontWeight:800 }}>{x.sofridos}</span>
+            <span data-est-gr-media style={{ width:44, textAlign:"right" }}>{media(x)}</span>
+          </div>
+        ))}
+      </>)}
+    </div>
+  );
+};
+
+const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin, presences, onSetPresence, onAddType, onDelete, onEdit, onLogSession, onBack, modal, setModal, teamAdmin, onManageTeam }) => {
   const [showPast, setShowPast] = useState(false);
   const [filterType, setFilterType] = useState(null);
   const [collapsedMonths, setCollapsedMonths] = useState({});
@@ -3197,6 +3342,8 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
       {/* Content */}
       <div style={{ padding:"12px 16px 60px" }}>
         <ClassificacaoLinha trainings={trainings} team={team} />
+        <LinkLiga team={team} podeEditar={!!teamAdmin} onAdicionar={onManageTeam ? () => onManageTeam(team.id) : null} />
+        <EstatisticasSecao trainings={trainings} team={team} members={members} />
         {/* Recurring */}
         {recurring.length>0 && (
           <>
@@ -3277,7 +3424,7 @@ const TreinosPage = ({ tacticAdmin, team, trainings, members, myUserId, isAdmin,
         onEditJogo={t=>setEditTarget(t)}
         onDeleteJogo={t=>{ if (window.confirm("Eliminar este jogo? Não tem volta.")) onDelete(t.id); }}
         onResultado={t=>setResultTarget(t)}
-        onApagarResultado={t=>{ if (window.confirm("Apagar o resultado deste jogo? O jogo mantém-se.")) onEdit(t.id, { goalsFor:null, goalsAgainst:null }).catch(()=>{}); }} />}
+        onApagarResultado={t=>{ if (window.confirm("Apagar o resultado deste jogo? O jogo mantém-se.")) onEdit(t.id, { goalsFor:null, goalsAgainst:null, ...limpaAtribuicao(t) }).catch(()=>{}); }} />}
       {resultTarget && isAdmin && <ResultadoModal team={team} training={trainings.find(x=>x.id===resultTarget.id)||resultTarget} onSave={onEdit} onClose={()=>setResultTarget(null)} />}
       {modal==="treino"      && <AddSingleTrainingModal isAdmin={tacticAdmin} team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
       {modal==="recorrente"  && <AddRecurringModal isAdmin={tacticAdmin} team={team} onAdd={async t=>{await onAddType(t);setModal(null);}} onClose={()=>setModal(null)} />}
@@ -5039,7 +5186,7 @@ const FineTypesManager = ({ team, fineTypes, onAdded, onDeleted, onUpdated, toke
 
 const TeamDataSection = ({ team, onSave }) => {
   const opt = (list, cur) => (cur && !list.includes(cur)) ? [cur, ...list] : list;
-  const init = () => ({ name:team.name||"", emoji:team.emoji||"⚽", color:team.color||"#1D3557", season:team.season||"", sport:team.sport||"", currency:team.currency||"", country:team.country||"", city:team.city||"", postal:team.postal||"", tactic:team.tactic||"", force_rsvp:team.forceRsvp===true });
+  const init = () => ({ name:team.name||"", emoji:team.emoji||"⚽", color:team.color||"#1D3557", season:team.season||"", sport:team.sport||"", currency:team.currency||"", country:team.country||"", city:team.city||"", postal:team.postal||"", tactic:team.tactic||"", force_rsvp:team.forceRsvp===true, league_url:team.leagueUrl||"" });
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState(init);
   const [busy, setBusy] = useState(false);
@@ -5052,14 +5199,16 @@ const TeamDataSection = ({ team, onSave }) => {
   const legacyOutro = normSport(team.sport).toLowerCase() === SPORT_OTHER.toLowerCase(); // equipa antiga com "Outro": fica como está
   const sportIssue = sportSel === SPORT_OTHER ? sportOtherIssue(sportOther, legacyOutro) : "";
   const nameOk = !nameIssue, seasonOk = f.season.trim().length > 0;
-  const canSave = nameOk && seasonOk && !sportIssue && !busy;
+  const ligaLink = normalizaLinkLiga(f.league_url); // link da classificação: vazio apaga; só https
+  const canSave = nameOk && seasonOk && !sportIssue && ligaLink.ok && !busy;
   const open = () => { setCurAsk(null); setF(init()); const sp = sportSplit(team.sport); setSportSel(sp.sel); setSportOther(sp.text); setErr(""); setEditing(true); };
   const save = async () => {
     if (!canSave) return;
-    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:normPlace(f.city), postal:normPlace(f.postal), tactic:normTactic(f.tactic), force_rsvp:!!f.force_rsvp, sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
+    const cur = init(), next = { ...f, name:normTeamName(f.name), season:f.season.trim(), city:normPlace(f.city), postal:normPlace(f.postal), tactic:normTactic(f.tactic), force_rsvp:!!f.force_rsvp, league_url:ligaLink.url || "", sport:sportJoin(sportSel, sportOther, team.sport || SPORT_OTHER) };
     const patch = {};
     Object.keys(next).forEach(k => { if (next[k] !== cur[k] && !((k === "city" || k === "postal") && next[k] === normPlace(cur[k]))) patch[k] = next[k]; }); // cidade/postal antigos só diferem em espaços: não se reescrevem
     if (patch.tactic !== undefined) patch.tactic = patch.tactic || null; // apagar = voltar a "Por definir" (null)
+    if (patch.league_url !== undefined) patch.league_url = patch.league_url || null; // campo vazio apaga o link (null)
     if (!Object.keys(patch).length) { setEditing(false); return; }
     setBusy(true); setErr("");
     try { await onSave(team.id, patch); setEditing(false); }
@@ -5086,6 +5235,7 @@ const TeamDataSection = ({ team, onSave }) => {
           </div>
           <Val label="Nome" v={`${team.emoji||""} ${team.name||""}`.trim()} />
           <Val label="Obrigar a responder ao treino ou jogo" v={team.forceRsvp ? "Ligado" : "Desligado"} />
+          {team.leagueUrl && <Val label="Link da classificação" v={hostDoLink(team.leagueUrl)} />}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0" }}>
             <span style={{ fontSize:13, color:T.sub }}>Cor</span>
             <span style={{ width:20, height:20, borderRadius:10, background:team.color, display:"inline-block" }} />
@@ -5160,6 +5310,10 @@ const TeamDataSection = ({ team, onSave }) => {
             </div>
           </div>
           <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.sub }}>Usado para a previsão do tempo nos treinos e jogos.</p>
+          <FL>Link da classificação (liga ou federação)</FL>
+          <FI value={f.league_url} onChange={e=>{ set("league_url", e.target.value); setErr(""); }} placeholder="https://liga.pt/classificacao" inputMode="url" autoCapitalize="none" autoCorrect="off" spellCheck={false} data-league-url aria-label="Link da classificação (liga ou federação)" />
+          {!ligaLink.ok && <p role="alert" data-league-error style={{ margin:"-6px 0 10px", fontSize:13, fontWeight:700, color:"#B42318" }}>{ligaLink.erro}</p>}
+          <p style={{ margin:"-8px 0 14px", fontSize:12, color:T.sub }}>Opcional. Aparece aos jogadores como botão por baixo da classificação (só o domínio). Deixa vazio para apagar.</p>
           {(!nameOk || !seasonOk) && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:T.brand }}>{!nameOk ? "O nome não pode ficar vazio." : "A época não pode ficar vazia."}</p>}
           {err && <p style={{ margin:"0 0 10px", fontSize:13, fontWeight:600, color:T.brand }}>{err}</p>}
           <div style={{ display:"flex", gap:10 }}>
@@ -5620,7 +5774,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
   );
 };
 
-const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin, absences, absHandlers, readOnly }) => {
+const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDeleteFine, isAdmin, absences, absHandlers, readOnly, trainings }) => {
   const money = useMoney();
   const [ptab, setPtab] = useState("multas");
   const [adding, setAdding] = useState(false);
@@ -5629,6 +5783,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
   const pf = fines.filter(f=>f.teamId===team.id&&f.memberId===member.id).sort(byDayDesc);
   const unpaid = pf.filter(f=>!f.paid).reduce((s,f)=>s+f.amount,0);
   const paid = pf.filter(f=>f.paid).reduce((s,f)=>s+f.amount,0);
+  const golosEpoca = golosEpocaMembro(trainings || [], team.id, member.id); // golos da época atual (mesma época da classificação)
   return (
     <div style={{ background:T.bg, minHeight:"100vh" }}>
       <div style={{ background:`linear-gradient(135deg, ${team.color}, ${team.color}bb)`, padding:"16px 16px 24px", color:"#fff", textAlign:"center" }}>
@@ -5640,6 +5795,7 @@ const MemberDetailScreen = ({ member, team, fines, onBack, onTogglePaid, onDelet
         <p style={{ margin:0, opacity:0.7, fontSize:14 }}>{`${member.position ? member.position + " · " : ""}${member.role==="admin"?"Admin":roleWord(team.sport)}`}</p>
         {member.phone && <p style={{ margin:"4px 0 0", opacity:0.6, fontSize:13 }}>📱 {member.phone}</p>}
         {member.birthday && <p style={{ margin:"2px 0 0", opacity:0.6, fontSize:13 }}>🎂 {fmtDate(member.birthday)}</p>}
+        {golosEpoca > 0 && <p data-golos-epoca style={{ margin:"4px 0 0", opacity:0.85, fontSize:13, fontWeight:700 }}>⚽ {plural(golosEpoca, "golo", "golos")} nesta época</p>}
         <div style={{ display:"flex", justifyContent:"center", gap:28, marginTop:18 }}>
           <div><p style={{ margin:0, fontSize:24, fontWeight:900, color:"#FFD6D6" }}>{money(unpaid)}</p><p style={{ margin:0, fontSize:11, opacity:0.7 }}>POR PAGAR</p></div>
           <div style={{ width:1, background:"rgba(255,255,255,0.2)" }} />
@@ -6974,6 +7130,8 @@ export default function App() {
     }
     // Adicionar a equipa ao state se ainda não estiver
     setTeams(prev => prev.some(x => x.id === t.id) ? prev : [...prev, t]);
+    // já é membro: ler a equipa completa (inclui o link da liga, que a procura por código não traz)
+    try { const tr = await api.get(`teams?id=eq.${t.id}`, token); if (Array.isArray(tr) && tr[0]) setTeams(prev => prev.map(x => x.id === t.id ? { ...x, ...aTeam(tr[0]) } : x)); } catch(e) { console.warn('teams reload after join failed:', e && e.message); }
     await switchTeam(t.id);
   };
   const findTeamByCode = async code => {
@@ -6987,7 +7145,7 @@ export default function App() {
     let d = null;
     try { d = await r.json(); } catch(e) { d = null; }
     const t = Array.isArray(d) ? d[0] : d;
-    return t?.id ? aTeam({...t, invite_code: t.invite_code}) : null;
+    return t?.id ? aTeam({...t, invite_code: t.invite_code, league_url: undefined}) : null; // o link da liga não é usado a partir desta procura (só quem já é membro o lê)
   };
 
   const [pendingInvite, setPendingInvite] = useState(() => {
@@ -7320,10 +7478,10 @@ export default function App() {
       {roBanner}
       {loadWarnBox}
       {toastBox}
-      <TreinosPage tacticAdmin={isAdmin} team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSessionOcc} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} />
+      <TreinosPage tacticAdmin={isAdmin} team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSessionOcc} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} teamAdmin={!roMode && !!team && (members.some(m=>m.teamId===team.id&&m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId)} onManageTeam={id=>setSub({type:"manage",data:id})} />
     </div></MoneyCtx.Provider>
   );
-  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
+  if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} trainings={trainings} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
     return wrap(<MoneyCtx.Provider value={teamCur(mt)}><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</MoneyCtx.Provider>);
