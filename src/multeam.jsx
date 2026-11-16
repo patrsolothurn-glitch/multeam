@@ -7478,7 +7478,7 @@ export default function App() {
       {roBanner}
       {loadWarnBox}
       {toastBox}
-      <TreinosPage tacticAdmin={isAdmin} team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSessionOcc} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} teamAdmin={!roMode && !!team && (members.some(m=>m.teamId===team.id&&m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId)} onManageTeam={id=>setSub({type:"manage",data:id})} />
+      <TreinosPage tacticAdmin={isAdmin} team={team} trainings={trainings} members={members} myUserId={roMode?null:myUserId} isAdmin={canManageTrainings} presences={presences} onSetPresence={roMode?null:setPresence} onAddType={addTraining} onDelete={delTraining} onEdit={editTraining} onLogSession={logSessionOcc} onBack={()=>setTab("home")} modal={treinosModal} setModal={setTreinosModal} teamAdmin={!roMode && !!team && (members.some(m=>m.teamId===team.id&&m.userId===myUserId&&m.role==="admin") || team.createdBy===myUserId)} onManageTeam={id=>{ setTab("geral"); setSub({type:"manage",data:id}); }} />
     </div></MoneyCtx.Provider>
   );
   if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} trainings={trainings} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);

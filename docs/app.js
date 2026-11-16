@@ -28493,7 +28493,8 @@ function App() {
       return m.teamId === team.id && m.userId === myUserId && m.role === "admin";
     }) || team.createdBy === myUserId),
     onManageTeam: function onManageTeam(id) {
-      return setSub({
+      setTab("geral");
+      setSub({
         type: "manage",
         data: id
       });
