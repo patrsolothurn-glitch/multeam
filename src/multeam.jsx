@@ -2967,14 +2967,12 @@ const ResultadoCartao = ({ t, team, canEdit, onSave, members }) => {
           <span data-cartao-golos-valor={l.chave} style={{ fontSize:30, fontWeight:900, lineHeight:"36px", minWidth:36, textAlign:"right", color:T.text }}>{l.golos}</span>
         </div>
       ))}
-      <GolosJogo t={t} team={team} members={members} canEdit={canEdit} onSave={onSave} />
-      {canEdit && (
-        <div style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:6 }}>
-          {err && <p role="alert" data-cartao-erro style={{ margin:"auto auto auto 0", color:"#B42318", fontSize:12, fontWeight:700 }}>{err}</p>}
-          <button data-cartao-acao="editar" aria-label="Editar resultado" title="Editar resultado" onClick={abrirEdicao} disabled={busy} style={caixa.btn}>✏️</button>
-          <button data-cartao-acao="apagar" aria-label="Apagar resultado" title="Apagar resultado" onClick={apagar} disabled={busy} style={caixa.btn}>🗑️</button>
-        </div>
-      )}
+      {/* ✏️/🗑️ vão para a mesma linha do botão dos golos (GolosJogo); com o editor de golos aberto ficam por baixo dele, como antes */}
+      <GolosJogo t={t} team={team} members={members} canEdit={canEdit} onSave={onSave} acoes={canEdit ? (<>
+        <button data-cartao-acao="editar" aria-label="Editar resultado" title="Editar resultado" onClick={abrirEdicao} disabled={busy} style={{ ...caixa.btn, flexShrink:0 }}>✏️</button>
+        <button data-cartao-acao="apagar" aria-label="Apagar resultado" title="Apagar resultado" onClick={apagar} disabled={busy} style={{ ...caixa.btn, flexShrink:0 }}>🗑️</button>
+      </>) : null} />
+      {canEdit && err && <p role="alert" data-cartao-erro style={{ margin:"6px 0 0", color:"#B42318", fontSize:12, fontWeight:700 }}>{err}</p>}
     </div>
   );
 };
@@ -3158,12 +3156,25 @@ const LinkLiga = ({ team, podeEditar, onAdicionar }) => {
 const ehGuardaRedes = m => normTxt(m && m.position) === "guarda-redes";
 const nomeDoMembro = (members, id) => { const m = (members || []).find(x => idTxt(x.id) === idTxt(id)); return m ? m.name : "ex-membro"; };
 // Golos por jogador e guarda-redes no cartão do jogo: todos veem o resumo; o admin atribui, altera e limpa (tudo opcional). Só jogos com resultado.
-const GolosJogo = ({ t, team, members, canEdit, onSave }) => {
+const GolosJogo = ({ t, team, members, canEdit, onSave, acoes }) => {
   const [aberto, setAberto] = useState(false);
   const [sc, setSc] = useState({}); const [kp, setKp] = useState({});
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [okMsg, setOkMsg] = useState(false);
   const alive = React.useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
+  // botão "Golos e guarda-redes" na mesma linha que ✏️/🗑️: se o texto completo não couber, mostra só "Golos" (sem cortar nem quebrar)
+  const [nivel, setNivel] = useState(0); // 0 = texto completo, 1 = "Golos" com o ícone, 2 = só o ícone (ecrãs muito estreitos; o nome acessível é sempre o completo)
+  const btnRef = React.useRef(null), medeRef = React.useRef(null), mede1Ref = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const b = btnRef.current, m = medeRef.current, m1 = mede1Ref.current;
+    if (!b || !m || !m1) return;
+    const ajusta = () => { const w = b.getBoundingClientRect().width, n = m.getBoundingClientRect().width + 24 <= w ? 0 : m1.getBoundingClientRect().width + 10 <= w ? 1 : 2; setNivel(c => (c === n ? c : n)); };
+    ajusta();
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(ajusta); ro.observe(b); } else window.addEventListener("resize", ajusta);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(ajusta).catch(() => {});
+    return () => { if (ro) ro.disconnect(); else window.removeEventListener("resize", ajusta); };
+  });
   if (!temResultado(t)) return null;
   const gkOn = !isFreeSport(team.sport); // guarda-redes só nos desportos de futebol/futsal e variantes; em "Outro" só marcadores
   const equipa = (members || []).filter(m => m.teamId === team.id);
@@ -3171,6 +3182,7 @@ const GolosJogo = ({ t, team, members, canEdit, onSave }) => {
   const grs = conv.filter(ehGuardaRedes);
   const atrib = limpaMarcadores(t.scorers), gk = limpaGuardaRedes(t.keepers);
   const semAutor = Math.max(0, t.goalsFor - somaG(atrib));
+  const rotuloGolos = (atrib.length || gk.length) ? "✏️ Golos e guarda-redes" : "⚽ Quem marcou?", rotuloCurto = (atrib.length || gk.length) ? "✏️ Golos" : "⚽ Golos";
   const bruto = k => { const m = equipa.find(x => idTxt(x.id) === k); return m ? m.id : (atrib.concat(gk).find(x => idTxt(x.m) === k) || { m:k }).m; };
   const abrir = () => {
     const a = {}; atrib.forEach(x => { a[idTxt(x.m)] = x.g; });
@@ -3199,15 +3211,22 @@ const GolosJogo = ({ t, team, members, canEdit, onSave }) => {
     </div>
   );
   return (
-    <div data-golos-jogo style={{ marginTop:8 }}>
+    <div data-golos-jogo style={{ marginTop:8, minWidth:0 }}>
       {!aberto && (atrib.length > 0 || gk.length > 0) && (
         <div data-golos-resumo style={{ fontSize:12, lineHeight:"17px", color:T.text }}>
-          {atrib.length > 0 && <p data-golos-marcadores style={{ margin:"0 0 2px", overflowWrap:"anywhere" }}>⚽ {atrib.map(x => `${nomeDoMembro(equipa, x.m)} ${x.g}`).join(" · ")}{semAutor > 0 ? ` · sem autor ${semAutor}` : ""}</p>}
-          {gk.length > 0 && <p data-golos-guardaredes style={{ margin:"0 0 2px", overflowWrap:"anywhere" }}>🧤 {gk.map(x => `${nomeDoMembro(equipa, x.m)} ${plural(x.g, "golo sofrido", "golos sofridos")}`).join(" · ")}</p>}
+          {atrib.length > 0 && <p data-golos-marcadores style={{ margin:"0 0 2px", overflowWrap:"anywhere" }}>⚽ {atrib.map((x, i) => <React.Fragment key={idTxt(x.m)}>{i > 0 ? " · " : ""}<strong>{`${nomeDoMembro(equipa, x.m)} ${x.g}`}</strong></React.Fragment>)}{semAutor > 0 ? ` · sem autor ${semAutor}` : ""}</p>}
+          {gk.length > 0 && <p data-golos-guardaredes style={{ margin:"0 0 2px", overflowWrap:"anywhere" }}>🧤 {gk.map((x, i) => <React.Fragment key={idTxt(x.m)}>{i > 0 ? " · " : ""}<strong>{nomeDoMembro(equipa, x.m)}</strong>{" "}<strong>{x.g}</strong>{` ${x.g === 1 ? "golo sofrido" : "golos sofridos"}`}</React.Fragment>)}</p>}
         </div>
       )}
       {okMsg && <p role="status" data-golos-ok style={{ margin:"2px 0", fontSize:12, fontWeight:700, color:T.green }}>✓ Golos guardados</p>}
-      {canEdit && !aberto && <button data-golos-abrir onClick={abrir} style={{ display:"block", width:"100%", minHeight:44, marginTop:4, borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{(atrib.length || gk.length) ? "✏️ Golos e guarda-redes" : "⚽ Quem marcou?"}</button>}
+      {canEdit && !aberto && (
+        <div data-golos-acoes style={{ display:"flex", gap:6, alignItems:"center", marginTop:6, position:"relative", minWidth:0 }}>
+          <button ref={btnRef} data-golos-abrir onClick={abrir} aria-label={rotuloGolos} style={{ flex:"1 1 0px", width:0, minWidth:0, minHeight:44, padding:nivel === 0 ? "0 12px" : "0 4px", boxSizing:"border-box", borderRadius:10, border:`1.5px solid ${T.border}`, background:"transparent", color:T.text, fontSize:13, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", cursor:"pointer", fontFamily:"inherit" }}>{nivel === 0 ? rotuloGolos : nivel === 1 ? rotuloCurto : rotuloCurto.split(" ")[0]}</button>
+          <span ref={medeRef} aria-hidden="true" style={{ position:"absolute", visibility:"hidden", pointerEvents:"none", whiteSpace:"nowrap", fontSize:13, fontWeight:700, fontFamily:"inherit", left:0, top:0 }}>{rotuloGolos}</span>
+          <span ref={mede1Ref} aria-hidden="true" style={{ position:"absolute", visibility:"hidden", pointerEvents:"none", whiteSpace:"nowrap", fontSize:13, fontWeight:700, fontFamily:"inherit", left:0, top:0 }}>{rotuloCurto}</span>
+          {acoes}
+        </div>
+      )}
       {canEdit && aberto && (
         <div data-golos-editor style={{ marginTop:6, padding:"8px 10px", borderRadius:10, background:T.card, border:`1px solid ${T.border}` }}>
           <p style={{ margin:"0 0 6px", fontSize:12, fontWeight:800, textTransform:"uppercase", letterSpacing:0.4, color:T.sub }}>Quem marcou?</p>
@@ -3235,6 +3254,7 @@ const GolosJogo = ({ t, team, members, canEdit, onSave }) => {
           </div>
         </div>
       )}
+      {canEdit && aberto && acoes && <div data-golos-acoes-baixo style={{ display:"flex", gap:8, justifyContent:"flex-end", marginTop:6 }}>{acoes}</div>}
     </div>
   );
 };
