@@ -79,6 +79,9 @@
     .feat { display:grid; gap:44px; margin-top:44px; }
     .f { display:grid; gap:22px; align-items:center; }
     .f .phone { width:min(230px,62vw); background:#14213d; border-color:#cdd5e4; box-shadow:0 14px 30px rgba(20,33,61,.22); }
+    .duo { display:grid; grid-template-columns:1fr 1fr; gap:12px; width:min(100%,480px); margin:0 auto; }
+    .f .duo .phone { width:100%; border-radius:26px; padding:6px; }
+    .f .duo .phone img { border-radius:20px; }
     .f h3 { font-size:clamp(23px,4.5vw,28px); font-weight:900; color:var(--navy); }
     .f p { margin-top:10px; color:var(--mute); }
     .f ul { margin:14px 0 0; padding:0; list-style:none; display:grid; gap:8px; }
@@ -121,6 +124,9 @@
       .f { grid-template-columns:260px 1fr; gap:48px; }
       .f.rev { grid-template-columns:1fr 260px; }
       .f.rev .phone { order:2; }
+    .f.rev:has(.duo) { grid-template-columns:1fr 500px; }
+    .f.rev .duo { order:2; }
+    .f .duo .phone { width:auto; }
       .f .phone { width:240px; }
       .stepgrid { grid-template-columns:repeat(3,1fr); }
       .step { padding:78px 22px 24px; }
@@ -160,7 +166,7 @@
           </div>
           <div class="cta-video"><a class="btn-video" href="#demo">▶ Ver como funciona (37 s)</a></div>
           <p class="cta-sub">Serve para futebol, futsal, karaté, padel e qualquer outro desporto.</p>
-          <p class="cta-novo">Novo: jogos com resultado, pontos e classificação da época.</p>
+          <p class="cta-novo">Novo: golos por jogador, estatísticas da época e link da classificação da liga.</p>
         </div>
         <div class="phone"><img src="jogo-cartao.webp" width="390" height="780" alt="Ecrã Treinos / Jogos da Multeam: a classificação da época e o cartão de um jogo com o resultado 1–1 em grande e Empate · 1 ponto" fetchpriority="high" /></div>
       </div>
@@ -219,7 +225,10 @@
             </div>
           </article>
           <article class="f rev">
-            <div class="phone"><img src="jogos.webp" width="390" height="780" loading="lazy" alt="Painel Jogos com o jogo atual, o próximo jogo sem resultado, o arquivo e a classificação da época com vitórias, empates, derrotas e pontos" /></div>
+            <div class="duo">
+              <div class="phone"><img src="jogos.webp" width="390" height="780" loading="lazy" alt="Painel Jogos com o jogo atual, o próximo jogo sem resultado, o arquivo e a classificação da época com vitórias, empates, derrotas e pontos" /></div>
+              <div class="phone"><img src="estatisticas.webp" width="390" height="780" loading="lazy" alt="Página de treinos e jogos com a classificação da época, o botão da classificação da liga, as estatísticas com melhores marcadores e guarda-redes e o resultado de um jogo com quem marcou" /></div>
+            </div>
             <div>
               <h3>Jogos, resultados e classificação</h3>
               <p>Cria cada jogo com o adversário, a data e a hora, o local, a tática e se é em casa ou fora. O resultado é opcional: podes marcar o jogo sem resultado e registá-lo depois.</p>
@@ -229,6 +238,9 @@
                 <li>Classificação com vitórias, empates, derrotas e pontos, por época (de 1 de julho a 30 de junho)</li>
                 <li>O jogo passa sozinho para o arquivo 2 horas depois do início</li>
                 <li>Convocatória com o nome e a sigla da posição de cada jogador (por exemplo GR, DC, MC), ao criar e ao editar o jogo</li>
+                <li>Golos por jogador: depois de pôr o resultado, quem gere a equipa indica quem marcou (“Quem marcou?”) e quem esteve na baliza. É opcional e pode ser editado e apagado</li>
+                <li>Estatísticas da época (de 1 de julho a 30 de junho): melhores marcadores e guarda-redes, com jogos, golos sofridos e média por jogo</li>
+                <li>Link da classificação da liga: quem gere a equipa põe o link da liga ou da federação e a equipa abre-o no botão “Classificação da liga”</li>
               </ul>
             </div>
           </article>
