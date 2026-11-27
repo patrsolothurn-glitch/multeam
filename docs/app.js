@@ -7472,7 +7472,7 @@ var JoinTeamModal = function JoinTeamModal(_ref89) {
         while (1) switch (_context40.n) {
           case 0:
             _context40.n = 1;
-            return onJoin(found);
+            return onJoin(found, searchedCode);
           case 1:
             setJoined(true);
           case 2:
@@ -27143,61 +27143,74 @@ function App() {
     };
   }();
   var joinTeam = function () {
-    var _ref332 = _asyncToGenerator(_regenerator().m(function _callee140(t) {
-      var _e$message, tr, _t174, _t175;
+    var _ref332 = _asyncToGenerator(_regenerator().m(function _callee140(t, code) {
+      var raw, tr, _t174, _t175;
       return _regenerator().w(function (_context140) {
         while (1) switch (_context140.p = _context140.n) {
           case 0:
             _context140.p = 0;
             _context140.n = 1;
-            return api.insert('team_members', {
-              team_id: t.id,
-              user_id: myUserId,
-              role: 'player'
+            return rpcCall('join_team_with_code', {
+              p_code: String(code || t.inviteCode || "").trim().toUpperCase()
             }, token);
           case 1:
-            _context140.n = 3;
+            _context140.n = 5;
             break;
           case 2:
             _context140.p = 2;
             _t174 = _context140.v;
-            if ((_e$message = _t174.message) !== null && _e$message !== void 0 && _e$message.includes('duplicate key')) {
+            raw = String(_t174 && _t174.message || "");
+            if (!/invalid code/i.test(raw)) {
               _context140.n = 3;
+              break;
+            }
+            alert("Código não encontrado. Confirma com o admin.");
+            return _context140.a(2);
+          case 3:
+            if (!/not authenticated/i.test(raw)) {
+              _context140.n = 4;
+              break;
+            }
+            alert("A sessão expirou. Entra outra vez.");
+            return _context140.a(2);
+          case 4:
+            if (raw.includes('duplicate key')) {
+              _context140.n = 5;
               break;
             }
             alert("Erro ao entrar na equipa: ".concat(errPt(_t174, "tenta novamente")));
             return _context140.a(2);
-          case 3:
+          case 5:
             setTeams(function (prev) {
               return prev.some(function (x) {
                 return x.id === t.id;
               }) ? prev : [].concat(_toConsumableArray(prev), [t]);
             });
-            _context140.p = 4;
-            _context140.n = 5;
+            _context140.p = 6;
+            _context140.n = 7;
             return api.get("teams?id=eq.".concat(t.id), token);
-          case 5:
+          case 7:
             tr = _context140.v;
             if (Array.isArray(tr) && tr[0]) setTeams(function (prev) {
               return prev.map(function (x) {
                 return x.id === t.id ? _objectSpread(_objectSpread({}, x), aTeam(tr[0])) : x;
               });
             });
-            _context140.n = 7;
+            _context140.n = 9;
             break;
-          case 6:
-            _context140.p = 6;
+          case 8:
+            _context140.p = 8;
             _t175 = _context140.v;
             console.warn('teams reload after join failed:', _t175 && _t175.message);
-          case 7:
-            _context140.n = 8;
+          case 9:
+            _context140.n = 10;
             return switchTeam(t.id);
-          case 8:
+          case 10:
             return _context140.a(2);
         }
-      }, _callee140, null, [[4, 6], [0, 2]]);
+      }, _callee140, null, [[6, 8], [0, 2]]);
     }));
-    return function joinTeam(_x96) {
+    return function joinTeam(_x96, _x97) {
       return _ref332.apply(this, arguments);
     };
   }();
@@ -27248,7 +27261,7 @@ function App() {
         }
       }, _callee141, null, [[3, 5]]);
     }));
-    return function findTeamByCode(_x97) {
+    return function findTeamByCode(_x98) {
       return _ref333.apply(this, arguments);
     };
   }();
@@ -27377,7 +27390,7 @@ function App() {
         }
       }, _callee142, null, [[9, 11], [3, 7], [1, 14]]);
     }));
-    return function subscribeToPush(_x98, _x99) {
+    return function subscribeToPush(_x99, _x100) {
       return _ref334.apply(this, arguments);
     };
   }();
@@ -27447,7 +27460,7 @@ function App() {
         }
       }, _callee143);
     }));
-    return function checkPush(_x100, _x101, _x102) {
+    return function checkPush(_x101, _x102, _x103) {
       return _ref335.apply(this, arguments);
     };
   }();
@@ -27544,7 +27557,7 @@ function App() {
         }
       }, _callee144, null, [[4, 6], [2, 9]]);
     }));
-    return function sendPushToTeam(_x103, _x104, _x105, _x106) {
+    return function sendPushToTeam(_x104, _x105, _x106, _x107) {
       return _ref336.apply(this, arguments);
     };
   }();
@@ -27573,7 +27586,7 @@ function App() {
         }
       }, _callee145);
     }));
-    return function addFineWithToast(_x107) {
+    return function addFineWithToast(_x108) {
       return _ref337.apply(this, arguments);
     };
   }();
@@ -27622,7 +27635,7 @@ function App() {
         }
       }, _callee146);
     }));
-    return function addCardWithAlert(_x108) {
+    return function addCardWithAlert(_x109) {
       return _ref338.apply(this, arguments);
     };
   }();
@@ -27717,7 +27730,7 @@ function App() {
         }
       }, _callee147, null, [[2, 4]]);
     }));
-    return function (_x109) {
+    return function (_x110) {
       return _ref339.apply(this, arguments);
     };
   }(), []);
@@ -27818,7 +27831,7 @@ function App() {
         }
       }, _callee148);
     }));
-    return function restoreSession(_x110) {
+    return function restoreSession(_x111) {
       return _ref340.apply(this, arguments);
     };
   }();
@@ -28363,12 +28376,12 @@ function App() {
     onListClaimable: listClaimable,
     onRequestClaim: requestClaim,
     onJoin: (function () {
-      var _ref342 = _asyncToGenerator(_regenerator().m(function _callee150(t) {
+      var _ref342 = _asyncToGenerator(_regenerator().m(function _callee150(t, c) {
         return _regenerator().w(function (_context150) {
           while (1) switch (_context150.n) {
             case 0:
               _context150.n = 1;
-              return joinTeam(t);
+              return joinTeam(t, c);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
@@ -28377,7 +28390,7 @@ function App() {
           }
         }, _callee150);
       }));
-      return function (_x111) {
+      return function (_x112, _x113) {
         return _ref342.apply(this, arguments);
       };
     }()),
@@ -28423,7 +28436,7 @@ function App() {
           }
         }, _callee151, null, [[0, 2]]);
       }));
-      return function (_x112) {
+      return function (_x114) {
         return _ref343.apply(this, arguments);
       };
     }()),
@@ -28526,12 +28539,12 @@ function App() {
     onListClaimable: listClaimable,
     onRequestClaim: requestClaim,
     onJoin: (function () {
-      var _ref344 = _asyncToGenerator(_regenerator().m(function _callee152(t) {
+      var _ref344 = _asyncToGenerator(_regenerator().m(function _callee152(t, c) {
         return _regenerator().w(function (_context152) {
           while (1) switch (_context152.n) {
             case 0:
               _context152.n = 1;
-              return joinTeam(t);
+              return joinTeam(t, c);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
@@ -28540,7 +28553,7 @@ function App() {
           }
         }, _callee152);
       }));
-      return function (_x113) {
+      return function (_x115, _x116) {
         return _ref344.apply(this, arguments);
       };
     }()),
@@ -29066,7 +29079,7 @@ function App() {
           }
         }, _callee153, null, [[0, 2]]);
       }));
-      return function (_x114) {
+      return function (_x117) {
         return _ref345.apply(this, arguments);
       };
     }()),
@@ -29080,12 +29093,12 @@ function App() {
     onListClaimable: listClaimable,
     onRequestClaim: requestClaim,
     onJoin: (function () {
-      var _ref346 = _asyncToGenerator(_regenerator().m(function _callee154(t) {
+      var _ref346 = _asyncToGenerator(_regenerator().m(function _callee154(t, c) {
         return _regenerator().w(function (_context154) {
           while (1) switch (_context154.n) {
             case 0:
               _context154.n = 1;
-              return joinTeam(t);
+              return joinTeam(t, c);
             case 1:
               setPendingInvite(null);
               window.history.replaceState({}, document.title, window.location.pathname);
@@ -29094,7 +29107,7 @@ function App() {
           }
         }, _callee154);
       }));
-      return function (_x115) {
+      return function (_x118, _x119) {
         return _ref346.apply(this, arguments);
       };
     }()),

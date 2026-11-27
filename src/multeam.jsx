@@ -2109,7 +2109,7 @@ const JoinTeamModal = ({ teams, user, onFindByCode, onJoin, onClose, initialCode
     setClaimBusy(null);
   };
   const alreadyMember = found && found !== "notfound" && teams.some(t => t.id === found.id);
-  const accept = async () => { await onJoin(found); setJoined(true); };
+  const accept = async () => { await onJoin(found, searchedCode); setJoined(true); };
   const offerClaims = claimable.length > 0 && !alreadyMember && !!onRequestClaim;
   return (
     <Sheet title="🔗 Entrar numa equipa" onClose={onClose}>
@@ -7138,11 +7138,16 @@ export default function App() {
   // depois de aprovar/rejeitar (admin): recarregar os membros da equipa e os contadores
   const claimsChanged = async () => { await refresh(); await refreshClaims(); };
 
-  const joinTeam = async t => {
+  // Entrar numa equipa: SÓ pela função join_team_with_code (security definer; valida o código de convite e insere o membro como 'player').
+  // Já não há insert direto em team_members (a policy tm_join deixa de existir). Já ser membro não é erro (a função não duplica).
+  const joinTeam = async (t, code) => {
     try {
-      await api.insert('team_members',{team_id:t.id,user_id:myUserId,role:'player'},token);
+      await rpcCall('join_team_with_code', { p_code:String(code || t.inviteCode || "").trim().toUpperCase() }, token);
     } catch(e) {
-      if (!e.message?.includes('duplicate key')) {
+      const raw = String(e && e.message || "");
+      if (/invalid code/i.test(raw)) { alert("Código não encontrado. Confirma com o admin."); return; }
+      if (/not authenticated/i.test(raw)) { alert("A sessão expirou. Entra outra vez."); return; }
+      if (!raw.includes('duplicate key')) {
         alert(`Erro ao entrar na equipa: ${errPt(e, "tenta novamente")}`);
         return;
       }
@@ -7470,7 +7475,7 @@ export default function App() {
         ))}
       </div>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async (t,c)=>{await joinTeam(t,c);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
       {modal==="profile" && <EditProfileModal user={profile||{}} onSave={async u=>{
         try { needRows(await api.patch(`profiles?id=eq.${myUserId}`,{name:u.name,phone:u.phone||null,birthday:u.birthday||null,avatar_url:u.avatarUrl||null,position:u.position||null},token)); }
         catch(e){ writeFailed("guardar o perfil", e); return; }
@@ -7489,7 +7494,7 @@ export default function App() {
       <button onClick={()=>setModal("team")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none", background:T.navy, color:"#fff", fontWeight:800, cursor:"pointer", marginBottom:10, fontFamily:"inherit" }}>➕ Criar equipa</button>
       <button onClick={()=>setModal("join")} style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:`1.5px solid ${T.navy}`, background:"transparent", color:T.navy, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🔗 Entrar com código</button>
       {modal==="team" && <CreateTeamModal onAdd={createTeam} onClose={()=>setModal(null)} />}
-      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="join" && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async (t,c)=>{await joinTeam(t,c);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div>
   );
 
@@ -7564,7 +7569,7 @@ export default function App() {
         setProfile(p=>freeSport ? ({...p,...u,position:p.position}) : ({...p,...u}));
         await editMember(members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.id,u);
       }} onClose={()=>setModal(null)} />}
-      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async t=>{await joinTeam(t);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
+      {modal==="join"    && <JoinTeamModal teams={teams} user={profile} onFindByCode={findTeamByCode} onListClaimable={listClaimable} onRequestClaim={requestClaim} onJoin={async (t,c)=>{await joinTeam(t,c);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} initialCode={pendingInvite||""} onClose={()=>{setModal(null);setPendingInvite(null);window.history.replaceState({},document.title,window.location.pathname);}} />}
     </div></MoneyCtx.Provider>
   );
 }
