@@ -3591,6 +3591,50 @@ const parseAdminUsers = (tot, ov) => {
   return { totals: { users: num(t.users), a7: num(t.active_7d), a30: num(t.active_30d) }, teams };
 };
 
+// ── Atividade por equipa (separador Equipas, só super admin) ──
+// Só datas e números por equipa, calculados no ecrã a partir da resposta da rpc get_admin_teams_overview (a mesma da aba Users): nada novo na base de dados.
+// "Ação" = multa atribuída (data da multa) ou multa paga (data do pagamento). Última atividade = o mais recente entre uma ação e o último login de um membro.
+// Datas futuras ignoram-se. Nunca sai daqui um nome, email ou telefone: só a data da última atividade e as contagens.
+const atividadeEquipa = (team, agora) => {
+  const now = agora instanceof Date ? agora.getTime() : Number(agora);
+  const ts = v => { const t = v ? Date.parse(v) : NaN; return Number.isFinite(t) && t <= now ? t : null; };
+  let ultima = null, a7 = 0, a30 = 0;
+  const marca = t => { if (t !== null && (ultima === null || t > ultima)) ultima = t; };
+  ((team && Array.isArray(team.members)) ? team.members : []).forEach(m => {
+    if (!m) return;
+    marca(ts(m.last));
+    (Array.isArray(m.fines) ? m.fines : []).forEach(f => {
+      [f && f.date, f && f.paidAt].forEach(v => { const t = ts(v); if (t === null) return; marca(t); const d = now - t; if (d <= 7 * ADMIN_DAY) a7++; if (d <= 30 * ADMIN_DAY) a30++; });
+    });
+  });
+  const dias = ultima === null ? null : Math.floor((now - ultima) / ADMIN_DAY);
+  return { ultima: ultima === null ? null : new Date(ultima).toISOString(), dias, a7, a30, estado: dias !== null && dias < 7 ? "ativa" : dias !== null && dias < 30 ? "pouca" : "parada" };
+};
+const ATIV_ROTULO = { ativa:"Ativa", pouca:"Pouco ativa", parada:"Parada" };
+const AtividadeEquipa = ({ act, teamId }) => {
+  if (act.status !== "ok") return null; // a carregar ou com erro: o aviso aparece uma vez por cima da lista
+  const eq = (act.data.teams || []).find(x => String(x.id) === String(teamId));
+  if (!eq) return <p data-atividade="sem-dados" style={{ margin:"8px 0 0", fontSize:12, color:T.sub }}>🕒 Sem dados de atividade</p>;
+  const a = atividadeEquipa(eq, new Date());
+  const cor = a.estado === "ativa" ? T.green : a.estado === "pouca" ? "#B45309" : T.brand;
+  return (
+    <div data-atividade="equipa" data-atividade-estado={a.estado} style={{ marginTop:8 }}>
+      <p style={{ margin:"0 0 6px", fontSize:13, color:"#1a1a1f", display:"flex", flexWrap:"wrap", alignItems:"center", gap:6 }}>
+        <span data-atividade-ultima>🕒 {a.ultima ? `Última atividade: ${dotsDay(a.ultima)}` : "Sem atividade registada"}</span>
+        <span data-atividade-estado-texto style={{ fontSize:11, fontWeight:800, padding:"2px 8px", borderRadius:6, background:`${cor}22`, color:cor }}>{ATIV_ROTULO[a.estado]}</span>
+      </p>
+      <div style={{ display:"flex", gap:6 }}>
+        {[["7 dias", a.a7, "a7"], ["30 dias", a.a30, "a30"]].map(([rot, n, k]) => (
+          <div key={k} data-atividade-acoes={k} style={{ flex:1, background:T.bg, borderRadius:10, padding:"8px 6px", textAlign:"center" }}>
+            <p style={{ margin:0, fontWeight:800, fontSize:14 }}>{plural(n, "ação", "ações")}</p>
+            <p style={{ margin:0, fontSize:10, color:T.sub }}>nos últimos {rot}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const AdminUsersSection = ({ act, onRetry, StatCard }) => {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
@@ -4510,7 +4554,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
       setAct({ status:"ok", data:parseAdminUsers(tot, ov), error:"" });
     } catch(e) { setAct({ status:"error", data:null, error:adminErrPt(e) }); }
   };
-  useEffect(() => { if (section === "users" && act.status === "idle") loadActivity(); }, [section]);
+  useEffect(() => { if ((section === "users" || section === "teams") && act.status === "idle") loadActivity(); }, [section]); // a aba Equipas usa os mesmos dados (atividade por equipa)
   // aba Stats: cartões de crescimento, pedidos uma vez ao abrir a aba (em paralelo com os pedidos das Stats atuais; se falharem, as Stats atuais ficam)
   const [growth, setGrowth] = useState({ status:"idle", data:null, error:"" });
   const loadGrowth = async () => {
@@ -4657,6 +4701,8 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
               </div>
             )}
             {locs.status==="ok" && teams.length>0 && <LocationSummary locs={locs.data} teams={teams} />}
+            {teams.length>0 && act.status==="loading" && <p data-atividade-aviso="a-carregar" role="status" style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>🕒 A calcular a atividade das equipas…</p>}
+            {teams.length>0 && act.status==="error" && <p data-atividade-aviso="erro" role="status" style={{ margin:"0 0 8px", fontSize:12, color:"#B42318", fontWeight:700 }}>🕒 Atividade das equipas indisponível: {act.error} <button onClick={loadActivity} style={{ minHeight:44, minWidth:44, marginLeft:6, padding:"0 12px", background:"transparent", border:`1.5px solid ${T.navy}`, borderRadius:10, color:T.navy, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button></p>}
             {teams.length>0 && (
               <input type="search" aria-label="Pesquisar equipas por cidade ou país" placeholder="Pesquisar por cidade ou país" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
                 style={{ width:"100%", boxSizing:"border-box", minHeight:48, marginBottom:12, padding:"0 14px", fontSize:16, fontFamily:"inherit", border:"2px solid #1a1a1f", borderRadius:12, background:"#fff", color:"#1a1a1f" }} />
@@ -4688,6 +4734,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
                     </div>
                   ); })}
                 </div>
+                <AtividadeEquipa act={act} teamId={t.id} />
               </div>
             ))}
           </>
