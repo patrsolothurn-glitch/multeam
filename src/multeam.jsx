@@ -4547,6 +4547,8 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
   const [loading, setLoading] = useState(!(Array.isArray(initialTeams) && initialTeams.length));
   // aba Users: pede as duas rpc uma vez, ao abrir a aba (com a base de dados a validar o super admin)
   const [act, setAct] = useState({ status:"idle", data:null, error:"" });
+  const [showAtiv, setShowAtiv] = useState(false); // aba Equipas: a atividade por equipa só se pede quando se carrega no botão (ou se a aba Users já a carregou)
+  const verAtividade = () => { setShowAtiv(true); if (act.status === "idle" || act.status === "error") loadActivity(); };
   const loadActivity = async () => {
     setAct({ status:"loading", data:null, error:"" });
     try {
@@ -4554,7 +4556,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
       setAct({ status:"ok", data:parseAdminUsers(tot, ov), error:"" });
     } catch(e) { setAct({ status:"error", data:null, error:adminErrPt(e) }); }
   };
-  useEffect(() => { if ((section === "users" || section === "teams") && act.status === "idle") loadActivity(); }, [section]); // a aba Equipas usa os mesmos dados (atividade por equipa)
+  useEffect(() => { if (section === "users" && act.status === "idle") loadActivity(); }, [section]);
   // aba Stats: cartões de crescimento, pedidos uma vez ao abrir a aba (em paralelo com os pedidos das Stats atuais; se falharem, as Stats atuais ficam)
   const [growth, setGrowth] = useState({ status:"idle", data:null, error:"" });
   const loadGrowth = async () => {
@@ -4701,8 +4703,9 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
               </div>
             )}
             {locs.status==="ok" && teams.length>0 && <LocationSummary locs={locs.data} teams={teams} />}
-            {teams.length>0 && act.status==="loading" && <p data-atividade-aviso="a-carregar" role="status" style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>🕒 A calcular a atividade das equipas…</p>}
-            {teams.length>0 && act.status==="error" && <p data-atividade-aviso="erro" role="status" style={{ margin:"0 0 8px", fontSize:12, color:"#B42318", fontWeight:700 }}>🕒 Atividade das equipas indisponível: {act.error} <button onClick={loadActivity} style={{ minHeight:44, minWidth:44, marginLeft:6, padding:"0 12px", background:"transparent", border:`1.5px solid ${T.navy}`, borderRadius:10, color:T.navy, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Tentar novamente</button></p>}
+            {teams.length>0 && act.status!=="ok" && !showAtiv && <button data-atividade-ver onClick={verAtividade} style={{ width:"100%", minHeight:44, marginBottom:12, background:T.card, border:`1.5px solid ${T.navy}`, borderRadius:12, color:T.navy, fontSize:14, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🕒 Ver a atividade das equipas</button>}
+            {teams.length>0 && showAtiv && act.status==="loading" && <p data-atividade-aviso="a-carregar" role="status" style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>🕒 A calcular a atividade das equipas…</p>}
+            {teams.length>0 && showAtiv && act.status==="error" && <div data-atividade-aviso="erro" style={{ margin:"0 0 8px", display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}><span style={{ fontSize:12, color:"#B42318", fontWeight:700 }}>🕒 Atividade das equipas indisponível: {act.error}</span><button onClick={verAtividade} style={{ minHeight:44, minWidth:44, padding:"0 12px", background:"transparent", border:`1.5px solid ${T.navy}`, borderRadius:10, color:T.navy, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Voltar a calcular</button></div>}
             {teams.length>0 && (
               <input type="search" aria-label="Pesquisar equipas por cidade ou país" placeholder="Pesquisar por cidade ou país" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
                 style={{ width:"100%", boxSizing:"border-box", minHeight:48, marginBottom:12, padding:"0 14px", fontSize:16, fontFamily:"inherit", border:"2px solid #1a1a1f", borderRadius:12, background:"#fff", color:"#1a1a1f" }} />
