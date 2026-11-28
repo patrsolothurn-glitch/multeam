@@ -2553,12 +2553,14 @@ var Chip = function Chip(_ref20) {
   }, children);
 };
 var HOVER_CSS = "@media (hover: hover) and (pointer: fine) {\n  .mt-hover { transition: outline-color 150ms ease, filter 150ms ease; outline: 2px solid transparent; outline-offset: -2px; }\n  .mt-hover:hover { outline-color: ".concat(T.navy, "66; filter: drop-shadow(0 2px 6px rgba(20, 33, 61, 0.16)); }\n}\n@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) { .mt-hover { transition: none; } }");
-if (typeof document !== "undefined" && !document.getElementById("mt-hover-css")) {
+if (typeof document !== "undefined") {
   try {
-    var st = document.createElement("style");
-    st.id = "mt-hover-css";
-    st.textContent = HOVER_CSS;
-    document.head.appendChild(st);
+    if (!document.getElementById("mt-hover-css")) {
+      var st = document.createElement("style");
+      st.id = "mt-hover-css";
+      st.textContent = HOVER_CSS;
+      document.head.appendChild(st);
+    }
   } catch (e) {}
 }
 var Sec = function Sec(_ref21) {

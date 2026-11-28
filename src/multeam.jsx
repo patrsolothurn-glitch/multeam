@@ -865,8 +865,10 @@ const HOVER_CSS = `@media (hover: hover) and (pointer: fine) {
   .mt-hover:hover { outline-color: ${T.navy}66; filter: drop-shadow(0 2px 6px rgba(20, 33, 61, 0.16)); }
 }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) { .mt-hover { transition: none; } }`;
-if (typeof document !== "undefined" && !document.getElementById("mt-hover-css")) {
-  try { const st = document.createElement("style"); st.id = "mt-hover-css"; st.textContent = HOVER_CSS; document.head.appendChild(st); } catch (e) { /* sem DOM: nada a fazer */ }
+if (typeof document !== "undefined") {
+  try {
+    if (!document.getElementById("mt-hover-css")) { const st = document.createElement("style"); st.id = "mt-hover-css"; st.textContent = HOVER_CSS; document.head.appendChild(st); }
+  } catch (e) { /* sem DOM completo: nada a fazer */ }
 }
 
 const Sec = ({ label }) => (
