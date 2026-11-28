@@ -3698,11 +3698,37 @@ const AtividadeEquipa = ({ act, teamId }) => {
   );
 };
 
-const AdminUsersSection = ({ act, onRetry, StatCard }) => {
+// ── Jogadores (aba Users): UMA linha por pessoa. Junta pelo email (sem maiúsculas nem espaços a mais); sem email não há como juntar: uma linha por registo. ──
+// Só leitura, sobre os dados já carregados (get_admin_teams_overview). Último acesso = o mais recente de todas as equipas; multas somadas por moeda.
+const agruparJogadores = teams => {
+  const mapa = new Map();
+  (Array.isArray(teams) ? teams : []).forEach(tm => (Array.isArray(tm && tm.members) ? tm.members : []).forEach(m => {
+    if (!m) return;
+    const em = normTxt(m.email);
+    const k = em ? "e:" + em : "s:" + tm.id + "/" + m.key;
+    let p = mapa.get(k);
+    if (!p) { p = { key:k, name:"", email:"", last:null, teams:[], finesCount:0, byCur:[] }; mapa.set(k, p); }
+    if (!p.name && m.name) p.name = m.name;
+    if (!p.email && m.email) p.email = m.email;
+    if (m.last && (!p.last || Date.parse(m.last) > Date.parse(p.last))) p.last = m.last;
+    p.teams.push({ id:tm.id, name:tm.name, emoji:tm.emoji, sport:tm.sport, currency:tm.currency, role:m.role, memberKey:m.key, finesCount:m.finesCount, total:m.total, unpaid:m.unpaid, fines:m.fines || [] });
+    p.finesCount += m.finesCount;
+    let c = p.byCur.find(x => x.currency === tm.currency);
+    if (!c) { c = { currency:tm.currency, total:0, unpaid:0 }; p.byCur.push(c); }
+    c.total += m.total; c.unpaid += m.unpaid;
+  }));
+  return [...mapa.values()].sort((a, b) => normTxt(a.name || "~").localeCompare(normTxt(b.name || "~"), "pt") || a.key.localeCompare(b.key));
+};
+// texto das multas de uma pessoa: "N multas · total X · por pagar Y" (várias moedas: somadas por moeda com " + ")
+const multasPessoaTxt = p => `${plural(p.finesCount, "multa", "multas")} · total ${p.byCur.map(c => eur(c.total, c.currency)).join(" + ") || eur(0, "")} · por pagar ${p.byCur.map(c => eur(c.unpaid, c.currency)).join(" + ") || eur(0, "")}`;
+
+const AdminUsersSection = ({ act, onRetry, StatCard, onOpenTeam, teamsList }) => {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [open, setOpen] = useState({});   // equipas expandidas
   const [openM, setOpenM] = useState({}); // membros expandidos (histórico de multas)
+  const [vista, setVista] = useState("jogadores"); // "jogadores" (uma linha por pessoa) ou "equipas" (a vista de sempre, por equipa)
+  const [openP, setOpenP] = useState({}); // pessoas expandidas
   const num = v => v === null || v === undefined ? "—" : String(v);
   const tt = act.data && act.data.totals;
   const cards = (
@@ -3737,9 +3763,87 @@ const AdminUsersSection = ({ act, onRetry, StatCard }) => {
   }).filter(x => !filtering || x.ms.length > 0 || (x.byTeam && filter === "all"));
   const chips = [["all","Todos"],["a7","Ativos 7 dias"],["i30","Inativos 30+ dias"]];
   const isOpen = id => id in open ? open[id] : filtering;
+  const vistaBotoes = (
+    <div role="group" aria-label="Ver por" data-vista style={{ display:"flex", gap:6, marginBottom:10 }}>
+      {[["jogadores", "👤 Jogadores"], ["equipas", "👥 Por equipa"]].map(([id, label]) => (
+        <button key={id} aria-pressed={vista === id} onClick={() => { setVista(id); setOpen({}); setOpenP({}); }} style={{ flex:1, minHeight:44, padding:"0 12px", borderRadius:12, border:`1.5px solid ${vista === id ? T.navy : T.border}`, background:vista === id ? T.navy : "transparent", color:vista === id ? "#fff" : T.sub, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+      ))}
+    </div>
+  );
+  if (vista === "jogadores") {
+    const todos = agruparJogadores(teams);
+    const pessoas = todos.filter(p => keepAge(p) && (!nq || normTxt(p.name).includes(nq) || normTxt(p.email).includes(nq)));
+    const abre = id => !!openP[id];
+    const abrirEquipa = id => (onOpenTeam && Array.isArray(teamsList) && teamsList.some(x => String(x.id) === String(id))) ? () => onOpenTeam(teamsList.find(x => String(x.id) === String(id)).id, teamsList) : null;
+    return (
+      <>
+        {cards}
+        {vistaBotoes}
+        <FI type="search" placeholder="Pesquisar por nome ou email" aria-label="Pesquisar por nome ou email" value={q} onChange={e=>{ setQ(e.target.value); setOpenP({}); }} style={{ marginBottom:8 }} />
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+          {chips.map(([id,label]) => (
+            <button key={id} aria-pressed={filter===id} onClick={()=>{ setFilter(id); setOpenP({}); }} style={{ minHeight:44, padding:"0 14px", borderRadius:22, border:`1.5px solid ${filter===id?T.navy:T.border}`, background:filter===id?T.navy:"transparent", color:filter===id?"#fff":T.sub, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          ))}
+        </div>
+        <p data-jogadores-total style={{ margin:"0 0 10px", fontSize:12, color:"#5F5F66" }}>{plural(pessoas.length, "jogador", "jogadores")}</p>
+        {pessoas.length === 0 && <p style={{ textAlign:"center", color:"#5F5F66", padding:"24px 0", fontSize:14 }}>{filtering ? "Nenhum jogador encontrado" : "Sem jogadores"}</p>}
+        {pessoas.map(p => {
+          const o = abre(p.key), acc = dotsDay(p.last);
+          return (
+            <div key={p.key} data-jogador={p.key} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden" }}>
+              <button onClick={()=>setOpenP(x=>({ ...x, [p.key]: !o }))} aria-expanded={o} style={{ display:"block", width:"100%", minHeight:56, padding:"12px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit", boxSizing:"border-box" }}>
+                <span style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ flex:1, minWidth:0, fontWeight:800, fontSize:15, color:T.text, overflowWrap:"anywhere" }}>{p.name || "Sem nome"}</span>
+                  <span aria-hidden="true" style={{ fontSize:12, color:T.sub }}>{o ? "▲" : "▼"}</span>
+                </span>
+                <span style={{ display:"block", fontSize:12, color: p.email ? T.text : "#5F5F66", marginTop:2, overflowWrap:"anywhere" }}>{p.email || "Sem conta"}</span>
+                <span data-jogador-equipas style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2, overflowWrap:"anywhere" }}>{p.teams.map(t => `${t.name || "Sem nome"} (${(t.role === "player" ? roleWord(t.sport, false, true) : ROLE_PT[t.role]) || t.role || "membro"})`).join(" · ")}</span>
+                <span style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>Último acesso: {acc || "Nunca"}</span>
+                <span data-jogador-multas style={{ display:"block", fontSize:12, color:"#5F5F66", marginTop:2 }}>{multasPessoaTxt(p)}</span>
+              </button>
+              {o && (
+                <div style={{ padding:"0 12px 12px" }}>
+                  {p.teams.map((t, ti) => {
+                    const ab = abrirEquipa(t.id);
+                    return (
+                      <div key={t.id + "/" + ti} data-jogador-equipa={t.id} style={{ background:T.bg, borderRadius:12, marginTop:8, padding:"10px 12px" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                          <span style={{ flex:1, minWidth:0, fontWeight:800, fontSize:14, overflowWrap:"anywhere" }}>{t.emoji} {t.name || "Sem nome"}</span>
+                          <span style={{ fontSize:11, fontWeight:700, color:T.navy, border:`1px solid ${T.border}`, borderRadius:6, padding:"1px 6px", flexShrink:0 }}>{(t.role === "player" ? roleWord(t.sport, false, true) : ROLE_PT[t.role]) || t.role || "membro"}</span>
+                          {ab && <button data-abrir-equipa={t.id} onClick={ab} style={{ minHeight:44, padding:"0 14px", borderRadius:12, border:`2px solid ${T.navy}`, background:"#fff", color:T.navy, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>Abrir equipa</button>}
+                        </div>
+                        <p style={{ margin:"4px 0 0", fontSize:12, color:"#5F5F66" }}>{plural(t.finesCount, "multa", "multas")} · total {eur(t.total, t.currency)} · por pagar {eur(t.unpaid, t.currency)}</p>
+                        {t.fines.length === 0 && <p style={{ margin:"4px 0 0", fontSize:12, color:"#5F5F66" }}>Sem multas</p>}
+                        {t.fines.map((f, i) => {
+                          const d = dotsDay(f.date), pd = dotsDay(f.paidAt);
+                          return (
+                            <div key={i} data-fine style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"6px 0", borderTop:`1px solid ${T.border}`, marginTop:i === 0 ? 6 : 0 }}>
+                              <div style={{ flex:1, minWidth:0 }}>
+                                <p style={{ margin:0, fontSize:13, fontWeight:600, overflowWrap:"anywhere" }}>{f.reason || "Sem motivo"}</p>
+                                <p style={{ margin:"1px 0 0", fontSize:11, color:"#5F5F66" }}>{d || "Sem data"}{f.paid ? ` · paga em ${pd || "data desconhecida"}` : ""}</p>
+                              </div>
+                              <div style={{ textAlign:"right", flexShrink:0 }}>
+                                <p style={{ margin:0, fontSize:13, fontWeight:800 }}>{eur(f.amount, t.currency)}</p>
+                                <p style={{ margin:0, fontSize:11, fontWeight:700, color: f.paid ? T.green : T.brand }}>{f.paid ? "Paga" : "Por pagar"}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </>
+    );
+  }
   return (
     <>
       {cards}
+      {vistaBotoes}
       <FI type="search" placeholder="Pesquisar por nome, email ou equipa" aria-label="Pesquisar por nome, email ou equipa" value={q} onChange={e=>{ setQ(e.target.value); setOpen({}); }} style={{ marginBottom:8 }} />
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
         {chips.map(([id,label]) => (
@@ -4770,7 +4874,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
             {teams.length>0 && showAtiv && act.status==="loading" && <p data-atividade-aviso="a-carregar" role="status" style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>🕒 A calcular a atividade das equipas…</p>}
             {teams.length>0 && showAtiv && act.status==="error" && <div data-atividade-aviso="erro" style={{ margin:"0 0 8px", display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}><span style={{ fontSize:12, color:"#B42318", fontWeight:700 }}>🕒 Atividade das equipas indisponível: {act.error}</span><button onClick={verAtividade} style={{ minHeight:44, minWidth:44, padding:"0 12px", background:"transparent", border:`1.5px solid ${T.navy}`, borderRadius:10, color:T.navy, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Voltar a calcular</button></div>}
             {teams.length>0 && (
-              <input type="search" aria-label="Pesquisar equipas por cidade ou país" placeholder="Pesquisar por cidade ou país" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
+              <input type="search" aria-label="Pesquisar equipas por cidade ou país (ou nome da equipa)" placeholder="Pesquisar por cidade ou país (ou nome da equipa)" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
                 style={{ width:"100%", boxSizing:"border-box", minHeight:48, marginBottom:12, padding:"0 14px", fontSize:16, fontFamily:"inherit", border:"2px solid #1a1a1f", borderRadius:12, background:"#fff", color:"#1a1a1f" }} />
             )}
             {(() => {
@@ -4805,7 +4909,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
             ))}
           </>
         )}
-        {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} />}
+        {section==="users" && <AdminUsersSection act={act} onRetry={loadActivity} StatCard={StatCard} onOpenTeam={onOpenTeam} teamsList={teams} />}
         {section==="estado" && <AdminStatusSection token={token} onSaved={onStatusSaved} />}
         {section==="visitas" && <><AdminVisitsSection token={token} /><AdminRecentVisitsSection token={token} /></>}
         {section==="atividade" && <AdminHeatmapSection token={token} />}
