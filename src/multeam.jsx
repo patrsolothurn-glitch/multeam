@@ -1944,6 +1944,69 @@ const MyClaimsCard = ({ claims, members, myUserId, onEditNote, onCancel, onAnswe
   );
 };
 
+// ── Novos membros: aviso ao admin quando alguém entra na equipa pela função join_team_with_code (entra logo, sem aprovação) ──
+// Dados: rpc list_member_join_notices, lida por GET (é uma função só de leitura; só os admins da equipa a podem usar: a base de dados recusa os outros). Se a função ainda não existir ou falhar, não se mostra
+// nada e nada rebenta (sem erros no ecrã nem na consola). O aviso fica até o admin o marcar como visto (um ou todos) e pode ser apagado (um ou todos os vistos).
+const parseJoinNotices = raw => {
+  const vistos = new Set(), out = [];
+  (Array.isArray(raw) ? raw : []).forEach(r => {
+    if (!r || typeof r !== "object" || r.id == null) return;
+    const id = String(r.id); if (vistos.has(id)) return; vistos.add(id); // o mesmo aviso nunca aparece duas vezes
+    out.push({ id, userId: r.user_id == null ? "" : String(r.user_id), name: String(r.name == null ? "" : r.name).trim() || "Utilizador", joinedAt: r.joined_at || "", seenAt: r.seen_at || null });
+  });
+  return out;
+};
+const joinNoticesUnseen = list => (Array.isArray(list) ? list : []).filter(n => !n.seenAt).length;
+// data e hora da entrada em hora da Suíça (Europe/Zurich), qualquer que seja o fuso do aparelho: DD/MM/AAAA HH:MM
+const fmtEntradaZurich = iso => {
+  const d = iso ? new Date(iso) : null; if (!d || isNaN(d)) return "";
+  const z = zurichParts(d); if (!z) return "";
+  const p2 = n => String(n).padStart(2, "0");
+  return `${p2(z.d)}/${p2(z.m)}/${z.y} ${p2(z.h)}:${p2(z.mi)}`;
+};
+// leitura dos avisos de uma equipa por GET (a função é só de leitura): lança erro se a função não existir ou se não fores admin
+const lerAvisosEntrada = async (teamId, token) => parseJoinNotices(await api.get(`rpc/list_member_join_notices?p_team_id=${encodeURIComponent(teamId)}`, token));
+// A lista vem da App (já pedida ao abrir a app e ao voltar a ela): esta secção não faz pedidos sozinha; as ações escrevem e pedem à App que atualize.
+const NewMembersSection = ({ team, list, token, onChanged }) => {
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const flight = React.useRef(false);
+  const act = async (fn, body, confirmMsg) => {
+    if (flight.current) return; // duplo toque: um só pedido de cada vez
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    flight.current = true; setBusy(true); setErr("");
+    try { await rpcCall(fn, body, token); if (onChanged) await onChanged(); }
+    catch(e) { setErr(errPt(e)); }
+    setBusy(false); flight.current = false;
+  };
+  if (!Array.isArray(list) || !list.length) return null;
+  const unseen = joinNoticesUnseen(list), seen = list.length - unseen;
+  return (
+    <div data-novos-membros style={{ marginBottom:16 }}>
+      <Sec label={`Novos membros (${unseen})`} />
+      {list.map(n => (
+        <div key={n.id} data-novo-membro={n.id} data-novo-membro-estado={n.seenAt ? "visto" : "novo"} style={{ background:T.card, border:`2px solid ${n.seenAt ? T.border : "#B42318"}`, borderRadius:14, padding:"12px 14px", marginBottom:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <p style={{ margin:0, fontWeight:800, fontSize:15, overflowWrap:"anywhere", minWidth:0 }}>{n.name}</p>
+            {!n.seenAt && <span data-novo-membro-tag style={{ fontSize:11, fontWeight:800, padding:"2px 8px", borderRadius:6, background:"#FFE5E5", color:"#B42318" }}>Novo</span>}
+          </div>
+          <p style={{ margin:"2px 0 8px", fontSize:12, color:"#5F5F66" }}>{n.joinedAt && fmtEntradaZurich(n.joinedAt) ? `Entrou em ${fmtEntradaZurich(n.joinedAt)} (hora da Suíça)` : "Entrou na equipa"}</p>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {!n.seenAt
+              ? <button data-novo-membro-visto={n.id} disabled={busy} aria-label={`Marcar como visto: ${n.name}`} onClick={() => act("mark_member_join_notice_seen", { p_id:n.id })} style={claimBtn("#1a1a1f", "#fff")}>✓ Marcar como visto</button>
+              : <button data-novo-membro-visto-ok disabled aria-label={`Já visto: ${n.name}`} style={{ ...claimBtn("#fff", "#5F5F66", "#D0D0D6"), cursor:"default" }}>✓ Visto</button> /* mantém o lugar do botão: um duplo toque nunca cai em "Apagar" */}
+            <button data-novo-membro-apagar={n.id} disabled={busy} aria-label={`Apagar o aviso: ${n.name}`} onClick={() => act("delete_member_join_notice", { p_id:n.id })} style={claimBtn("#fff", "#B42318", "#B42318")}>🗑️ Apagar</button>
+          </div>
+        </div>
+      ))}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        {unseen > 0 && <button data-novos-membros-todos disabled={busy} onClick={() => act("mark_all_member_join_notices_seen", { p_team_id:team.id })} style={claimBtn("#1a1a1f", "#fff")}>✓ Marcar todos como vistos</button>}
+        {seen > 0 && <button data-novos-membros-apagar-vistos disabled={busy} onClick={() => act("delete_seen_member_join_notices", { p_team_id:team.id }, "Apagar os avisos já vistos?")} style={claimBtn("#fff", "#B42318", "#B42318")}>🗑️ Apagar os vistos</button>}
+      </div>
+      {err && <p role="alert" style={{ margin:"6px 0 0", fontSize:13, fontWeight:700, color:"#B42318" }}>{err}</p>}
+    </div>
+  );
+};
+
 // admin: "Pedidos de perfil (N)": aprovar, rejeitar e histórico. readOnly (modo leitura do super admin): só mostra
 const ClaimsAdminSection = ({ team, members, token, readOnly, onChanged }) => {
   const [st, setSt] = useState({ status:"loading", list:[], error:"" });
@@ -5608,7 +5671,7 @@ const UnavailableControl = ({ m, record, color, onOpen, onClose, onUpdate, onLeg
   );
 };
 
-const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes, onClaimsChanged }) => {
+const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, onAddMember, onToggleRole, onRemoveMember, onEditMember, onRegenerateCode, onDeleteTeam, onEditTeam, absences, absHandlers, setFineTypes, onClaimsChanged, joinNotices, onJoinNoticesChanged }) => {
   const tm = members.filter(m=>m.teamId===team.id);
   const [showDelete, setShowDelete] = useState(false);
   const [ftWarn, setFtWarn] = useState(false);
@@ -5769,6 +5832,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
         </div>
 
         {/* Role hierarchy info */}
+        {!RO.on && <NewMembersSection team={team} list={joinNotices} token={token} onChanged={onJoinNoticesChanged} />}
         {!RO.on && <ClaimsAdminSection team={team} members={members} token={token} onChanged={onClaimsChanged} />}
 
         <div style={{ background:`${T.yellow}15`, borderRadius:14, padding:"12px 14px", marginBottom:16, display:"flex", gap:10, alignItems:"flex-start" }}>
@@ -7131,6 +7195,22 @@ export default function App() {
   const teamsRef = React.useRef(teams); teamsRef.current = teams;
   const handledApprovedRef = React.useRef(new Set());
   const claimsTotal = Object.values(claimCounts).reduce((a, n) => a + (Number(n) || 0), 0);
+  // novos membros por ver (aviso ao admin): mesmo emblema dos pedidos de perfil; pede-se ao abrir a app e ao voltar a ela (nunca ao mudar de separador)
+  const [joinLists, setJoinLists] = useState({}); // avisos de novos membros por equipa (só das equipas onde sou admin)
+  const adminIdsRef = React.useRef(new Set()); const joinFnMissing = React.useRef(false);
+  const joinCounts = {}; Object.keys(joinLists).forEach(k => { joinCounts[k] = joinNoticesUnseen(joinLists[k]); });
+  const joinTotal = Object.values(joinCounts).reduce((a, n) => a + n, 0);
+  const badgeCounts = (() => { const o = { ...claimCounts }; Object.keys(joinCounts).forEach(k => { o[k] = (Number(o[k]) || 0) + joinCounts[k]; }); return o; })();
+  const refreshJoinNotices = async () => {
+    if (!token || !myUserId || RO.on || joinFnMissing.current) return;
+    const ids = [...adminIdsRef.current].filter(id => teamsRef.current.some(t => t.id === id));
+    const novas = {};
+    await Promise.all(ids.map(async id => {
+      try { novas[id] = await lerAvisosEntrada(id, token); }
+      catch(e) { if (/could not find the function|PGRST202|42883|does not exist|\b404\b/i.test(String(e && e.message))) { joinFnMissing.current = true; novas[id] = []; } } // sem a função na base de dados: em silêncio e sem repetir; outros erros: mantém o que já havia
+    }));
+    setJoinLists(prev => ({ ...prev, ...novas }));
+  };
   const claimsFlight = React.useRef(false); const claimsAgain = React.useRef(false);
   const refreshClaims = async () => {
     if (!token || !myUserId || RO.on) return;
@@ -7150,7 +7230,7 @@ export default function App() {
     try {
       const ids = new Set(teamsRef.current.filter(t => t.createdBy === myUserId).map(t => t.id));
       try { const rows = await api.get(`team_members?user_id=eq.${myUserId}&role=eq.admin&select=team_id`, token); (Array.isArray(rows) ? rows : []).forEach(r => ids.add(r.team_id)); } catch(e) { console.warn("admin teams read failed:", e && e.message); warns.push("Não foi possível ver as equipas onde és administrador. Os pedidos de perfil podem não aparecer."); }
-      setAdminTeamIds(new Set(ids));
+      setAdminTeamIds(new Set(ids)); adminIdsRef.current = new Set(ids);
       const counts = {}; let countFailed = false;
       await Promise.all([...ids].filter(id => teamsRef.current.some(t => t.id === id)).map(async id => {
         try { const r = await rpcCall('list_team_claims', { p_team_id:id }, token); claimNamesRemember(r, "member_name", "member_avatar"); counts[id] = (Array.isArray(r) ? r : []).filter(c => c.status === "pendente" && (!c.question || !!c.answer)).length; } catch(e) { console.warn("list_team_claims failed:", e && e.message); countFailed = true; }
@@ -7166,8 +7246,8 @@ export default function App() {
   };
   useEffect(() => {
     if (!appReady || !token || !myUserId || RO.on) return;
-    refreshClaims();
-    const onVis = () => { if (document.visibilityState === "visible") refreshClaims(); };
+    refreshClaims().then(() => refreshJoinNotices());
+    const onVis = () => { if (document.visibilityState === "visible") refreshClaims().then(() => refreshJoinNotices()); };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [appReady, token, myUserId, teams.length]);
@@ -7559,7 +7639,7 @@ export default function App() {
   if (sub?.type==="member") return wrap(<><MemberDetailScreen member={members.find(x=>x.id===sub.data.id)||sub.data} team={team} fines={fines} trainings={trainings} isAdmin={isAdmin} readOnly={roMode} absences={absences} absHandlers={isAdmin?absHandlers:null} onBack={()=>setSub(null)} onTogglePaid={togglePaid} onDeleteFine={delFine} />{toastBox}</>);
   if (sub?.type==="manage") {
     const mt=teams.find(t=>t.id===sub.data);
-    return wrap(<MoneyCtx.Provider value={teamCur(mt)}><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</MoneyCtx.Provider>);
+    return wrap(<MoneyCtx.Provider value={teamCur(mt)}><ManageTeamScreen team={mt} members={members} fineTypes={fineTypes} token={token} setFineTypes={setFineTypes} myUserId={myUserId} onBack={()=>setSub(null)} onAddMember={()=>setModal("member")} onToggleRole={toggleRole} onRemoveMember={removeMember} onEditMember={editMember} absences={absences} absHandlers={isAdmin?absHandlers:null} onRegenerateCode={()=>{}} onDeleteTeam={()=>deleteTeam(mt.id)} onEditTeam={editTeam} onClaimsChanged={claimsChanged} joinNotices={joinLists[mt.id]} onJoinNoticesChanged={refreshJoinNotices} />{toastBox}{modal==="member"&&<AddMemberModal team={mt} onAdd={addMember} onClose={()=>setModal(null)} />}</MoneyCtx.Provider>);
   }
 
   // «Vais ao treino?» em ecrã inteiro: só com a opção da equipa ligada, fora do modo leitura, para o treino/jogo mais próximo (≤ 48 h) sem resposta
@@ -7591,13 +7671,13 @@ export default function App() {
       {tab==="fines" && <FinesTab team={team} fines={fines} members={members} isAdmin={isAdmin} onAddFine={()=>setModal("fine")} onTogglePaid={togglePaid} onDeleteFine={delFine} onEditFine={f=>setEditingFine(f)} onSelectMember={m=>setSub({type:"member",data:m})} />}
       {tab==="cards" && <CardsTab team={team} cards={cards} members={members} canManage={canManageTrainings} readOnly={roMode} onAddCard={()=>setModal("card")} onEditCard={c=>setEditingCard(c)} onDeleteCard={delCard} onServeSuspension={serveSuspension} />}
       {tab==="caixa" && <TreasuryTab team={team} fines={fines} members={members} expenses={expenses} isAdmin={isAdmin} onAddExpense={()=>setModal("expense")} onEditExpense={isAdmin?editExpense:null} onDeleteExpense={isAdmin?deleteExpense:null} />}
-      {tab==="geral" && <GeneralTab adminTeamIds={adminTeamIds} activeTeam={team} user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : claimCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
+      {tab==="geral" && <GeneralTab adminTeamIds={adminTeamIds} activeTeam={team} user={{ ...(profile||{}), position: members.find(m=>m.userId===myUserId&&m.teamId===teamId)?.position || (freeSport ? '' : profile?.position) || '' }} myUserId={myUserId} teams={roMode ? teams.filter(t=>t.id===teamId) : teams} members={members} token={token} onEditProfile={()=>setModal("profile")} onManageTeam={id=>setSub({type:"manage",data:id})} onCreateTeam={()=>setModal("team")} onJoinTeam={()=>setModal("join")} onLeaveTeam={leaveTeam} onLogout={handleLogout} isAppAdmin={roMode ? false : profile?.isAppAdmin} readOnly={roMode} onAdminOpen={()=>{ setAdminStart(null); setTab("appadmin"); }} myClaims={roMode ? null : myClaims} onEditClaimNote={editClaimNote} onCancelClaim={cancelClaim} onAnswerClaim={answerClaim} claimCounts={roMode ? {} : badgeCounts} pushIssue={roMode ? null : pushIssue} onRetryPush={()=>checkPush(token, myUserId, true)} claimsWarn={roMode ? false : claimsWarn} onRetryClaims={()=>refreshClaims()} />}
       {tab==="appadmin" && profile?.isAppAdmin && <AppAdminTab token={token} onBack={()=>setTab("geral")} onOpenTeam={openAdminTeam} initialSection={adminStart} initialTeams={adminStart==="teams" ? adminTeamsCache : null} onStatusSaved={()=>loadStatus(true)} />}
 
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)", width:"100%", maxWidth:480, background:T.card, borderTop:`1px solid ${T.border}`, display:"flex", padding:"8px 0 24px", boxShadow:"0 -2px 20px rgba(0,0,0,0.06)" }}>
         {nav.map(item=>(
           <button key={item.id} onClick={()=>setTab(item.id)} style={{ flex:1, background:"none", border:"none", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:"4px 0", fontFamily:"inherit", ...(item.id==="treinos" ? { minWidth:0 } : {}) }}>
-            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <CountBadge n={atRiskCount} />}{item.id==="geral" && !roMode && (claimsTotal + myQuestionCount)>0 && <span data-badge="claims"><CountBadge n={claimsTotal + myQuestionCount} /></span>}</span>
+            <span style={{ fontSize:20, position:"relative" }}>{item.emoji}{item.id==="cards" && atRiskCount>0 && <CountBadge n={atRiskCount} />}{item.id==="geral" && !roMode && (claimsTotal + joinTotal + myQuestionCount)>0 && <span data-badge="claims"><CountBadge n={claimsTotal + joinTotal + myQuestionCount} /></span>}</span>
             {item.id==="treinos"
               ? <NavFitLabel weight={tab===item.id?800:500} color={tab===item.id?team.color:T.sub}>{item.label}</NavFitLabel>
               : <span style={{ fontSize:10, fontWeight:tab===item.id?800:500, color:tab===item.id?team.color:T.sub }}>{item.label}</span>}
