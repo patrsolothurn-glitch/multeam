@@ -857,6 +857,18 @@ const RoleBadgeLight = ({ role, sport }) => {
 const Chip = ({ active, color, onClick, children }) => (
   <button onClick={onClick} style={{ padding:"7px 14px", minHeight:44, borderRadius:20, border:"none", cursor:"pointer", background:active ? color : T.card, color:active ? "#fff" : T.sub, fontWeight:600, fontSize:13, fontFamily:"inherit" }}>{children}</button>
 );
+// ── Realce ao passar o rato (PC) nos cartões e linhas clicáveis das listas ──
+// Classe .mt-hover. Só em ecrãs com rato (hover: hover + pointer: fine): telemóveis e ecrãs tácteis ficam como estão. É só um contorno por dentro (outline com offset negativo)
+// e uma sombra subtil: não muda o tamanho, a posição nem o conteúdo, e não mexe no foco por teclado. Transição curta; sem animação com prefers-reduced-motion.
+const HOVER_CSS = `@media (hover: hover) and (pointer: fine) {
+  .mt-hover { transition: outline-color 150ms ease, filter 150ms ease; outline: 2px solid transparent; outline-offset: -2px; }
+  .mt-hover:hover { outline-color: ${T.navy}66; filter: drop-shadow(0 2px 6px rgba(20, 33, 61, 0.16)); }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) { .mt-hover { transition: none; } }`;
+if (typeof document !== "undefined" && !document.getElementById("mt-hover-css")) {
+  try { const st = document.createElement("style"); st.id = "mt-hover-css"; st.textContent = HOVER_CSS; document.head.appendChild(st); } catch (e) { /* sem DOM: nada a fazer */ }
+}
+
 const Sec = ({ label }) => (
   <p style={{ margin:"18px 0 8px", fontSize:11, fontWeight:700, color:T.sub, textTransform:"uppercase", letterSpacing:1 }}>{label}</p>
 );
@@ -2319,7 +2331,7 @@ const FineGroup = ({ group, color }) => {
   const mk2 = s => (s||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
   return (
     <div style={{ background:T.card, borderRadius:12, marginBottom:6, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
-      <div onClick={() => setOpen(o=>!o)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+      <div className="mt-hover" onClick={() => setOpen(o=>!o)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
         <div style={{ width:36, height:36, borderRadius:18, background:color||T.brand, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800, flexShrink:0 }}>{mk2(group.name)}</div>
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
@@ -2345,7 +2357,7 @@ const DevedorCard = ({ member, isTop, color, onOpen }) => {
   const money = useMoney();
   const [open, setOpen] = React.useState(false);
   return (
-    <div onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 6px 20px ${T.brand}55`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
+    <div className="mt-hover" onClick={()=>setOpen(o=>!o)} style={{ background:isTop?`linear-gradient(135deg,${T.brand},#c0392b)`:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", cursor:"pointer", boxShadow:isTop?`0 6px 20px ${T.brand}55`:"none", border:isTop?"none":`1px solid ${T.border}` }}>
       <div style={{ padding:isTop?"15px 16px":"13px 14px", display:"flex", alignItems:"center", gap:12 }}>
         {member.avatarUrl
           ? <ZoomPhoto src={member.avatarUrl} name={member.name} style={{ width:isTop?50:44, height:isTop?50:44, borderRadius:isTop?25:22, objectFit:"cover", flexShrink:0, border:isTop?"3px solid rgba(255,255,255,0.4)":"none" }} />
@@ -2386,7 +2398,7 @@ const FineGroupHome = ({ group, color, renderFine }) => {
   const [open, setOpen] = React.useState(false);
   return (
     <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`3px solid ${group.unpaid>0?T.brand:T.green}` }}>
-      <div onClick={() => setOpen(o=>!o)} style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
+      <div className="mt-hover" onClick={() => setOpen(o=>!o)} style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
         <Avatar initials={group.initials||"?"} color={color} photo={group.avatarUrl} name={group.name} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontWeight:700, fontSize:15, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</p>
@@ -2798,7 +2810,7 @@ const FinesTab = ({ team, fines, members, isAdmin, onAddFine, onTogglePaid, onDe
     return (
       <div style={{ background:T.card, borderRadius:12, padding:"11px 13px", marginBottom:6, display:"flex", alignItems:"center", gap:10, borderLeft:`3px solid ${f.paid?T.green:T.brand}` }}>
         <span onClick={() => m && onSelectMember(m)} style={{ fontSize:24, flexShrink:0, cursor:"pointer" }}><FineIcon icon={f.emoji} size={24} /></span>
-        <div style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => m && onSelectMember(m)}>
+        <div className="mt-hover" style={{ flex:1, minWidth:0, cursor:"pointer" }} onClick={() => m && onSelectMember(m)}>
           <p style={{ margin:0, fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.reason}</p>
           <p style={{ margin:0, fontSize:11, color:T.sub }}>{fmtDay(f.date)}</p>
         </div>
@@ -3790,7 +3802,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard, onOpenTeam, teamsList }) =>
         {pessoas.map(p => {
           const o = abre(p.key), acc = dotsDay(p.last);
           return (
-            <div key={p.key} data-jogador={p.key} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden" }}>
+            <div key={p.key} className="mt-hover" data-jogador={p.key} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden" }}>
               <button onClick={()=>setOpenP(x=>({ ...x, [p.key]: !o }))} aria-expanded={o} style={{ display:"block", width:"100%", minHeight:56, padding:"12px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit", boxSizing:"border-box" }}>
                 <span style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <span style={{ flex:1, minWidth:0, fontWeight:800, fontSize:15, color:T.text, overflowWrap:"anywhere" }}>{p.name || "Sem nome"}</span>
@@ -3855,7 +3867,7 @@ const AdminUsersSection = ({ act, onRetry, StatCard, onOpenTeam, teamsList }) =>
       {shown.map(({ tm, ms }) => {
         const o = isOpen(tm.id);
         return (
-          <div key={tm.id} data-team={tm.id} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden" }}>
+          <div key={tm.id} className="mt-hover" data-team={tm.id} style={{ background:T.card, borderRadius:14, marginBottom:10, overflow:"hidden" }}>
             <button onClick={()=>setOpen(p=>({ ...p, [tm.id]: !o }))} aria-expanded={o} style={{ display:"flex", alignItems:"center", gap:12, width:"100%", minHeight:56, padding:"12px 16px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:"inherit", boxSizing:"border-box" }}>
               <span style={{ fontSize:26 }}>{tm.emoji}</span>
               <span style={{ flex:1, minWidth:0 }}>
@@ -4874,7 +4886,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
             {teams.length>0 && showAtiv && act.status==="loading" && <p data-atividade-aviso="a-carregar" role="status" style={{ margin:"0 0 8px", fontSize:12, color:T.sub }}>🕒 A calcular a atividade das equipas…</p>}
             {teams.length>0 && showAtiv && act.status==="error" && <div data-atividade-aviso="erro" style={{ margin:"0 0 8px", display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}><span style={{ fontSize:12, color:"#B42318", fontWeight:700 }}>🕒 Atividade das equipas indisponível: {act.error}</span><button onClick={verAtividade} style={{ minHeight:44, minWidth:44, padding:"0 12px", background:"transparent", border:`1.5px solid ${T.navy}`, borderRadius:10, color:T.navy, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Voltar a calcular</button></div>}
             {teams.length>0 && (
-              <input type="search" aria-label="Pesquisar equipas por cidade ou país (ou nome da equipa)" placeholder="Pesquisar por cidade ou país (ou nome da equipa)" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
+              <input type="search" aria-label="Pesquisar equipas por cidade ou país (ou nome da equipa)" placeholder="Pesquisar por cidade ou país (ou equipa)" value={teamQ} onChange={e=>setTeamQ(e.target.value)}
                 style={{ width:"100%", boxSizing:"border-box", minHeight:48, marginBottom:12, padding:"0 14px", fontSize:16, fontFamily:"inherit", border:"2px solid #1a1a1f", borderRadius:12, background:"#fff", color:"#1a1a1f" }} />
             )}
             {(() => {
@@ -4883,7 +4895,7 @@ const AppAdminTab = ({ token, onBack, onOpenTeam, initialSection, initialTeams, 
               return q && shown.length===0 ? <p role="status" style={{ color:T.sub, textAlign:"center", padding:"12px 0", fontWeight:700 }}>Nenhuma equipa encontrada</p> : null;
             })()}
             {(() => { const q = locKey(teamQ); return !q ? teams : teams.filter(t => { const l = locs.status==="ok" ? locs.data[t.id] : null; return locKey(t.name).includes(q) || (l && (locKey(l.city).includes(q) || locKey(l.country).includes(q))); }); })().map(t => (
-              <div key={t.id} onClick={()=>{ setSection("teams"); setSelectedTeam(t); }} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", border:`1.5px solid ${T.border}` }}>
+              <div key={t.id} className="mt-hover" onClick={()=>{ setSection("teams"); setSelectedTeam(t); }} style={{ background:T.card, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer", border:`1.5px solid ${T.border}` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
                   <span style={{ fontSize:28 }}>{t.emoji}</span>
                   <div style={{ flex:1 }}>
@@ -5839,7 +5851,7 @@ const ManageTeamScreen = ({ team, members, fineTypes, token, myUserId, onBack, o
     return (
       <div style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden" }}>
         {/* Collapsed header - always visible */}
-        <div onClick={() => setExpandedMember(expanded ? null : m.id)}
+        <div className="mt-hover" onClick={() => setExpandedMember(expanded ? null : m.id)}
           style={{ padding:"13px 14px", display:"flex", alignItems:"center", gap:12, cursor:"pointer" }}>
           <Avatar initials={m.initials} color={team.color} size={44} photo={m.avatarUrl} name={m.name} />
           <div style={{ flex:1 }}>
@@ -6389,7 +6401,7 @@ const CardsTab = ({ team, cards, members, canManage, readOnly, onAddCard, onEdit
     );
     return (
       <div key={r.m.id} style={{ background:T.card, borderRadius:14, marginBottom:8, overflow:"hidden", borderLeft:`4px solid ${st?st.color:T.border}` }}>
-        <div onClick={()=>setOpen(isOpen?null:r.m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", cursor:"pointer" }}>
+        <div className="mt-hover" onClick={()=>setOpen(isOpen?null:r.m.id)} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", cursor:"pointer" }}>
           <Avatar initials={r.m.initials} photo={r.m.avatarUrl} color={team.color} size={38} name={r.m.name} />
           <div style={{ flex:1, minWidth:0 }}>
             <p style={{ margin:"0 0 3px", fontWeight:800, fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.m.name}</p>
