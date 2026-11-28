@@ -2552,6 +2552,15 @@ var Chip = function Chip(_ref20) {
     }
   }, children);
 };
+var HOVER_CSS = "@media (hover: hover) and (pointer: fine) {\n  .mt-hover { transition: outline-color 150ms ease, filter 150ms ease; outline: 2px solid transparent; outline-offset: -2px; }\n  .mt-hover:hover { outline-color: ".concat(T.navy, "66; filter: drop-shadow(0 2px 6px rgba(20, 33, 61, 0.16)); }\n}\n@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) { .mt-hover { transition: none; } }");
+if (typeof document !== "undefined" && !document.getElementById("mt-hover-css")) {
+  try {
+    var st = document.createElement("style");
+    st.id = "mt-hover-css";
+    st.textContent = HOVER_CSS;
+    document.head.appendChild(st);
+  } catch (e) {}
+}
 var Sec = function Sec(_ref21) {
   var label = _ref21.label;
   return React.createElement("p", {
@@ -8225,6 +8234,7 @@ var FineGroup = function FineGroup(_ref98) {
       borderLeft: "3px solid ".concat(group.unpaid > 0 ? T.brand : T.green)
     }
   }, React.createElement("div", {
+    className: "mt-hover",
     onClick: function onClick() {
       return setOpen(function (o) {
         return !o;
@@ -8343,6 +8353,7 @@ var DevedorCard = function DevedorCard(_ref99) {
     open = _React$useState4[0],
     setOpen = _React$useState4[1];
   return React.createElement("div", {
+    className: "mt-hover",
     onClick: function onClick() {
       return setOpen(function (o) {
         return !o;
@@ -8504,6 +8515,7 @@ var FineGroupHome = function FineGroupHome(_ref100) {
       borderLeft: "3px solid ".concat(group.unpaid > 0 ? T.brand : T.green)
     }
   }, React.createElement("div", {
+    className: "mt-hover",
     onClick: function onClick() {
       return setOpen(function (o) {
         return !o;
@@ -9946,6 +9958,7 @@ var FinesTab = function FinesTab(_ref109) {
       icon: f.emoji,
       size: 24
     })), React.createElement("div", {
+      className: "mt-hover",
       style: {
         flex: 1,
         minWidth: 0,
@@ -13966,6 +13979,7 @@ var AdminUsersSection = function AdminUsersSection(_ref148) {
         acc = dotsDay(p.last);
       return React.createElement("div", {
         key: p.key,
+        className: "mt-hover",
         "data-jogador": p.key,
         style: {
           background: T.card,
@@ -14233,6 +14247,7 @@ var AdminUsersSection = function AdminUsersSection(_ref148) {
     var o = isOpen(tm.id);
     return React.createElement("div", {
       key: tm.id,
+      className: "mt-hover",
       "data-team": tm.id,
       style: {
         background: T.card,
@@ -18483,7 +18498,7 @@ var AppAdminTab = function AppAdminTab(_ref202) {
   }, "Voltar a calcular")), teams.length > 0 && React.createElement("input", {
     type: "search",
     "aria-label": "Pesquisar equipas por cidade ou pa\xEDs (ou nome da equipa)",
-    placeholder: "Pesquisar por cidade ou pa\xEDs (ou nome da equipa)",
+    placeholder: "Pesquisar por cidade ou pa\xEDs (ou equipa)",
     value: teamQ,
     onChange: function onChange(e) {
       return setTeamQ(e.target.value);
@@ -18525,6 +18540,7 @@ var AppAdminTab = function AppAdminTab(_ref202) {
   }().map(function (t) {
     return React.createElement("div", {
       key: t.id,
+      className: "mt-hover",
       onClick: function onClick() {
         setSection("teams");
         setSelectedTeam(t);
@@ -22258,6 +22274,7 @@ var ManageTeamScreen = function ManageTeamScreen(_ref250) {
         overflow: "hidden"
       }
     }, React.createElement("div", {
+      className: "mt-hover",
       onClick: function onClick() {
         return setExpandedMember(expanded ? null : m.id);
       },
@@ -24475,6 +24492,7 @@ var CardsTab = function CardsTab(_ref276) {
         borderLeft: "4px solid ".concat(st ? st.color : T.border)
       }
     }, React.createElement("div", {
+      className: "mt-hover",
       onClick: function onClick() {
         return setOpen(isOpen ? null : r.m.id);
       },
